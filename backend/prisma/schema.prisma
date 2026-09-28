@@ -1,0 +1,644 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  OWNER
+  MANAGER
+  EMPLOYEE
+}
+
+enum PlatformRole {
+  SUPPORT // ex: alguém do seu time de suporte, acesso mais limitado
+  SUPERADMIN // você — acesso total
+}
+
+enum PaymentMethod {
+  MONEY
+  PIX
+  DEBIT
+  CREDIT
+  CREDIT_STORE
+}
+
+enum SaleStatus {
+  COMPLETED
+  CANCELED
+}
+
+enum CashStatus {
+  OPEN
+  CLOSED
+}
+
+enum MovementType {
+  IN
+  OUT
+  SALE
+}
+
+enum TabStatus {
+  OPEN
+  CLOSED
+}
+
+enum BottleMovementType {
+  CUSTOMER_BORROW // Cliente pegou vasilhame emprestado (sai do estoque da loja, aumenta o saldo devedor do cliente)
+  CUSTOMER_RETURN // Cliente devolveu vasilhame (entra no estoque da loja, reduz o saldo devedor do cliente)
+  SUPPLIER_SEND // Loja enviou vasilhame para fornecedor (sai do estoque da loja)
+  SUPPLIER_RECEIVE // Loja recebeu vasilhame do fornecedor (entra no estoque da loja)
+  MANUAL_ADJUSTMENT // Ajuste manual de estoque
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum NotificationType {
+  NEWS
+  UPDATE // notas de atualização do sistema
+  MAINTENANCE
+  ALERT
+}
+
+// ============================================================
+// IDENTIDADE / MULTI-TENANCY
+// ============================================================
+
+/// Usuário do sistema (login). Não tem papel fixo — o papel é definido por loja via MembershipStore.
+model User {
+  id           String        @id @default(uuid())
+  name         String
+  email        String        @unique
+  passwordHash String
+  platformRole PlatformRole? // null = usuário comum (dono/funcionário de alguma distribuidora)
+  isActive     Boolean       @default(true)
+
+  memberships Membership[]
+
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  sales                Sale[]
+  organizations        Organization[]
+  notificationsCreated Notification[]     @relation("NotificationsCreated")
+  notificationReads    NotificationRead[]
+
+  @@map("tb_users")
+}
+
+/// A distribuidora (tenant). Cada Company pode ter várias lojas.
+model Company {
+  id           String  @id @default(uuid())
+  cnpj         String  @unique
+  razaoSocial  String
+  nomeFantasia String?
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  memberships Membership[]
+  stores      Store[]
+  products    Product[]
+  bottleTypes BottleType[]
+  customers   Customer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("tb_companies")
+}
+
+/// Vínculo de um User com uma Company (ponte User <-> Company).
+model Membership {
+  id String @id @default(uuid())
+
+  userId    String
+  companyId String
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  stores MembershipStore[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, companyId])
+  @@index([companyId])
+  @@index([userId])
+  @@map("tb_memberships")
+}
+
+// organizacao para centralizar o plano e cobrar do cliente
+model Organization {
+  id          String @id @default(uuid())
+  name        String
+  ownerUserId String // quem criou/é responsável pela cobrança
+  owner       User   @relation(fields: [ownerUserId], references: [id])
+
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  subscriptionStatus SubscriptionStatus @default(TRIAL)
+
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+
+  companies Company[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerUserId])
+  @@map("tb_organizations")
+}
+
+//tabela de planos
+model Plan {
+  id                  String @id @default(uuid())
+  name                String @unique
+  priceInCents        Int
+  maxCompanies        Int? // null = ilimitado
+  maxStoresPerCompany Int? // null = ilimitado
+
+  organizations Organization[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tb_plans")
+}
+
+/// Loja física pertencente a uma Company.
+model Store {
+  id String @id @default(uuid())
+
+  companyId String
+  name      String
+
+  cnpj  String?
+  phone String?
+
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  memberships            MembershipStore[]
+  storeProducts          StoreProduct[]
+  bottleStocks           StoreBottleType[]
+  sales                  Sale[]
+  cashRegisters          CashRegister[]
+  commandTabs            CommandTab[]
+  customerBalances       CustomerStoreBalance[]
+  customerBottleBalances CustomerStoreBottleBalance[]
+  bottleMovements        BottleMovement[]
+
+  paymentsReceived   CustomerPayment[]           @relation("PaymentsReceivedAtStore")
+  paymentAllocations CustomerPaymentAllocation[] @relation("PaymentAllocationsForStore")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("tb_stores")
+}
+
+/// Define o papel (Role) de um Membership dentro de uma loja específica.
+/// Um mesmo usuário pode ter papéis diferentes em lojas diferentes da mesma Company.
+model MembershipStore {
+  membershipId String
+  storeId      String
+  role         Role
+
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([membershipId, storeId])
+  @@index([storeId])
+  @@map("tb_membership_stores")
+}
+
+// ============================================================
+// CATÁLOGO DE PRODUTOS (Company) x OFERTA POR LOJA (Store)
+// ============================================================
+
+/// Catálogo "mestre" do produto — pertence à Company. Compartilhado entre lojas,
+/// evita recadastro quando o mesmo produto é vendido em mais de uma loja.
+model Product {
+  id           String @id @default(uuid())
+  companyId    String
+  code         String
+  name         String
+  packQuantity Int    @default(1)
+
+  bottleTypeId String?
+  bottleType   BottleType? @relation(fields: [bottleTypeId], references: [id])
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  storeProducts StoreProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("tb_products")
+}
+
+/// A "oferta" do produto dentro de uma loja específica: preço, custo, estoque e status,
+/// todos independentes por loja, mesmo quando o Product é o mesmo.
+model StoreProduct {
+  id        String @id @default(uuid())
+  storeId   String
+  productId String
+
+  price     Float
+  costPrice Float   @default(0)
+  stock     Int     @default(0)
+  isActive  Boolean @default(true)
+
+  // Campos de auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  saleItems    SaleItem[]
+  commandItems CommandItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, productId])
+  @@index([storeId])
+  @@index([productId])
+  @@map("tb_store_products")
+}
+
+/// Histórico (gerado via trigger) de alterações de preço/custo/estoque de um StoreProduct.
+model StoreProductHistory {
+  id             String @id @default(uuid())
+  storeProductId String
+  storeId        String
+  productId      String
+
+  code         String
+  name         String
+  price        Float
+  costPrice    Float  @default(0)
+  stock        Int
+  packQuantity Int    @default(1)
+
+  // Campos de auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([storeProductId])
+  @@index([storeId])
+  @@map("th_store_product_history")
+}
+
+// ============================================================
+// VASILHAMES: catálogo (Company) x estoque físico (Store)
+// ============================================================
+
+/// Tipo de vasilhame físico (Litrão, 600ml, Caixa/Engradado, etc) — catálogo compartilhado da Company.
+model BottleType {
+  id        String @id @default(uuid())
+  companyId String
+  name      String
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  storeStocks      StoreBottleType[]
+  products         Product[]
+  customerBalances CustomerStoreBottleBalance[]
+  movements        BottleMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_bottle_types")
+}
+
+/// Estoque físico de um tipo de vasilhame dentro de uma loja específica.
+model StoreBottleType {
+  id           String @id @default(uuid())
+  storeId      String
+  bottleTypeId String
+  stock        Int    @default(0)
+
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([storeId, bottleTypeId])
+  @@index([storeId])
+  @@map("tb_store_bottle_types")
+}
+
+// ============================================================
+// CLIENTES / FIADO (com abatimento cruzado entre lojas)
+// ============================================================
+
+/// Cliente da distribuidora — cadastro único na Company, pode comprar/dever em qualquer loja.
+model Customer {
+  id        String  @id @default(uuid())
+  companyId String
+  name      String
+  phone     String?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  storeBalances   CustomerStoreBalance[]
+  bottleBalances  CustomerStoreBottleBalance[]
+  payments        CustomerPayment[]
+  sales           Sale[]
+  commandTabs     CommandTab[]
+  bottleMovements BottleMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@map("tb_customers")
+}
+
+/// Saldo devedor (fiado em dinheiro) do cliente, isolado por loja.
+/// O total do cliente (visão do dono/gerente) é a soma dessas linhas, calculada em runtime.
+model CustomerStoreBalance {
+  id         String @id @default(uuid())
+  customerId String
+  storeId    String
+  balance    Float  @default(0)
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerId, storeId])
+  @@index([storeId])
+  @@map("tb_customer_store_balances")
+}
+
+/// Registro do pagamento feito pelo cliente — guarda em qual loja ele foi fisicamente recebido.
+/// O abatimento em si (para quais lojas o valor foi destinado) fica em CustomerPaymentAllocation,
+/// permitindo pagar a dívida da Loja A estando na Loja B (abatimento cruzado).
+model CustomerPayment {
+  id            String        @id @default(uuid())
+  customerId    String
+  storeId       String // loja onde o pagamento foi fisicamente recebido
+  amount        Float
+  paymentMethod PaymentMethod
+  createdAt     DateTime      @default(now())
+
+  customer    Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store       Store                       @relation("PaymentsReceivedAtStore", fields: [storeId], references: [id], onDelete: Cascade)
+  allocations CustomerPaymentAllocation[]
+
+  @@index([customerId])
+  @@index([storeId])
+  @@map("tb_customer_payments")
+}
+
+/// Alocação de um CustomerPayment para a dívida de uma loja específica.
+/// A soma de "amount" das alocações de um pagamento deve ser igual a CustomerPayment.amount
+/// (validado na aplicação) e cada alocação reduz o CustomerStoreBalance correspondente.
+model CustomerPaymentAllocation {
+  id        String @id @default(uuid())
+  paymentId String
+  storeId   String // loja cuja dívida (CustomerStoreBalance) foi abatida
+  amount    Float
+
+  payment CustomerPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  store   Store           @relation("PaymentAllocationsForStore", fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([storeId])
+  @@map("tb_customer_payment_allocations")
+}
+
+/// Saldo devedor de vasilhames do cliente, isolado por loja (mesmo raciocínio do fiado em dinheiro).
+model CustomerStoreBottleBalance {
+  id           String @id @default(uuid())
+  customerId   String
+  storeId      String
+  bottleTypeId String
+  balance      Int    @default(0)
+
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Cascade)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerId, storeId, bottleTypeId])
+  @@index([storeId])
+  @@map("tb_customer_store_bottle_balances")
+}
+
+// ============================================================
+// VENDAS / CAIXA / COMANDAS (tudo por Store)
+// ============================================================
+
+/// Transação de venda realizada no PDV de uma loja específica.
+model Sale {
+  id            String        @id @default(uuid())
+  storeId       String
+  total         Float
+  totalCost     Float         @default(0)
+  discount      Float         @default(0)
+  paymentMethod PaymentMethod
+  status        SaleStatus    @default(COMPLETED)
+  createdAt     DateTime      @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  commandTabId String?     @unique
+  commandTab   CommandTab? @relation(fields: [commandTabId], references: [id])
+
+  items           SaleItem[]
+  bottleMovements BottleMovement[]
+
+  @@index([storeId])
+  @@index([customerId])
+  @@map("tb_sales")
+}
+
+/// Item de produto (StoreProduct) vendido dentro de uma Sale.
+model SaleItem {
+  id             String @id @default(uuid())
+  saleId         String
+  storeProductId String
+  quantity       Int
+  price          Float
+  costPrice      Float  @default(0)
+
+  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  storeProduct StoreProduct @relation(fields: [storeProductId], references: [id])
+
+  @@index([saleId])
+  @@index([storeProductId])
+  @@map("tb_sale_items")
+}
+
+/// Sessão de caixa (abertura/fechamento) de uma loja específica.
+model CashRegister {
+  id             String     @id @default(uuid())
+  storeId        String
+  openedAt       DateTime   @default(now())
+  closedAt       DateTime?
+  initialBalance Float      @default(0)
+  finalBalance   Float?
+  status         CashStatus @default(OPEN)
+
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  movements CashMovement[]
+
+  @@index([storeId])
+  @@map("tb_cash_registers")
+}
+
+/// Movimentação financeira (entrada, saída ou venda) vinculada a um caixa aberto.
+model CashMovement {
+  id             String       @id @default(uuid())
+  cashRegisterId String
+  type           MovementType
+  amount         Float
+  description    String?
+  createdAt      DateTime     @default(now())
+
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+
+  @@index([cashRegisterId])
+  @@map("tb_cash_movements")
+}
+
+/// Comanda (conta em aberto) de uma loja específica.
+model CommandTab {
+  id        String    @id @default(uuid())
+  storeId   String
+  name      String
+  status    TabStatus @default(OPEN)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  items CommandItem[]
+  sale  Sale?
+
+  @@index([storeId])
+  @@map("tb_command_tabs")
+}
+
+/// Item de produto (StoreProduct) consumido dentro de uma comanda.
+model CommandItem {
+  id             String   @id @default(uuid())
+  commandTabId   String
+  storeProductId String
+  quantity       Int
+  price          Float
+  costPrice      Float    @default(0)
+  addedAt        DateTime @default(now())
+
+  commandTab   CommandTab   @relation(fields: [commandTabId], references: [id], onDelete: Cascade)
+  storeProduct StoreProduct @relation(fields: [storeProductId], references: [id])
+
+  @@index([commandTabId])
+  @@index([storeProductId])
+  @@map("tb_command_items")
+}
+
+/// Histórico de movimentações de vasilhames dentro de uma loja (cliente pegando/devolvendo,
+/// loja enviando/recebendo do fornecedor, ajuste manual).
+model BottleMovement {
+  id           String             @id @default(uuid())
+  storeId      String
+  bottleTypeId String
+  quantity     Int // positivo (entra na loja/devolve) ou negativo (sai da loja/empresta)
+  type         BottleMovementType
+  description  String?
+  createdAt    DateTime           @default(now())
+
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  bottleType BottleType @relation(fields: [bottleTypeId], references: [id])
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id])
+
+  saleId String?
+  sale   Sale?   @relation(fields: [saleId], references: [id])
+
+  @@index([storeId])
+  @@index([bottleTypeId])
+  @@map("tb_bottle_movements")
+}
+
+model Notification {
+  id    String           @id @default(uuid())
+  title String
+  body  String
+  type  NotificationType @default(NEWS)
+
+  publishedAt DateTime  @default(now()) // pode ser futuro = notificação agendada
+  expiresAt   DateTime? // null = nunca expira
+
+  createdByUserId String
+  createdBy       User   @relation("NotificationsCreated", fields: [createdByUserId], references: [id])
+
+  reads NotificationRead[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([publishedAt])
+  @@map("tb_notifications")
+}
+
+/// Registro de que um usuário leu uma notificação. Ausência de linha = não lida.
+model NotificationRead {
+  notificationId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@index([userId])
+  @@map("tb_notification_reads")
+}
