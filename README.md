@@ -1,53 +1,76 @@
-# Sistema de Distribuidora (PDV)
+# SaaS Distribuidora
 
-Um sistema completo de Ponto de Venda (PDV), controle de estoque e fluxo de caixa, construído com arquitetura moderna separando Frontend e Backend, além de um banco de dados relacional.
+SaaS multi-tenant para distribuidoras de bebidas: PDV, controle de estoque por loja,
+caixa, comandas, vasilhames e fiado (com abatimento entre lojas). Cada cliente do SaaS
+(`Organization`) pode ter várias distribuidoras (`Company`), cada uma com várias lojas
+(`Store`). A assinatura é cobrada pelo Asaas (cartão recorrente ou Pix Automático).
 
-## Tecnologias e Versões
+> **Estado atual:** o banco de dados já está no modelo SaaS (multi-tenant, auditoria
+> completa, soft delete e cobrança). O código do backend e do frontend ainda é o da
+> versão anterior (uma distribuidora só) e **não compila contra o banco novo**. Ele será
+> refeito seguindo os planos de implementação abaixo.
 
-As principais tecnologias e versões utilizadas neste projeto são:
+## Documentação
 
-- **Node.js**: v24.16.0
-- **npm**: v11.13.0
-- **React**: v19.2.7 (Vite + TailwindCSS v4)
-- **NestJS**: v11.0.1
-- **Prisma ORM**: v7.8.0
-- **PostgreSQL**: v15 (via Docker)
-- **Docker Compose**: v3.8
+| Documento | Conteúdo |
+|---|---|
+| [docs/BANCO_DE_DADOS.md](docs/BANCO_DE_DADOS.md) | Tabelas, relacionamentos (diagramas), auditoria, soft delete, cobrança e migrations |
+| [plano_implementacao_backend.md](plano_implementacao_backend.md) | Plano de implementação do backend, por fases |
+| [plano_implementacao_frontend.md](plano_implementacao_frontend.md) | Plano de implementação do frontend, por fases |
+| [CLAUDE.md](CLAUDE.md) | Regras do projeto para agentes de IA (servem também como resumo para pessoas) |
 
-## Estrutura do Projeto
+## Tecnologias
 
-O repositório é um monorepo dividido em duas pastas principais:
+| | Versão |
+|---|---|
+| Node.js / npm | 24 / 11 |
+| Backend | NestJS 11, Prisma 7 (`@prisma/adapter-pg`), JWT, bcryptjs |
+| Banco | PostgreSQL 16 (Docker) |
+| Frontend | React 19, Vite 8, TailwindCSS 4 |
+| Cobrança | Asaas (a implementar) |
 
-* `/backend`: API RESTful feita em NestJS com autenticação JWT e Prisma ORM para comunicação com o Postgres.
-* `/frontend`: Aplicação Web SPA feita em React e Vite, consumindo a API do backend.
+Estrutura: `backend/` (API REST em `/api`) e `frontend/` (SPA).
 
-## Como Executar Localmente (com Docker)
+## Como rodar localmente
 
-O projeto possui um `docker-compose.yml` pré-configurado que sobe o banco de dados e as aplicações de forma integrada.
+Não existe docker-compose: só o banco roda em Docker.
 
-1. Instale o Docker e o Docker Compose.
-2. Certifique-se de que existe um arquivo `.env` na raiz do projeto com as credenciais.
-3. Rode o comando:
-   ```bash
-   docker-compose up --build -d
-   ```
-4. O Backend estará disponível na porta `3000` (http://localhost:3000/api) e o Frontend na porta `5173` (http://localhost:5173).
+**1. Banco de dados** (Postgres 16 na porta 5437):
 
-## Como Executar Localmente (Modo Desenvolvimento)
+```bash
+# primeira vez: cria o container
+docker run -d --name banco_saas_distribuidora \
+  -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=<senha> \
+  -e POSTGRES_DB=distribuidora_online \
+  -p 5437:5432 postgres:16
 
-Se preferir rodar apenas o banco no Docker e o código diretamente na sua máquina:
+# nas próximas vezes (o container não reinicia sozinho com o Docker)
+docker start banco_saas_distribuidora
+```
 
-1. Suba o banco de dados: `docker-compose up postgres -d`
-2. No terminal do **Backend**:
-   ```bash
-   cd backend
-   npm install
-   npx prisma db push
-   npm run start:dev
-   ```
-3. No terminal do **Frontend**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+**2. Backend** (`http://localhost:3001/api`):
+
+```bash
+cd backend
+npm install
+# criar backend/.env com DATABASE_URL apontando para o banco acima e JWT_SECRET
+# (lista completa de variáveis: Fase 0 do plano de backend)
+npx prisma migrate deploy   # cria tabelas, triggers de auditoria etc.
+npx prisma generate
+npm run dev
+```
+
+**3. Frontend** (`http://localhost:5173`):
+
+```bash
+cd frontend
+npm install
+npm run dev                 # usa VITE_API_URL ou http://localhost:3001/api
+```
+
+## Regras importantes do banco
+
+- Toda alteração gera histórico automaticamente (tabelas `th_*`, via triggers).
+- Não existe exclusão física: o banco recusa `DELETE`. Excluir = preencher `deletedAt`.
+- Para criar ou alterar tabelas, sempre por migration do Prisma. Veja §7 de
+  [docs/BANCO_DE_DADOS.md](docs/BANCO_DE_DADOS.md).

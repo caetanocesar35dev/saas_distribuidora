@@ -1,16 +1,24 @@
-# React + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+SPA em React 19 + Vite 8 + TailwindCSS 4, servida em `http://localhost:5173`.
 
-Currently, two official plugins are available:
+> O código de `src/` é da versão anterior (uma distribuidora só) e será refeito conforme
+> o [plano de implementação do frontend](../plano_implementacao_frontend.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Scripts
 
-## React Compiler
+```bash
+npm install
+npm run dev       # desenvolvimento
+npm run build     # build de produção em dist/
+npm run preview   # serve o build localmente
+npm run lint      # oxlint
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Configuração
 
-## Expanding the Oxlint configuration
+| Variável | Padrão | Uso |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:3001/api` | URL da API do backend |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Pode ser definida em `frontend/.env` (fora do git).

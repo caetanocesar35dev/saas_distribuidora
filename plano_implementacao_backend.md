@@ -817,17 +817,19 @@ status com `modifiedEndpoint = webhook:asaas`.
 
 ## Contratos usados pelo frontend
 
-O `plano_implementacao_frontend.md` depende destes formatos. Este plano **muda os
-caminhos** em relação ao que o frontend esperava (os ids agora vão na rota, não em
-headers `x-company-id`). Avise o usuário ao concluir as fases correspondentes, para
-ajustar o plano de frontend:
+O `plano_implementacao_frontend.md` já usa estes contratos. **Mudou algum formato ou
+rota daqui? Avise o usuário**, porque o plano de frontend precisa acompanhar.
 
-| Plano de frontend esperava | Rota neste plano |
+| Contrato | Rota |
 |---|---|
-| `GET /me/memberships` | `GET /api/me/memberships` (mesmo formato + `isCompanyOwner`, `subscriptionStatus`) |
-| `GET /customers/:id/balances` | `GET /api/companies/:companyId/customers/:id/balances` |
-| `POST /customers/:id/payments` | `POST /api/stores/:storeId/customers/:customerId/payments` |
-| Headers `x-company-id` / `storeId` | Não usados: ids na rota |
+| Acessos do usuário | `GET /api/me/memberships`: companies → lojas com `role`, `isCompanyOwner` e `subscription` (`status`, `accessMode`, `trialEndsAt`, `pastDueSince`, `graceEndsAt`) |
+| Saldos do cliente | `GET /api/companies/:companyId/customers/:id/balances` |
+| Pagamento de fiado | `POST /api/stores/:storeId/customers/:customerId/payments` |
+| Criação de produto em várias lojas | `POST /api/companies/:companyId/products` com `stores: [{ storeId, price, costPrice? }]` |
+| Dashboards | `GET /api/stores/:storeId/dashboard`, `GET /api/companies/:companyId/dashboard` |
+| Somente leitura | Erro 402 `{ code: "SUBSCRIPTION_READ_ONLY", reason }` |
+| Assinatura | `/api/organizations/:organizationId/billing/*` |
+| Contexto | Ids de company/loja **na rota**, nunca em headers |
 
 ---
 

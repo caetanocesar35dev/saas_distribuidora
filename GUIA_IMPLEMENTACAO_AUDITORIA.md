@@ -1,5 +1,12 @@
 # Guia de Implementação: Auditoria com Triggers PostgreSQL + Interceptor NestJS
 
+> ⚠️ **Documento de referência de OUTRO projeto, mantido só como histórico.** Neste
+> projeto a auditoria foi implementada de forma diferente: função de trigger genérica
+> (`fc_auditoria`), nomes de colunas próprios (`modifierId`, `modifiedEndpoint`,
+> `historyStart`/`historyEnd`), soft delete obrigatório e extensão do Prisma Client em
+> vez do `AuditInterceptor`. **Use [docs/BANCO_DE_DADOS.md](docs/BANCO_DE_DADOS.md) e
+> o [plano do backend](plano_implementacao_backend.md).** Não siga este guia aqui.
+
 > **Público-alvo:** agente de IA (ou dev) que vai replicar este padrão de auditoria em **outro projeto**.
 > Siga as seções na ordem. Os blocos marcados com `<PLACEHOLDER>` devem ser substituídos.
 > Projeto de referência: NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL.
