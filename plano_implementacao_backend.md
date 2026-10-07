@@ -14,6 +14,14 @@ Convenções:
 - Onde este plano diz "⚠️ decisão em aberto", o agente deve implementar a opção sugerida
   como padrão, mas deixar um comentário `// TODO(decisão-produto):` no código e reportar
   a decisão tomada ao final da fase.
+- **Auditoria e soft delete (já implementados no banco):** toda tabela `tb_*` tem
+  `modifierId`, `modifiedEndpoint` e `deletedAt`, e um `th_*_history` alimentado só por
+  trigger. A aplicação deve preencher `modifierId` (`sub` do JWT) e `modifiedEndpoint`
+  (rota, ex.: `request.route.path`) em **toda** escrita — de preferência via extensão do
+  Prisma Client + AsyncLocalStorage (`nestjs-cls`), não injetando no body. DELETE físico é
+  bloqueado pelo banco: "excluir" = `UPDATE ... deletedAt = now()`, e as consultas devem
+  filtrar `deletedAt: null`. `@unique` continuam globais (registro excluído deve ser
+  reativado, não recriado). Nunca escrever nas tabelas `th_*`.
 
 ---
 
@@ -77,7 +85,8 @@ lookup indireto (ex: rota de `SaleItem` sem `storeId` na URL).
    - `PUT /memberships/:id/stores/:storeId` — define/atualiza o `role` do membership
      naquela loja (cria o `MembershipStore` se não existir).
    - `DELETE /memberships/:id/stores/:storeId` — remove acesso a uma loja específica
-     (sem apagar o `Membership` da company, a menos que seja a última loja).
+     via soft delete (`deletedAt`), sem apagar o `Membership` da company, a menos que
+     seja a última loja (também soft delete).
    - `GET /companies/:id/members` — lista membros com seus roles por loja.
 4. `UserModule`: perfil, troca de senha.
 
@@ -96,9 +105,10 @@ role diferente em loja B, e revogar só uma delas sem afetar a outra.
      duplicado.
 2. `StoreProductModule`:
    - `PATCH /stores/:storeId/store-products/:id` — atualiza price/costPrice/stock/isActive.
-   - Antes de sobrescrever, gravar snapshot em `StoreProductHistory` (fazer isso no
-     service, dentro da mesma transação — não depender de trigger de banco, para manter
-     portável e testável).
+   - O histórico (`StoreProductHistory`) é gerado automaticamente por trigger no banco
+     (`fc_auditoria`, migration `auditoria_triggers`). O service **não** deve gravar
+     snapshot em `th_*`; só precisa garantir `modifierId`/`modifiedEndpoint` na escrita
+     (ver Convenções).
    - `GET /stores/:storeId/store-products` — listagem paginada/buscável (por `code`/`name`
      via join com `Product`) para uso no PDV.
 3. `BottleTypeModule` + `StoreBottleTypeModule`: mesmo padrão do Product/StoreProduct,

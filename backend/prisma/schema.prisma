@@ -7,6 +7,24 @@ datasource db {
 }
 
 // ============================================================
+// AUDITORIA (convenção válida para TODAS as tabelas tb_*)
+// ============================================================
+// - modifierId / modifiedEndpoint: preenchidos pela aplicação em toda escrita
+//   (id do usuário do JWT e rota que fez a alteração).
+// - deletedAt: soft delete. DELETE físico é bloqueado por trigger no banco
+//   (tr_bloqueia_delete_*), por isso as relações usam onDelete: Restrict.
+// - Cada tb_<x> tem um th_<x>_history alimentado SOMENTE pelo trigger
+//   tr_auditoria_* (função genérica fc_auditoria), no padrão SCD Tipo 2:
+//   historyEnd IS NULL = versão vigente. Nenhum código da aplicação escreve no th_*.
+// - O histórico espelha as colunas da tb_ por NOME. Coluna nova na tb_ que deve ser
+//   auditada: adicionar também no th_ (não é preciso alterar a função do trigger).
+//   Coluna que não existe no th_ é ignorada pelo trigger, e um UPDATE que só altera
+//   colunas ignoradas não gera versão.
+// - Colunas propositalmente fora do histórico: User.passwordHash (segurança),
+//   StoreBottleType.stock e os balances de cliente (já registrados em
+//   BottleMovement / Sale / CustomerPaymentAllocation), e updatedAt (historyStart cumpre o papel).
+
+// ============================================================
 // ENUMS
 // ============================================================
 
@@ -94,6 +112,11 @@ model User {
   notificationsCreated Notification[]     @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
 
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
   @@map("tb_users")
 }
 
@@ -105,7 +128,7 @@ model Company {
   nomeFantasia String?
 
   organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   memberships Membership[]
   stores      Store[]
@@ -115,6 +138,11 @@ model Company {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([organizationId])
   @@map("tb_companies")
@@ -127,13 +155,18 @@ model Membership {
   userId    String
   companyId String
 
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   stores MembershipStore[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([userId, companyId])
   @@index([companyId])
@@ -160,6 +193,11 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
   @@index([ownerUserId])
   @@map("tb_organizations")
 }
@@ -176,6 +214,11 @@ model Plan {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@map("tb_plans")
 }
@@ -198,7 +241,7 @@ model Store {
   city         String?
   state        String?
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   memberships            MembershipStore[]
   storeProducts          StoreProduct[]
@@ -216,6 +259,11 @@ model Store {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
   @@index([companyId])
   @@map("tb_stores")
 }
@@ -227,8 +275,13 @@ model MembershipStore {
   storeId      String
   role         Role
 
-  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  membership Membership @relation(fields: [membershipId], references: [id], onDelete: Restrict)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@id([membershipId, storeId])
   @@index([storeId])
@@ -251,11 +304,16 @@ model Product {
   bottleTypeId String?
   bottleType   BottleType? @relation(fields: [bottleTypeId], references: [id])
 
-  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   storeProducts StoreProduct[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -274,12 +332,8 @@ model StoreProduct {
   stock     Int     @default(0)
   isActive  Boolean @default(true)
 
-  // Campos de auditoria
-  modifierId       String?
-  modifiedEndpoint String?
-
-  store   Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  store   Store   @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   saleItems    SaleItem[]
   commandItems CommandItem[]
@@ -287,35 +341,15 @@ model StoreProduct {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
   @@unique([storeId, productId])
   @@index([storeId])
   @@index([productId])
   @@map("tb_store_products")
-}
-
-/// Histórico (gerado via trigger) de alterações de preço/custo/estoque de um StoreProduct.
-model StoreProductHistory {
-  id             String @id @default(uuid())
-  storeProductId String
-  storeId        String
-  productId      String
-
-  code         String
-  name         String
-  price        Float
-  costPrice    Float  @default(0)
-  stock        Int
-  packQuantity Int    @default(1)
-
-  // Campos de auditoria
-  modifierId       String?
-  modifiedEndpoint String?
-  historyStart     DateTime
-  historyEnd       DateTime?
-
-  @@index([storeProductId])
-  @@index([storeId])
-  @@map("th_store_product_history")
 }
 
 // ============================================================
@@ -328,7 +362,7 @@ model BottleType {
   companyId String
   name      String
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   storeStocks      StoreBottleType[]
   products         Product[]
@@ -337,6 +371,11 @@ model BottleType {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([companyId, name])
   @@index([companyId])
@@ -350,10 +389,15 @@ model StoreBottleType {
   bottleTypeId String
   stock        Int    @default(0)
 
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Restrict)
 
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([storeId, bottleTypeId])
   @@index([storeId])
@@ -371,7 +415,7 @@ model Customer {
   name      String
   phone     String?
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   storeBalances   CustomerStoreBalance[]
   bottleBalances  CustomerStoreBottleBalance[]
@@ -382,6 +426,11 @@ model Customer {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([companyId])
   @@map("tb_customers")
@@ -395,10 +444,15 @@ model CustomerStoreBalance {
   storeId    String
   balance    Float  @default(0)
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store    Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  store    Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([customerId, storeId])
   @@index([storeId])
@@ -416,9 +470,14 @@ model CustomerPayment {
   paymentMethod PaymentMethod
   createdAt     DateTime      @default(now())
 
-  customer    Customer                    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store       Store                       @relation("PaymentsReceivedAtStore", fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer                    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  store       Store                       @relation("PaymentsReceivedAtStore", fields: [storeId], references: [id], onDelete: Restrict)
   allocations CustomerPaymentAllocation[]
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([customerId])
   @@index([storeId])
@@ -434,8 +493,13 @@ model CustomerPaymentAllocation {
   storeId   String // loja cuja dívida (CustomerStoreBalance) foi abatida
   amount    Float
 
-  payment CustomerPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  store   Store           @relation("PaymentAllocationsForStore", fields: [storeId], references: [id], onDelete: Cascade)
+  payment CustomerPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  store   Store           @relation("PaymentAllocationsForStore", fields: [storeId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([paymentId])
   @@index([storeId])
@@ -450,11 +514,16 @@ model CustomerStoreBottleBalance {
   bottleTypeId String
   balance      Int    @default(0)
 
-  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Cascade)
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Restrict)
 
   updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@unique([customerId, storeId, bottleTypeId])
   @@index([storeId])
@@ -476,7 +545,7 @@ model Sale {
   status        SaleStatus    @default(COMPLETED)
   createdAt     DateTime      @default(now())
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   userId String?
   user   User?   @relation(fields: [userId], references: [id])
@@ -489,6 +558,11 @@ model Sale {
 
   items           SaleItem[]
   bottleMovements BottleMovement[]
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([storeId])
   @@index([customerId])
@@ -504,8 +578,13 @@ model SaleItem {
   price          Float
   costPrice      Float  @default(0)
 
-  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Restrict)
   storeProduct StoreProduct @relation(fields: [storeProductId], references: [id])
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([saleId])
   @@index([storeProductId])
@@ -522,8 +601,13 @@ model CashRegister {
   finalBalance   Float?
   status         CashStatus @default(OPEN)
 
-  store     Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store     Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
   movements CashMovement[]
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([storeId])
   @@map("tb_cash_registers")
@@ -538,7 +622,12 @@ model CashMovement {
   description    String?
   createdAt      DateTime     @default(now())
 
-  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Cascade)
+  cashRegister CashRegister @relation(fields: [cashRegisterId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([cashRegisterId])
   @@map("tb_cash_movements")
@@ -553,13 +642,18 @@ model CommandTab {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
 
   items CommandItem[]
   sale  Sale?
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([storeId])
   @@map("tb_command_tabs")
@@ -575,8 +669,13 @@ model CommandItem {
   costPrice      Float    @default(0)
   addedAt        DateTime @default(now())
 
-  commandTab   CommandTab   @relation(fields: [commandTabId], references: [id], onDelete: Cascade)
+  commandTab   CommandTab   @relation(fields: [commandTabId], references: [id], onDelete: Restrict)
   storeProduct StoreProduct @relation(fields: [storeProductId], references: [id])
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([commandTabId])
   @@index([storeProductId])
@@ -594,7 +693,7 @@ model BottleMovement {
   description  String?
   createdAt    DateTime           @default(now())
 
-  store      Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
   bottleType BottleType @relation(fields: [bottleTypeId], references: [id])
 
   customerId String?
@@ -602,6 +701,11 @@ model BottleMovement {
 
   saleId String?
   sale   Sale?   @relation(fields: [saleId], references: [id])
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@index([storeId])
   @@index([bottleTypeId])
@@ -625,6 +729,11 @@ model Notification {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
   @@index([publishedAt])
   @@map("tb_notifications")
 }
@@ -635,10 +744,506 @@ model NotificationRead {
   userId         String
   readAt         DateTime @default(now())
 
-  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
 
   @@id([notificationId, userId])
   @@index([userId])
   @@map("tb_notification_reads")
+}
+
+// ============================================================
+// HISTÓRICO DE AUDITORIA (th_*) — escrito SOMENTE pelo trigger fc_auditoria
+// ============================================================
+// Cada modelo espelha as colunas da tb_ correspondente (mesmo nome e tipo, sem @default,
+// sem relações e sem @unique) + historyId (PK própria) + historyStart/historyEnd.
+// A coluna "id" (ou a PK composta) aqui é a referência lógica ao registro original.
+
+model UserHistory {
+  historyId    String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  name         String
+  email        String
+  platformRole PlatformRole?
+  isActive     Boolean
+  createdAt    DateTime
+  // passwordHash fica fora do histórico de propósito (segurança)
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_user_history_vigente")
+  @@map("th_user_history")
+}
+
+model CompanyHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  cnpj           String
+  razaoSocial    String
+  nomeFantasia   String?
+  organizationId String
+  createdAt      DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_company_history_vigente")
+  @@map("th_company_history")
+}
+
+model MembershipHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  userId    String
+  companyId String
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_membership_history_vigente")
+  @@map("th_membership_history")
+}
+
+model OrganizationHistory {
+  historyId            String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                   String
+  name                 String
+  ownerUserId          String
+  planId               String
+  subscriptionStatus   SubscriptionStatus
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  createdAt            DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_organization_history_vigente")
+  @@map("th_organization_history")
+}
+
+model PlanHistory {
+  historyId           String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                  String
+  name                String
+  priceInCents        Int
+  maxCompanies        Int?
+  maxStoresPerCompany Int?
+  createdAt           DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_plan_history_vigente")
+  @@map("th_plan_history")
+}
+
+model StoreHistory {
+  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  companyId    String
+  name         String
+  cnpj         String?
+  phone        String?
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  createdAt    DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_store_history_vigente")
+  @@map("th_store_history")
+}
+
+model MembershipStoreHistory {
+  historyId    String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  membershipId String
+  storeId      String
+  role         Role
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([membershipId, storeId, historyEnd], map: "ix_th_membership_store_history_vigente")
+  @@map("th_membership_store_history")
+}
+
+model ProductHistory {
+  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  companyId    String
+  code         String
+  name         String
+  packQuantity Int
+  bottleTypeId String?
+  createdAt    DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_product_history_vigente")
+  @@map("th_product_history")
+}
+
+/// Inclui stock: entradas de mercadoria e ajustes manuais não são registrados em outra tabela.
+model StoreProductHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  storeId   String
+  productId String
+  price     Float
+  costPrice Float
+  stock     Int
+  isActive  Boolean
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_store_product_history_vigente")
+  @@index([storeId], map: "ix_th_store_product_history_store")
+  @@map("th_store_product_history")
+}
+
+model BottleTypeHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_bottle_type_history_vigente")
+  @@map("th_bottle_type_history")
+}
+
+/// Sem stock: toda variação já é registrada em BottleMovement.
+model StoreBottleTypeHistory {
+  historyId    String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  storeId      String
+  bottleTypeId String
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_store_bottle_type_history_vigente")
+  @@map("th_store_bottle_type_history")
+}
+
+model CustomerHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  phone     String?
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_customer_history_vigente")
+  @@map("th_customer_history")
+}
+
+/// Sem balance: toda variação já é registrada em Sale (fiado) e CustomerPaymentAllocation.
+model CustomerStoreBalanceHistory {
+  historyId  String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id         String
+  customerId String
+  storeId    String
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_customer_store_balance_history_vigente")
+  @@map("th_customer_store_balance_history")
+}
+
+model CustomerPaymentHistory {
+  historyId     String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id            String
+  customerId    String
+  storeId       String
+  amount        Float
+  paymentMethod PaymentMethod
+  createdAt     DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_customer_payment_history_vigente")
+  @@map("th_customer_payment_history")
+}
+
+model CustomerPaymentAllocationHistory {
+  historyId String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  paymentId String
+  storeId   String
+  amount    Float
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_customer_payment_allocation_history_vigente")
+  @@map("th_customer_payment_allocation_history")
+}
+
+/// Sem balance: toda variação já é registrada em BottleMovement.
+model CustomerStoreBottleBalanceHistory {
+  historyId    String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  customerId   String
+  storeId      String
+  bottleTypeId String
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_customer_store_bottle_balance_history_vigente")
+  @@map("th_customer_store_bottle_balance_history")
+}
+
+model SaleHistory {
+  historyId     String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id            String
+  storeId       String
+  total         Float
+  totalCost     Float
+  discount      Float
+  paymentMethod PaymentMethod
+  status        SaleStatus
+  createdAt     DateTime
+  userId        String?
+  customerId    String?
+  commandTabId  String?
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_sale_history_vigente")
+  @@map("th_sale_history")
+}
+
+model SaleItemHistory {
+  historyId      String @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  saleId         String
+  storeProductId String
+  quantity       Int
+  price          Float
+  costPrice      Float
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_sale_item_history_vigente")
+  @@map("th_sale_item_history")
+}
+
+model CashRegisterHistory {
+  historyId      String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  storeId        String
+  openedAt       DateTime
+  closedAt       DateTime?
+  initialBalance Float
+  finalBalance   Float?
+  status         CashStatus
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_cash_register_history_vigente")
+  @@map("th_cash_register_history")
+}
+
+model CashMovementHistory {
+  historyId      String       @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  cashRegisterId String
+  type           MovementType
+  amount         Float
+  description    String?
+  createdAt      DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_cash_movement_history_vigente")
+  @@map("th_cash_movement_history")
+}
+
+model CommandTabHistory {
+  historyId  String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id         String
+  storeId    String
+  name       String
+  status     TabStatus
+  createdAt  DateTime
+  customerId String?
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_command_tab_history_vigente")
+  @@map("th_command_tab_history")
+}
+
+model CommandItemHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  commandTabId   String
+  storeProductId String
+  quantity       Int
+  price          Float
+  costPrice      Float
+  addedAt        DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_command_item_history_vigente")
+  @@map("th_command_item_history")
+}
+
+model BottleMovementHistory {
+  historyId    String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  storeId      String
+  bottleTypeId String
+  quantity     Int
+  type         BottleMovementType
+  description  String?
+  createdAt    DateTime
+  customerId   String?
+  saleId       String?
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_bottle_movement_history_vigente")
+  @@map("th_bottle_movement_history")
+}
+
+model NotificationHistory {
+  historyId       String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id              String
+  title           String
+  body            String
+  type            NotificationType
+  publishedAt     DateTime
+  expiresAt       DateTime?
+  createdByUserId String
+  createdAt       DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_notification_history_vigente")
+  @@map("th_notification_history")
+}
+
+model NotificationReadHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  notificationId String
+  userId         String
+  readAt         DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([notificationId, userId, historyEnd], map: "ix_th_notification_read_history_vigente")
+  @@map("th_notification_read_history")
 }
