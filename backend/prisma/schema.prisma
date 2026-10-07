@@ -22,7 +22,8 @@ datasource db {
 //   colunas ignoradas não gera versão.
 // - Colunas propositalmente fora do histórico: User.passwordHash (segurança),
 //   StoreBottleType.stock e os balances de cliente (já registrados em
-//   BottleMovement / Sale / CustomerPaymentAllocation), e updatedAt (historyStart cumpre o papel).
+//   BottleMovement / Sale / CustomerPaymentAllocation), BillingEvent.payload (imutável,
+//   já fica na tb_) e updatedAt (historyStart cumpre o papel).
 
 // ============================================================
 // ENUMS
@@ -81,6 +82,15 @@ enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+}
+
+enum BillingProvider {
+  ASAAS
+}
+
+enum BillingMethod {
+  CREDIT_CARD // assinatura no cartão, cobrada automaticamente todo ciclo
+  PIX_AUTOMATIC // Pix Automático: cliente autoriza uma vez no app do banco, débito recorrente
 }
 
 enum NotificationType {
@@ -184,11 +194,23 @@ model Organization {
   planId             String
   plan               Plan               @relation(fields: [planId], references: [id])
   subscriptionStatus SubscriptionStatus @default(TRIAL)
+  trialEndsAt        DateTime? // fim do trial, gravado no cadastro (createdAt + TRIAL_DAYS); a plataforma pode estender
+  pastDueSince       DateTime? // quando a mensalidade venceu sem pagamento; null quando em dia. Base da carência
 
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
+  // Acesso pela assinatura: TRIAL até trialEndsAt e ACTIVE = completo; PAST_DUE = completo até
+  // pastDueSince + SUBSCRIPTION_GRACE_DAYS, depois somente leitura; CANCELED ou trial vencido = somente leitura.
 
-  companies Company[]
+  // Cobrança no gateway (hoje só Asaas). Todos nulos = ainda não integrou (ex.: em TRIAL).
+  billingProvider           BillingProvider?
+  billingMethod             BillingMethod? // como a organização escolheu pagar
+  billingDocument           String? // CPF/CNPJ do pagador (obrigatório no Asaas)
+  billingEmail              String? // e-mail que recebe as faturas
+  billingCustomerId         String?          @unique // id do cliente no gateway (Asaas: cus_...)
+  billingSubscriptionId     String?          @unique // assinatura no cartão (Asaas: sub_...)
+  billingPixAuthorizationId String?          @unique // autorização de Pix Automático no gateway
+
+  companies     Company[]
+  billingEvents BillingEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -758,6 +780,40 @@ model NotificationRead {
 }
 
 // ============================================================
+// COBRANÇA (gateway de pagamento)
+// ============================================================
+
+/// Evento recebido por webhook do gateway (Asaas). Serve para idempotência (o Asaas pode
+/// reenviar o mesmo evento) e como registro de tudo que o gateway informou.
+model BillingEvent {
+  id              String          @id @default(uuid())
+  provider        BillingProvider
+  externalEventId String // id do evento no gateway (Asaas: evt_...)
+  eventType       String // ex.: PAYMENT_CONFIRMED, PAYMENT_OVERDUE, SUBSCRIPTION_DELETED
+  externalId      String? // id do objeto do evento (cobrança, assinatura ou autorização)
+  payload         Json // corpo bruto recebido
+
+  organizationId String? // null quando não foi possível associar a uma organização
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  processedAt DateTime? // null = recebido e ainda não processado (ou falhou)
+  error       String? // última falha de processamento
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([provider, externalEventId])
+  @@index([organizationId])
+  @@index([processedAt])
+  @@map("tb_billing_events")
+}
+
+// ============================================================
 // HISTÓRICO DE AUDITORIA (th_*) — escrito SOMENTE pelo trigger fc_auditoria
 // ============================================================
 // Cada modelo espelha as colunas da tb_ correspondente (mesmo nome e tipo, sem @default,
@@ -821,15 +877,22 @@ model MembershipHistory {
 }
 
 model OrganizationHistory {
-  historyId            String             @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id                   String
-  name                 String
-  ownerUserId          String
-  planId               String
-  subscriptionStatus   SubscriptionStatus
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  createdAt            DateTime
+  historyId                 String             @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                        String
+  name                      String
+  ownerUserId               String
+  planId                    String
+  subscriptionStatus        SubscriptionStatus
+  trialEndsAt               DateTime?
+  pastDueSince              DateTime?
+  billingProvider           BillingProvider?
+  billingMethod             BillingMethod?
+  billingDocument           String?
+  billingEmail              String?
+  billingCustomerId         String?
+  billingSubscriptionId     String?
+  billingPixAuthorizationId String?
+  createdAt                 DateTime
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1246,4 +1309,27 @@ model NotificationReadHistory {
 
   @@index([notificationId, userId, historyEnd], map: "ix_th_notification_read_history_vigente")
   @@map("th_notification_read_history")
+}
+
+/// Sem payload: o corpo é imutável e já fica em tb_billing_events.
+model BillingEventHistory {
+  historyId       String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id              String
+  provider        BillingProvider
+  externalEventId String
+  eventType       String
+  externalId      String?
+  organizationId  String?
+  processedAt     DateTime?
+  error           String?
+  createdAt       DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_billing_event_history_vigente")
+  @@map("th_billing_event_history")
 }

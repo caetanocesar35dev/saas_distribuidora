@@ -18,7 +18,7 @@ PostgreSQL 16, acessado via Prisma 7. A fonte da verdade é o [schema.prisma](..
 
 ## 1. Visão geral
 
-São 25 tabelas de negócio (`tb_*`) e 25 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam em cinco domínios:
+São 26 tabelas de negócio (`tb_*`) e 26 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
 
 | Domínio | Tabelas | Em uma frase |
 |---|---|---|
@@ -28,6 +28,7 @@ São 25 tabelas de negócio (`tb_*`) e 25 tabelas de histórico (`th_*_history`,
 | Clientes e fiado | `tb_customers`, `tb_customer_store_balances`, `tb_customer_store_bottle_balances`, `tb_customer_payments`, `tb_customer_payment_allocations` | Cadastro único por distribuidora, dívida separada por loja |
 | Vendas e caixa | `tb_sales`, `tb_sale_items`, `tb_command_tabs`, `tb_command_items`, `tb_cash_registers`, `tb_cash_movements` | Tudo que acontece no PDV, por loja |
 | Avisos | `tb_notifications`, `tb_notification_reads` | Comunicados do sistema e quem já leu |
+| Cobrança (Asaas) | campos `billing*` de `tb_organizations`, `tb_billing_events` | Assinatura no cartão ou Pix Automático e o registro dos webhooks do gateway |
 
 ### A hierarquia multi-tenant
 
@@ -72,6 +73,7 @@ erDiagram
     User ||--o{ Notification : "cria"
     Notification ||--o{ NotificationRead : "lida por"
     User ||--o{ NotificationRead : "leu"
+    Organization |o--o{ BillingEvent : "webhooks do gateway"
 ```
 
 ### 2.2 Catálogo, estoque e vasilhames
@@ -136,7 +138,7 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
-| `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), ids do Stripe |
+| `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
 | `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único), `razaoSocial`, `nomeFantasia`, `organizationId` |
 | `tb_stores` | Loja física | `companyId`, `name`, `cnpj`, `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
@@ -190,6 +192,37 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | `tb_notifications` | Comunicado do sistema | `type`: `NEWS`, `UPDATE`, `MAINTENANCE`, `ALERT`; `publishedAt` (pode ser futuro = agendado), `expiresAt` (`null` = não expira), `createdByUserId` |
 | `tb_notification_reads` | Quem leu | PK composta (`notificationId`, `userId`). Sem linha = não lida |
 
+### 3.7 Cobrança (Asaas)
+
+A assinatura do SaaS é cobrada pelo **Asaas**, de duas formas, ambas automáticas a cada
+ciclo: **cartão de crédito** (assinatura no cartão) e **Pix Automático** (o cliente
+autoriza uma vez no app do banco). Os nomes das colunas são genéricos (`billing*`, enum
+`BillingProvider`) para permitir outro gateway no futuro sem renomear nada.
+
+| Tabela / colunas | Para que serve | Colunas e regras principais |
+|---|---|---|
+| `tb_organizations` (`billing*`) | Vínculo da organização com o gateway | `billingProvider` (`ASAAS`); `billingMethod` (`CREDIT_CARD` \| `PIX_AUTOMATIC`); `billingDocument` (CPF/CNPJ do pagador, exigido pelo Asaas); `billingEmail`; `billingCustomerId` (cliente no Asaas); `billingSubscriptionId` (assinatura no cartão); `billingPixAuthorizationId` (autorização do Pix Automático). Os três ids são únicos. Tudo nulo = ainda não assinou (ex.: em trial) |
+| `tb_billing_events` | Cada webhook recebido do Asaas | Único por (`provider`, `externalEventId`): é a **idempotência** (o Asaas pode reenviar o mesmo evento). `eventType`, `externalId` (cobrança, assinatura ou autorização), `payload` (JSON bruto), `organizationId` (pelo `externalReference`; nulo se não identificada), `processedAt` (nulo = pendente ou falhou), `error` |
+
+**Acesso pela assinatura.** Inadimplência nunca bloqueia o sistema inteiro; no máximo
+deixa em somente leitura. O modo é calculado na hora pela aplicação, sem job que mude
+status:
+
+| Coluna | Uso |
+|---|---|
+| `trialEndsAt` | Fim do trial (14 dias), gravado no cadastro. Vencido e ainda em `TRIAL` = somente leitura. A plataforma pode estender |
+| `pastDueSince` | Quando a mensalidade venceu sem pagamento. Até 5 dias depois = acesso completo (carência); passou disso = somente leitura. Volta a `null` quando o pagamento é confirmado |
+
+Em somente leitura continuam liberados: consultar tudo, fechar o caixa que já estava
+aberto e pagar a assinatura. `CANCELED` também é somente leitura. Regras completas na
+Fase 2 do [plano do backend](../plano_implementacao_backend.md).
+
+O cartão é digitado na página do Asaas: **nenhum dado de cartão é guardado no banco.**
+Faturas não têm tabela local; são consultadas na API do Asaas. `subscriptionStatus`
+muda pelos webhooks (`PAYMENT_CONFIRMED` → `ACTIVE`, `PAYMENT_OVERDUE` → `PAST_DUE`
+etc.), sempre com `modifierId = system` e `modifiedEndpoint = webhook:asaas`. O fluxo
+completo está na Fase 10 do [plano do backend](../plano_implementacao_backend.md).
+
 ---
 
 ## 4. Auditoria e histórico
@@ -236,6 +269,7 @@ fc_auditoria()
 | `tb_store_bottle_types.stock` | Toda variação já fica em `tb_bottle_movements` |
 | `tb_customer_store_balances.balance` | Já fica em `tb_sales` (fiado) e `tb_customer_payment_allocations` |
 | `tb_customer_store_bottle_balances.balance` | Já fica em `tb_bottle_movements` |
+| `tb_billing_events.payload` | O corpo do webhook é imutável e já fica na própria `tb_` |
 | `updatedAt` | `historyStart` cumpre esse papel |
 
 Já o `tb_store_products.stock` **é** versionado: entrada de mercadoria e ajuste manual não são registrados em nenhuma outra tabela. A consequência é que cada venda também gera uma versão do `StoreProduct`, já que baixa o estoque.
@@ -309,7 +343,9 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | Migration | O que faz |
 |---|---|
 | `20261007000000_init` | Cria todas as tabelas, enums, índices e chaves estrangeiras, gerada a partir do schema |
-| `20261007000001_auditoria_triggers` | Cria `fc_auditoria`, `fc_bloqueia_delete` e os 50 triggers (auditoria e bloqueio de DELETE em cada tabela) |
+| `20261007000001_auditoria_triggers` | Cria `fc_auditoria`, `fc_bloqueia_delete` e os 50 triggers (auditoria e bloqueio de DELETE nas 25 tabelas da época) |
+| `20261008000000_billing_asaas` | Troca os campos do Stripe em `tb_organizations` pelos `billing*` (e no histórico), cria os enums `BillingProvider`/`BillingMethod`, a `tb_billing_events` com seu histórico e os 2 triggers dela |
+| `20261008000001_subscription_access` | Adiciona `trialEndsAt` e `pastDueSince` em `tb_organizations` (e no histórico) |
 
 O Docker aplica as pendentes ao subir, com `prisma migrate deploy` (ver `backend/entrypoint.sh`).
 

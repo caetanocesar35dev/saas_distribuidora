@@ -133,7 +133,57 @@ corretamente após o pagamento.
 
 ---
 
-## Fase 8 — Polish
+## Fase 8 — Assinatura e cobrança (Asaas)
+Depende da Fase 10 do plano de backend. Os endpoints ficam em
+`/organizations/:organizationId/billing`. Antes de implementar, confirmar com o backend
+o formato real das respostas.
+
+1. **Cadastro público** (antes do login): tela "Criar conta" com nome, e-mail, senha,
+   CNPJ, razão social, nome fantasia e nome da primeira loja. Escolha do plano a partir
+   de `GET /plans` (público). Começa em trial, sem pedir forma de pagamento.
+2. **Aviso de status e modo somente leitura.** Regra decidida: inadimplência **nunca
+   bloqueia o sistema inteiro**, só deixa em modo leitura. Usar
+   `subscription.accessMode` de `GET /me/memberships`:
+   - `FULL` em trial: "faltam X dias de teste" (destaque nos últimos 3 dias).
+   - `GRACE` (mensalidade vencida há até 5 dias): faixa em destaque "pagamento pendente:
+     o sistema ficará somente leitura em DD/MM", com botão para pagar.
+   - `READ_ONLY` (trial vencido, cancelado ou atraso maior que 5 dias): faixa fixa
+     explicando o motivo.
+     - Tudo pode ser consultado.
+     - Botões de escrita (vender, abrir caixa, cadastrar, receber fiado etc.) ficam
+       desabilitados, com tooltip explicando o motivo.
+     - Continuam habilitados: **fechar o caixa que já estava aberto** e a **tela de
+       assinatura** para pagar e liberar.
+   - Mesmo assim, tratar o 402 `SUBSCRIPTION_READ_ONLY` vindo do backend (o status pode
+     mudar com a tela aberta) com a mensagem do `reason`, levando à tela de assinatura.
+   - Quem não é o responsável pela cobrança vê o aviso com "fale com o responsável pela
+     assinatura" em vez do botão de pagar.
+   - Depois que o pagamento é confirmado, o acesso completo volta sem precisar sair e
+     entrar de novo (recarregar `GET /me/memberships`).
+3. **Tela "Assinatura"** (só para o responsável pela cobrança; o OWNER da company só
+   visualiza):
+   - plano atual, status, forma de pagamento, próximo vencimento e lista de faturas
+     (com link `invoiceUrl` para cada uma);
+   - dados de cobrança (CPF/CNPJ e e-mail), com validação de CPF/CNPJ;
+   - **assinar ou trocar a forma de pagamento**, com duas opções:
+     - **Cartão de crédito:** abrir a `invoiceUrl` retornada (nova aba). **O cartão é
+       digitado na página do Asaas; nunca criar campo de número de cartão no nosso
+       frontend.**
+     - **Pix Automático:** mostrar o QR Code e o "copia e cola" retornados, com a
+       explicação: "autorize uma vez no app do seu banco; as próximas mensalidades são
+       debitadas automaticamente";
+   - depois de assinar, mostrar "aguardando confirmação do pagamento" e consultar o
+     status a cada poucos segundos (por alguns minutos), porque a ativação chega por
+     webhook e não na resposta da chamada;
+   - trocar de plano (avisar que vale a partir do próximo ciclo) e cancelar (avisar até
+     quando o acesso continua).
+
+**Critério de conclusão:** um usuário novo cria a conta, usa em trial, assina com Pix
+Automático ou cartão no sandbox e vê o status mudar para ativo sem recarregar a página.
+
+---
+
+## Fase 9 — Polish
 1. Estados de loading/erro consistentes, especialmente em fluxos transacionais (venda
    com estoque insuficiente, alocação de pagamento inválida) — mensagens claras vindas
    do erro do backend, não genéricas.
