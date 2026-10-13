@@ -43,5 +43,11 @@ funcionar é `DATABASE_URL`.
 
 ## Docker
 
-O [Dockerfile](Dockerfile) gera a imagem de produção; o [entrypoint.sh](entrypoint.sh)
-roda `prisma migrate deploy` antes de iniciar o servidor.
+O [Dockerfile](Dockerfile) gera a imagem de produção, que só inicia o servidor
+(`npm run start:prod`). **A imagem não aplica migrations.**
+
+## Deploy
+
+As migrations de produção são aplicadas pela pipeline de deploy, com
+`npx prisma migrate deploy`, **antes** de subir a nova versão da aplicação. A pipeline de
+CI/CD ainda não existe; quando for criada, esse passo é obrigatório.

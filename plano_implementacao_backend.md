@@ -180,13 +180,18 @@ automáticos, sem nenhum endpoint de negócio ainda.
    `cash-register`, `command-tabs`, `bottles`, `dashboard`, `auth`,
    `interceptors/audit.interceptor.ts`) e seus imports em `app.module.ts`. Rodar
    `npx prisma generate`. Conferir que `npm run build` passa e que `start:prod`
-   (`node dist/src/main`) aponta para o arquivo gerado.
+   (`node dist/src/main`) aponta para o arquivo gerado. No `Dockerfile`, alinhar o
+   `EXPOSE` (hoje `3000`) com a porta real da aplicação (`PORT`, padrão `3001`).
+   **Migrations em produção:** a imagem Docker **não** roda migrations (o
+   `entrypoint.sh` foi removido de propósito). Elas serão aplicadas com
+   `npx prisma migrate deploy` num passo da pipeline de deploy, **antes** de subir a nova
+   versão. A pipeline de CI/CD **não faz parte deste plano**; não a implemente.
 2. **Configuração** (`@nestjs/config`, validação na subida, sem valores padrão inseguros):
 
    | Variável | Obrigatória | Observação |
    |---|---|---|
    | `DATABASE_URL` | sim | |
-   | `JWT_SECRET` | sim | mínimo 32 caracteres. **Remover o fallback `'super_secret_jwt_key'`** do código atual |
+   | `JWT_SECRET` | sim | **Definida pelo usuário no `.env`**; não impor tamanho mínimo nem máximo. Só exigir que exista (sem ela, a aplicação não sobe). **Remover o fallback `'super_secret_jwt_key'`** do código atual |
    | `JWT_EXPIRES_IN` | não | padrão `12h` (P5) |
    | `PORT` | não | padrão `3001` |
    | `CORS_ORIGINS` | sim | lista separada por vírgula. Substitui o `origin: true` atual, que aceita qualquer origem com credenciais |
@@ -199,11 +204,26 @@ automáticos, sem nenhum endpoint de negócio ainda.
    | `ASAAS_API_KEY` | a partir da Fase 10 | nunca logar nem retornar em resposta |
    | `ASAAS_WEBHOOK_TOKEN` | a partir da Fase 10 | token configurado no webhook do painel do Asaas |
 
-   Criar `backend/.env.example` com todas as chaves e valores fictícios.
+   Criar `backend/.env.example` com todas as chaves e valores fictícios. **O `.env` é
+   do usuário: não edite.** Quando uma fase precisar de variável nova, informe quais
+   são e peça para ele preencher.
 3. **Contexto da request** (`nestjs-cls`): guardar `userId` e `endpoint` =
    `` `${método} ${request.route.path}` `` (ex.: `POST /api/stores/:storeId/sales`, o
-   padrão da rota, sem ids nem query string). Helper `runAsSystem(nome, fn)` para jobs
-   e seed, que define `userId = 'system'` e `endpoint = 'job:<nome>'`/`'seed'`.
+   padrão da rota, sem ids nem query string).
+
+   Para o que roda **sem usuário logado**, helper `runAsSystem(origem, fn)`: define
+   `userId = 'system'` e grava `origem` **exatamente como recebida** em
+   `modifiedEndpoint`. O tipo de `origem` é uma união fechada, para não haver nomes
+   soltos pelo código:
+
+   | Origem | Quando |
+   |---|---|
+   | `'seed'` | `prisma/seed.ts` |
+   | `'webhook:asaas'` | processamento de webhook do Asaas (Fase 10) |
+   | `'job:<nome-do-job>'` | jobs agendados, ex.: `'job:billing-reprocess'`, `'job:trial-reminders'` |
+
+   No histórico, isso permite separar o que veio de usuário (`POST /api/...`), do Asaas
+   (`webhook:asaas`) ou de rotina automática (`job:...`).
 4. **Extensão do Prisma Client** (`src/prisma/`), aplicada a **todos** os modelos `tb_*`
    (não aos `*History`):
    - `create`, `createMany`, `createManyAndReturn`, `update`, `updateMany`,
@@ -356,7 +376,8 @@ do signup tem `modifierId` = id do novo usuário; o rate limit (se aprovado) ret
      - rotas da conta do próprio usuário (`/auth/*`, `/me`, troca de senha), que não
        são da organização.
    - **Bloqueado:** qualquer outra escrita (vender, abrir caixa, movimentar caixa,
-     comandas, estoque, cadastros, **receber pagamento de fiado**, membros). Resposta
+     comandas, estoque, cadastros, **receber pagamento de fiado** (decidido pelo
+     usuário: só volta a funcionar quando a assinatura for paga), membros). Resposta
      **402** com corpo `{ code: "SUBSCRIPTION_READ_ONLY", reason: "TRIAL_EXPIRED" |
      "PAST_DUE" | "CANCELED" }`, para o frontend mostrar a mensagem certa.
    - Implementação: o guard bloqueia métodos de escrita por padrão; as exceções são

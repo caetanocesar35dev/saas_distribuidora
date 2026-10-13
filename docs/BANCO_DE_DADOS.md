@@ -347,7 +347,9 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261008000000_billing_asaas` | Troca os campos do Stripe em `tb_organizations` pelos `billing*` (e no histórico), cria os enums `BillingProvider`/`BillingMethod`, a `tb_billing_events` com seu histórico e os 2 triggers dela |
 | `20261008000001_subscription_access` | Adiciona `trialEndsAt` e `pastDueSince` em `tb_organizations` (e no histórico) |
 
-O Docker aplica as pendentes ao subir, com `prisma migrate deploy` (ver `backend/entrypoint.sh`).
+Em produção, as pendentes são aplicadas pela pipeline de deploy com
+`npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda
+migrations). A pipeline ainda não existe.
 
 ### Comandos
 

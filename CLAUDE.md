@@ -56,7 +56,8 @@ não existe `ADMIN`).
 - Trial de **14 dias**; carência de **5 dias** após a mensalidade vencer.
 - Inadimplência ou trial vencido **nunca bloqueia o sistema inteiro**: vira **somente
   leitura**. Continuam liberados consultar tudo, **fechar o caixa já aberto** e
-  **pagar a assinatura**.
+  **pagar a assinatura**. Todo o resto fica bloqueado, **inclusive receber pagamento
+  de fiado**, até a assinatura ser paga.
 - Gateway: **Asaas** (cartão recorrente + Pix Automático). O número do cartão nunca
   passa pela nossa API nem pelo nosso frontend.
 
@@ -90,3 +91,12 @@ npm test
   com `migrate diff ... --exit-code` (0 = sem diferença).
 - `prisma migrate reset` apaga o banco: só com confirmação explícita do usuário.
 - Para limpar dados em testes use `TRUNCATE`, nunca `deleteMany`.
+- **Produção:** a imagem Docker não roda migrations. Elas são aplicadas com
+  `prisma migrate deploy` na pipeline de deploy (que ainda não existe e não deve ser
+  implementada sem pedido do usuário).
+- **`.env` é do usuário:** não edite. Se faltar variável, diga qual e peça para ele
+  preencher (inclusive `JWT_SECRET`, que ele define).
+
+**Gravações sem usuário logado** usam `runAsSystem(origem, fn)`, e a `origem` vai
+exatamente assim para `modifiedEndpoint`: `'seed'`, `'webhook:asaas'` ou
+`'job:<nome-do-job>'`.
