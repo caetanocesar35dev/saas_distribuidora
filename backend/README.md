@@ -3,9 +3,12 @@
 API REST em NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16, servida em
 `http://localhost:3001/api`.
 
-> O código de `src/` é da versão anterior (single-tenant) e não compila contra o schema
-> atual. Ele será refeito conforme o [plano de implementação](../plano_implementacao_backend.md).
-> O banco (`prisma/`) já está na versão nova.
+> Implementado conforme o [plano de implementação](../plano_implementacao_backend.md)
+> (status e relatório nele): autenticação com refresh token, empresas, lojas, equipe,
+> catálogo, vasilhames, clientes/fiado, caixa, vendas, comandas, painéis, histórico de
+> alterações, plataforma e notificações. **Falta só a cobrança com Asaas** (Fase 10).
+> Todas as rotas e permissões: [docs/API.md](../docs/API.md). Fora de produção, o Swagger
+> fica em `http://localhost:3001/api/docs`.
 
 ## Scripts
 
@@ -14,9 +17,13 @@ npm install
 npm run dev          # desenvolvimento com watch
 npm run build        # compila para dist/
 npm run start:prod   # roda o build (node dist/src/main)
-npm run lint
-npm test             # unitários
-npm run test:e2e     # e2e (test/jest-e2e.json, a criar na Fase 0 do plano)
+npm run lint         # formata (Prettier) e confere
+npm run db:seed      # dados de demonstração (não duplica; recusa rodar em produção)
+npm run docs:api     # regenera ../docs/API.md a partir dos controllers
+npm test             # todos os testes (services e e2e)
+npm run test:unit    # só os testes de service/unitários (src/**/*.spec.ts)
+npm run test:e2e     # só os e2e HTTP (test/*.e2e-spec.ts)
+npm run test:cov     # com cobertura
 ```
 
 ## Banco de dados
@@ -37,9 +44,20 @@ migration (veja §7 da documentação do banco).
 
 ## Variáveis de ambiente
 
-Ficam em `backend/.env` (fora do git). A lista completa, com o que é obrigatório, está
-na Fase 0 do [plano do backend](../plano_implementacao_backend.md). O mínimo para o banco
-funcionar é `DATABASE_URL`.
+Ficam em `backend/.env` (fora do git). Copie o [.env.example](.env.example), que lista todas
+as variáveis com os padrões. **Obrigatórias:** `DATABASE_URL` e `JWT_SECRET` (você define o
+segredo). Em produção também `CORS_ORIGINS` e `APP_URL`. Sem `EMAIL_USER`/`EMAIL_PASS` nenhum
+e-mail é enviado (a mensagem aparece só no log).
+
+Sessão: access token de 15 min (`JWT_ACCESS_EXPIRES_IN`) e refresh token com rotação de
+30 dias (`REFRESH_TOKEN_DAYS`).
+
+## Testes
+
+Os testes rodam no banco `distribuidora_test`, no mesmo servidor do `DATABASE_URL`. Ele é criado
+e migrado automaticamente na primeira execução, e os testes se recusam a rodar em qualquer
+outro banco (eles esvaziam as tabelas). Os testes de service usam o Prisma real, com a
+extensão de auditoria e os triggers; só o envio de e-mail é substituído.
 
 ## Docker
 

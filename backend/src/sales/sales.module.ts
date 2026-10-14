@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
+import { CommandTabsService } from './command-tabs.service';
+import { CommandTabsController, SalesController } from './sales.controller';
 import { SalesService } from './sales.service';
-import { SalesController } from './sales.controller';
-import { AuthModule } from '../auth/auth.module';
-import { PrismaService } from '../prisma/prisma.service';
 
 @Module({
-  imports: [AuthModule],
-  controllers: [SalesController],
-  providers: [SalesService, PrismaService],
-  exports: [SalesService],
+  controllers: [SalesController, CommandTabsController],
+  providers: [SalesService, CommandTabsService],
+  exports: [SalesService, CommandTabsService],
 })
 export class SalesModule {}

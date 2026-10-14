@@ -23,7 +23,7 @@ datasource db {
 // - Colunas propositalmente fora do histórico: User.passwordHash (segurança),
 //   StoreBottleType.stock e os balances de cliente (já registrados em
 //   BottleMovement / Sale / CustomerPaymentAllocation), BillingEvent.payload (imutável,
-//   já fica na tb_) e updatedAt (historyStart cumpre o papel).
+//   já fica na tb_), RefreshToken.tokenHash (segredo) e updatedAt (historyStart cumpre o papel).
 
 // ============================================================
 // ENUMS
@@ -121,6 +121,7 @@ model User {
   organizations        Organization[]
   notificationsCreated Notification[]     @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
+  refreshTokens        RefreshToken[]
 
   // Auditoria
   modifierId       String?
@@ -780,6 +781,40 @@ model NotificationRead {
 }
 
 // ============================================================
+// SESSÃO (refresh token com rotação)
+// ============================================================
+
+/// Refresh token opaco (nunca guardado em texto: só o hash SHA-256). Cada uso gera um novo
+/// token da mesma família (familyId) e revoga o anterior. Reuso de um token já revogado
+/// indica roubo e revoga a família inteira.
+model RefreshToken {
+  id           String    @id @default(uuid())
+  userId       String
+  familyId     String // todos os tokens de uma mesma sessão de login
+  tokenHash    String    @unique
+  expiresAt    DateTime
+  revokedAt    DateTime? // preenchido ao rotacionar, fazer logout ou detectar reuso
+  replacedById String? // token que substituiu este na rotação
+  userAgent    String?
+  ip           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("tb_refresh_tokens")
+}
+
+// ============================================================
 // COBRANÇA (gateway de pagamento)
 // ============================================================
 
@@ -1332,4 +1367,27 @@ model BillingEventHistory {
 
   @@index([id, historyEnd], map: "ix_th_billing_event_history_vigente")
   @@map("th_billing_event_history")
+}
+
+/// Sem tokenHash: o hash não precisa ser versionado (e nunca deve vazar por consulta de auditoria).
+model RefreshTokenHistory {
+  historyId    String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  userId       String
+  familyId     String
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_refresh_token_history_vigente")
+  @@map("th_refresh_token_history")
 }

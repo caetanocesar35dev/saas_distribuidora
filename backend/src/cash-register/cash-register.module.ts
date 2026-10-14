@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import { CashRegisterService } from './cash-register.service';
 import { CashRegisterController } from './cash-register.controller';
-import { AuthModule } from '../auth/auth.module';
+import { CashRegisterService } from './cash-register.service';
 
 @Module({
-  imports: [AuthModule],
-  providers: [CashRegisterService],
   controllers: [CashRegisterController],
+  providers: [CashRegisterService],
   exports: [CashRegisterService],
 })
 export class CashRegisterModule {}

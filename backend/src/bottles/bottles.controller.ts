@@ -1,63 +1,87 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, ParseIntPipe } from '@nestjs/common';
-import { BottlesService } from './bottles.service';
-import { AuthGuard } from '../auth/auth.guard';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import { hasMinRole, Tenant } from '../common/decorators/access.decorators';
+import type { StoreTenant } from '../common/decorators/access.decorators';
+import { BottleMovementsService } from './bottle-movements.service';
+import {
+  CustomerBottleDto,
+  ListBottleMovementsQuery,
+  ManualBottleMovementDto,
+} from './dto/bottles.dto';
 
-@Controller('bottles')
-@UseGuards(AuthGuard)
+@ApiTags('bottles')
+@ApiBearerAuth()
+@Controller('stores/:storeId')
 export class BottlesController {
-  constructor(private readonly bottlesService: BottlesService) {}
+  constructor(private readonly movements: BottleMovementsService) {}
 
-  // =====================
-  // BOTTLE TYPES
-  // =====================
-
-  @Get('types')
-  findAllTypes() {
-    return this.bottlesService.findAllTypes();
-  }
-
-  @Post('types')
-  createType(@Body() createDto: { name: string; initialStock?: number }) {
-    return this.bottlesService.createType(createDto);
-  }
-
-  @Put('types/:id')
-  updateType(
-    @Param('id', ParseIntPipe) id: number, 
-    @Body() updateDto: { name?: string; stock?: number }
+  @Get('bottle-movements')
+  list(
+    @Tenant() tenant: StoreTenant,
+    @Query() query: ListBottleMovementsQuery,
   ) {
-    return this.bottlesService.updateType(id, updateDto);
+    return this.movements.list(tenant.storeId, query);
   }
 
-  @Delete('types/:id')
-  deleteType(@Param('id', ParseIntPipe) id: number) {
-    return this.bottlesService.deleteType(id);
-  }
-
-  // =====================
-  // MOVEMENTS & CUSTOMERS
-  // =====================
-
-  @Post('movement')
-  registerMovement(
-    @Body() movementDto: {
-      bottleTypeId: number;
-      quantity: number;
-      type: 'CUSTOMER_BORROW' | 'CUSTOMER_RETURN' | 'SUPPLIER_SEND' | 'SUPPLIER_RECEIVE' | 'MANUAL_ADJUSTMENT';
-      customerId?: number;
-      description?: string;
+  /** Envio/recebimento de fornecedor: EMPLOYEE. Ajuste manual: MANAGER. */
+  @Post('bottle-movements')
+  registerManual(
+    @Tenant() tenant: StoreTenant,
+    @Body() dto: ManualBottleMovementDto,
+  ) {
+    if (
+      dto.type === 'MANUAL_ADJUSTMENT' &&
+      !hasMinRole(tenant.role, Role.MANAGER)
+    ) {
+      throw new ForbiddenException(
+        'O ajuste manual de vasilhames exige papel de gerente.',
+      );
     }
+    return this.movements.registerManual(tenant.storeId, tenant.companyId, dto);
+  }
+
+  @Get('bottle-stock')
+  stock(@Tenant() tenant: StoreTenant) {
+    return this.movements.stock(tenant.storeId, tenant.companyId);
+  }
+
+  /** Devolução: só abate a dívida da própria loja. */
+  @HttpCode(201)
+  @Post('customers/:customerId/bottle-returns')
+  customerReturn(
+    @Tenant() tenant: StoreTenant,
+    @Param('customerId') customerId: string,
+    @Body() dto: CustomerBottleDto,
   ) {
-    return this.bottlesService.registerMovement(movementDto);
+    return this.movements.customerReturn(
+      tenant.storeId,
+      tenant.companyId,
+      customerId,
+      dto,
+    );
   }
 
-  @Get('customer/:customerId')
-  getCustomerBalances(@Param('customerId', ParseIntPipe) customerId: number) {
-    return this.bottlesService.getCustomerBalances(customerId);
-  }
-
-  @Get('movements')
-  getRecentMovements() {
-    return this.bottlesService.getRecentMovements();
+  @Post('customers/:customerId/bottle-loans')
+  customerBorrow(
+    @Tenant() tenant: StoreTenant,
+    @Param('customerId') customerId: string,
+    @Body() dto: CustomerBottleDto,
+  ) {
+    return this.movements.customerBorrow(
+      tenant.storeId,
+      tenant.companyId,
+      customerId,
+      dto,
+    );
   }
 }
