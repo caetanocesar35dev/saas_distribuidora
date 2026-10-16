@@ -1,230 +1,458 @@
-# Plano de Implementação — Frontend
+# Plano de Implementação — Frontend (Next.js + React + TypeScript + Tailwind CSS)
 
 ## Contexto
-Este plano assume que o backend expõe os endpoints e contratos descritos em
-[plano_implementacao_backend.md](plano_implementacao_backend.md), em especial
-`GET /api/me/memberships`, os endpoints de cliente e fiado e os de assinatura. Se algum
-endpoint não existir ainda ou tiver formato diferente do descrito, sinalize antes de
-prosseguir: não invente contrato. As regras gerais do projeto estão em
-[CLAUDE.md](CLAUDE.md).
 
-O código atual de `frontend/src` é da versão anterior (uma distribuidora só) e será
-refeito. As telas antigas (`PDV`, `Caixa`, `Comandas`, `Estoque`, `Clientes`,
-`Vasilhames`, `Dashboard`, `Historico`, `Usuarios`) servem de referência visual e de
-fluxo.
+O frontend será **refeito do zero** sobre o backend SaaS, que já está pronto. O código
+atual de `frontend/` é o legado (React + Vite + JavaScript, uma distribuidora só): as telas
+antigas (`PDV`, `Caixa`, `Comandas`, `Estoque`, `Clientes`, `Vasilhames`, `Dashboard`,
+`Historico`, `Usuarios`) servem só de referência visual e de fluxo. As regras de negócio
+antigas ficam no git (`git show a4ff703:frontend/src/<arquivo>`).
 
-**Contrato de rotas:** os ids de empresa e loja vão **na URL** (`/api/companies/:companyId/...`
-e `/api/stores/:storeId/...`), não em headers.
+**Fonte da verdade dos contratos (consulte antes de montar qualquer tela):**
+- [docs/API.md](docs/API.md): todas as rotas, o papel mínimo de cada uma e o que acontece
+  em somente leitura. É gerado do código do backend (`npm run docs:api`).
+- Swagger em `http://localhost:3001/api/docs` (fora de produção): corpos e respostas.
+- [plano_implementacao_backend.md](plano_implementacao_backend.md) (regras de negócio e o
+  "Relatório da implementação" no fim) e [CLAUDE.md](CLAUDE.md) (regras gerais).
 
-**Papéis:** `OWNER > MANAGER > EMPLOYEE`, **por loja**. Não existe `ADMIN`. "Dono da
-empresa" = `isCompanyOwner` em `GET /me/memberships`.
+Se uma tela precisar de algo que a API não oferece, **pare e avise o usuário**: não invente
+contrato e não contorne no frontend.
 
-Premissa central de UX: **tudo no app é relativo a uma Company + Store ativa.** Quase
-nenhuma tela deve fazer request sem esse contexto resolvido.
+Para desenvolver com dados reais: subir o backend (`npm run dev` em `backend/`) e rodar
+`npm run db:seed` uma vez. Usuários do seed (senha `123456`): `dono@exemplo.com` (dono das
+duas lojas), `gerente@exemplo.com` (gerente da Loja Centro), `funcionario@exemplo.com`
+(funcionário da Loja Norte) e `admin@plataforma.com` (plataforma).
+
+---
+
+## Stack (decidida pelo usuário)
+
+| | Escolha |
+|---|---|
+| Framework | **Next.js** (versão estável atual), com **App Router** |
+| UI | **React** (19) |
+| Linguagem | **TypeScript** em modo `strict` (nada de `any` em props, respostas da API ou estado) |
+| Estilo | **Tailwind CSS** (v4) |
+
+Regras:
+- **Projeto novo** em `frontend/`, criado com `create-next-app` (TypeScript, Tailwind, App
+  Router, ESLint, pasta `src/`). O legado é removido do diretório no mesmo passo (continua
+  no git). Não misturar com o código Vite.
+- **Sem backend no Next:** a API é o backend NestJS. Não criar regras de negócio, acesso a
+  banco ou rotas `app/api/*` que dupliquem a API (exceção possível: a parada F1).
+- A área logada roda como **Client Components** (dados por usuário, com token). Páginas
+  públicas (login, cadastro, redefinir senha) podem ser simples.
+- **Tipos da API em um lugar só** (`src/lib/api/types.ts` ou gerados do Swagger, ver F2).
+  Nenhuma tela declara o formato de resposta por conta própria.
+- Variável de ambiente: `NEXT_PUBLIC_API_URL` (padrão `http://localhost:3001/api`).
+- Interface em **português do Brasil**, valores em R$ (`Intl.NumberFormat('pt-BR')`) e
+  datas no fuso `America/Sao_Paulo`.
+
+### Paradas obrigatórias do frontend (perguntar ao usuário antes)
+
+| ID | Assunto | Recomendação a apresentar |
+|---|---|---|
+| **F1** | **Onde guardar os tokens** | Recomendado: um BFF fino no Next (route handlers) que guarda o refresh token em **cookie httpOnly** e repassa as chamadas; o JavaScript da página nunca vê o refresh token (proteção contra XSS). Alternativa mais simples: access token em memória e refresh token no `localStorage` (mais exposto). A escolha muda a Fase 0 |
+| **F2** | **Bibliotecas além da stack** | Recomendado: TanStack Query (cache e recarga após alterações), React Hook Form + Zod (formulários), um gráfico (Recharts) e um gerador de tipos do Swagger (`openapi-typescript`). Pedir aprovação da lista; não instalar outras sem perguntar |
+| **F3** | **Componentes visuais** | Tailwind puro com componentes próprios, ou uma base pronta sobre Tailwind (ex.: shadcn/ui). Perguntar |
+| **F4** | **Porta do Next em desenvolvimento** | O Next usa a porta 3000; o backend tem `CORS_ORIGINS` e `APP_URL` padrão `http://localhost:5173` (do Vite). Pedir ao usuário para pôr `CORS_ORIGINS=http://localhost:3000` e `APP_URL=http://localhost:3000` no `backend/.env` (o agente não edita o `.env`), ou rodar o Next na 5173 |
+
+---
+
+## Regras gerais (valem para todas as fases)
+
+- **Contexto na URL:** os ids de empresa e loja vão **na URL da API**
+  (`/api/companies/:companyId/...`, `/api/stores/:storeId/...`), nunca em headers.
+  ⚠️ Sugestão para as rotas do Next: espelhar isso (`/empresa/[companyId]/...` e
+  `/loja/[storeId]/...`), o que permite abas em lojas diferentes e links diretos.
+- **Papéis:** `OWNER > MANAGER > EMPLOYEE`, **por loja**. Não existe `ADMIN`. "Dono da
+  empresa" = `isCompanyOwner` em `GET /api/me/memberships`; "responsável pela cobrança" =
+  `isBillingOwner`.
+- **Esconder botão é UX, não segurança:** o backend sempre valida. Tratar 403 mesmo quando a
+  tela já esconde a ação.
+- **Formato de respostas e erros do backend:**
+  - Listas paginadas: `?page=&limit=` (máx. 100) →
+    `{ data, meta: { page, limit, totalItems, totalPages } }`.
+  - Erro: `{ statusCode, message }`. Em erro de validação (400), `message` é uma **lista**
+    de textos; nos demais, um texto. Mostrar a mensagem do backend (já vem em português).
+  - **404** = não existe ou é de outro tenant. **403** = papel insuficiente. **409** = regra
+    de negócio (estoque insuficiente, caixa fechado, dívida menor que o valor...). **402**
+    = somente leitura (ver Fase 8). **429** = muitas tentativas.
+- **Nunca enviar campos que a API não espera:** ela recusa campos extras (400). Em
+  especial, **preço e custo nunca vão na venda nem na comanda**: o backend lê do banco.
+- **Excluir = soft delete:** o registro some das listas, mas pode ser **reativado**
+  (`POST .../:id/restore` para produtos, tipos de vasilhame e clientes). Códigos e nomes
+  continuam reservados: ao cadastrar um repetido, a mensagem do 409 orienta a reativar.
+- **Dinheiro:** mostrar sempre com 2 casas; nunca somar totais no frontend (o backend
+  devolve os totais).
+- **Toda tela nasce com a sua ajuda** (regra do usuário): uma funcionalidade só está pronta
+  quando o artigo dela na **Central de Dúvidas** foi criado ou atualizado, com o caminho
+  certo no menu. Ver a seção abaixo.
+
+---
+
+## Central de Dúvidas (regra do usuário)
+
+O sistema tem uma seção **"Dúvidas"** que ensina donos de distribuidora, gerentes e
+atendentes a usar o sistema e **onde encontrar cada funcionalidade**. Ela é parte do
+produto, não um extra: é construída junto com as telas, fase a fase.
+
+### Onde fica
+- Item **"Dúvidas"** sempre visível no menu da área logada.
+- Botão **"?"** em cada tela, que abre direto o artigo daquela tela.
+- Nas telas públicas (login, cadastro, redefinir senha), um link para as dúvidas de acesso
+  (esqueci a senha, recebi um convite, o link expirou).
+
+### Para quem
+Artigos separados por perfil, com linguagem de balcão, sem termos técnicos (nada de "API",
+"402", "token", "endpoint"):
+- **Dono** (OWNER): empresa, lojas, equipe, produtos e preços, painéis, histórico de
+  alterações, assinatura.
+- **Gerente** (MANAGER): estoque, preços da loja, sangria, cancelar venda, ajuste de
+  vasilhame, painel da loja.
+- **Atendente** (EMPLOYEE): abrir e fechar caixa, vender, comandas, clientes, receber
+  fiado, empréstimo e devolução de vasilhame.
+
+Por padrão a central abre nos artigos do papel do usuário na loja ativa, mas ele pode ver
+todos. Artigos de algo que o papel dele não pode fazer mostram o aviso "peça ao gerente"
+ou "peça ao dono", em vez de sumir.
+
+### O que cada artigo tem
+1. **Para que serve**, em uma frase.
+2. **Onde encontrar**: o caminho exato no menu (ex.: "Menu › Caixa › Fechar caixa").
+3. **Passo a passo** curto.
+4. **Quem pode fazer** (dono, gerente ou atendente).
+5. **Problemas comuns**: a mensagem que a pessoa vê na tela e o que fazer (ex.: "Não há
+   caixa aberto" → abra o caixa em Menu › Caixa).
+
+### Artigos obrigatórios (mínimo)
+- **Acesso:** entrar, esqueci a senha, recebi um convite (definir a primeira senha),
+  trocar de empresa ou loja, minha conta, trocar a senha, sair de todos os aparelhos.
+- **Caixa:** abrir, ver o saldo, entrada, sangria, fechar e conferir o resumo por forma de
+  pagamento, ver caixas anteriores.
+- **Vendas:** vender (busca, leitor de código de barras, desconto), vender fiado, venda
+  com vasilhame (quando precisa escolher o cliente), histórico de vendas, cancelar venda.
+- **Comandas:** abrir, adicionar e remover itens, fechar, cancelar.
+- **Produtos e estoque:** cadastrar produto (inclusive em várias lojas), preço diferente
+  por loja, colocar ou tirar um produto da loja, entrada de mercadoria, ajuste de
+  inventário, estoque baixo, excluir e reativar.
+- **Vasilhames:** tipos, estoque da loja, envio e recebimento do fornecedor, empréstimo e
+  devolução do cliente (incluindo a regra: **a devolução só abate a dívida da loja onde o
+  cliente levou**).
+- **Clientes e fiado:** cadastrar, ver a dívida por loja, receber pagamento (automático ou
+  distribuindo entre lojas), pagar a dívida de uma loja estando em outra.
+- **Gestão:** painel da loja e da empresa, histórico de alterações, equipe (convidar, papel
+  por loja, revogar acesso), lojas, dados da empresa, notificações.
+- **Assinatura:** período de teste, mensalidade em atraso, o que continua funcionando em
+  somente leitura (consultar tudo e fechar o caixa) e como regularizar.
+
+### Perguntas frequentes (mínimo)
+- "Por que não consigo vender?" (caixa fechado, sistema em somente leitura ou estoque
+  insuficiente).
+- "Por que este botão está apagado?" (papel na loja ou somente leitura).
+- "O cliente quer devolver o vasilhame em outra loja."
+- "Cancelei uma venda fiado que já tinha sido paga em parte e deu erro."
+- "Excluí um produto/cliente por engano." (reativar)
+- "O código de barras já existe."
+- "Não recebi o e-mail de redefinição de senha."
+
+### Como implementar
+- **Conteúdo estático no próprio frontend** (ex.: arquivos MDX ou TypeScript em
+  `src/content/duvidas/`), versionado junto com o código. Não precisa de backend.
+- Busca por título e conteúdo dentro da central.
+- Cada artigo tem um identificador usado pelo botão "?" da tela correspondente.
+- ⚠️ Capturas de tela são opcionais; se usadas, atualizar quando a tela mudar.
+
+### Regra de manutenção
+Em **toda fase**, ao criar ou mudar uma tela, criar ou atualizar o artigo correspondente e
+o caminho "onde encontrar". Se um item do menu mudar de lugar ou de nome, os artigos que o
+citam mudam junto. O critério de conclusão de cada fase inclui os artigos daquela fase.
 
 ---
 
 ## Fase 0 — Fundamentos
-1. Client de API que injeta o JWT em toda request e oferece helpers que montam a URL
-   com o contexto ativo, por exemplo `storeApi.get('/sales')` →
-   `/api/stores/<storeId ativo>/sales` e `companyApi.get('/customers')` →
-   `/api/companies/<companyId ativo>/customers`. Assim as telas não montam ids à mão.
-2. Tratamento central de erros: 401 → logout; 402 `SUBSCRIPTION_READ_ONLY` → aviso de
-   somente leitura (Fase 8); 404 de recurso de outra loja → mensagem de "não encontrado".
-3. Estado global de sessão: usuário logado, lista de `memberships` (retorno de
-   `GET /me/memberships`), `companyId`/`storeId` ativos.
-4. Persistência da seleção de company/store ativa (localStorage), restaurada ao abrir o
-   app, para não obrigar o usuário a escolher de novo a cada refresh. Se a loja salva
-   não estiver mais em `memberships` (acesso revogado), volta para a seleção.
 
-**Critério de conclusão:** qualquer request autenticada sai com o token e com a URL da
-company/loja ativa sem que a tela precise montar isso manualmente.
+🛑 Antes: **F1**, **F2**, **F3** e **F4**.
+
+1. Criar o projeto Next (ver Stack), configurar Tailwind, ESLint e `tsconfig` estrito,
+   `NEXT_PUBLIC_API_URL` e um `.env.example` do frontend.
+2. **Cliente da API** tipado, que injeta o access token e oferece helpers com o contexto
+   ativo, por exemplo `storeApi(storeId).get('/sales')` → `/api/stores/<id>/sales`. As
+   telas não montam ids nem headers à mão.
+3. **Sessão com access token + refresh token com rotação** (conforme F1):
+   - Login, cadastro e refresh devolvem `{ access_token, refresh_token, token_type,
+     expires_in }` (login e cadastro também `user`). Access token: 15 min. Refresh token:
+     30 dias, **uso único**: cada `POST /api/auth/refresh` devolve um par novo e invalida
+     o anterior. **Sempre substituir os dois.**
+   - Ao receber 401 (ou perto de `expires_in`), renovar **uma vez por vez**: requisições
+     que falharem juntas esperam a mesma renovação (fila). Reusar um refresh token já
+     gasto derruba a sessão inteira (401): não repetir, ir para o login.
+   - Logout: `POST /api/auth/logout` com o refresh token. "Sair de todos os dispositivos":
+     `POST /api/auth/logout-all`.
+4. **Tratamento central de erros** conforme as regras gerais (401 após falhar a renovação
+   → login; 402 → aviso de somente leitura; 404/403/409 → mensagem do backend).
+5. **Estado da sessão:** usuário (`GET /api/me`), `memberships` (`GET /api/me/memberships`)
+   e company/loja ativas. Persistir a última seleção; se a loja salva não estiver mais
+   em `memberships` (acesso revogado), voltar para a seleção.
+6. **Estrutura da Central de Dúvidas:** página "Dúvidas" no menu, busca, filtro por perfil
+   (dono, gerente, atendente) e o componente do botão "?" que abre o artigo da tela. O
+   conteúdo vai sendo escrito fase a fase (ver a seção Central de Dúvidas).
+
+**Critério de conclusão:** qualquer chamada autenticada sai com o token e a URL do
+contexto ativo sem que a tela monte isso; a renovação de token é transparente e nunca
+reusa um refresh token; a Central de Dúvidas existe e aceita artigos novos.
 
 ---
 
 ## Fase 1 — Autenticação e seleção de contexto
-1. Tela de login.
-2. Pós-login: buscar `GET /me/memberships`.
-   - Se o usuário tem 1 company e 1 store só → seleciona automaticamente, pula direto
-     pro dashboard.
-   - Se tem mais de uma company → tela de seleção de empresa.
-   - Depois de escolher a company, se tem mais de uma loja nela → seletor de loja
-     (mostrando o `role` de cada uma, já que pode ser diferente por loja).
-3. Componente de troca de contexto (header/sidebar) sempre visível para trocar de
-   loja/empresa sem precisar deslogar.
 
-**Critério de conclusão:** um usuário com acesso a 2 lojas com roles diferentes consegue
-alternar entre elas e a UI reflete o role correto em cada uma.
+1. **Login** (`POST /api/auth/login`). Limite: 5 tentativas por minuto por e-mail (429).
+2. **Esqueci a senha** (`POST /api/auth/forgot-password`): a resposta é sempre a mesma,
+   exista o e-mail ou não. Mostrar "se o e-mail estiver cadastrado, enviaremos as
+   instruções".
+3. **`/redefinir-senha?token=...`** (`POST /api/auth/reset-password` com `{ token,
+   newPassword }`). **Esta rota precisa existir com este caminho**: é o link que o backend
+   manda por e-mail tanto para redefinir senha (vale 30 min) quanto para o **convite de
+   membro novo** definir a primeira senha (vale 7 dias). O link só funciona uma vez.
+   Membro convidado que já tem conta recebe um link para `/login`.
+4. **Pós-login:** `GET /api/me/memberships`.
+   - Uma empresa e uma loja: seleciona sozinho e vai para a tela inicial.
+   - Várias empresas: seleção de empresa. Depois, se houver várias lojas, seleção de loja
+     mostrando o papel em cada uma (pode ser diferente por loja).
+   - Sem nenhuma empresa: tela explicando que o usuário ainda não tem acesso.
+5. Troca de empresa/loja sempre visível (cabeçalho ou menu), sem sair da conta.
+6. **Minha conta:** editar nome (`PATCH /api/me`), trocar senha
+   (`POST /api/auth/change-password`, que encerra as outras sessões e devolve um par novo
+   de tokens) e "sair de todos os dispositivos".
 
----
-
-## Fase 2 — Autorização na UI
-1. Hook `useCurrentRole()` — lê o role da store ativa a partir do estado de memberships
-   (Fase 0), sem request adicional.
-2. Componente `<RequireRole min="MANAGER">`: esconde ou desabilita ações/botões fora do
-   escopo do papel na loja ativa, e `<RequireCompanyOwner>` para o que é do dono (ex.:
-   "Configurações da Empresa", lojas, membros). Seguir a matriz de permissões da Fase 2
-   do plano de backend.
-3. Guard de rota equivalente para páginas inteiras (ex.: `/admin/*` só para o dono da
-   empresa).
-
-**Nota:** isso é proteção de UX, não de segurança — a validação real continua sendo
-feita pelo backend (Fase 2 do plano de backend). Não remover chamadas de erro 403 do
-tratamento de request só porque a UI já esconde o botão.
+**Critério de conclusão:** um usuário com acesso a 2 lojas com papéis diferentes alterna
+entre elas e a interface reflete o papel certo; o link de redefinição recebido por e-mail
+funciona.
 
 ---
 
-## Fase 3 — Área administrativa (Company / Stores / Membros)
-1. Configurações da empresa (dados da `Company`).
-2. CRUD de lojas (`Store`).
-3. Tela de membros/equipe:
-   - Convidar por e-mail.
-   - Tabela por membro: loja x role (permitir atribuir/alterar role por loja
-     individualmente, não um role único pro membro inteiro).
-   - Revogar acesso a uma loja específica sem remover o membro da empresa.
+## Fase 2 — Autorização na interface
+
+1. Hook `useCurrentRole()`: papel na loja ativa, lido dos `memberships` (sem request).
+2. Componentes `<RequireRole min="MANAGER">` e `<RequireCompanyOwner>` para esconder ou
+   desabilitar ações, seguindo o papel mínimo de cada rota em [docs/API.md](docs/API.md).
+   Regras que dependem do conteúdo (também em `docs/API.md`): saída de caixa e ajuste
+   manual de vasilhame exigem gerente.
+3. Proteção de página inteira equivalente (ex.: área de administração só para o dono).
 
 ---
 
-## Fase 4 — Catálogo de Produtos
-1. Listagem de produtos da **loja ativa** (dados vêm de `StoreProduct`, já com nome/code
-   do `Product` via join do backend).
-2. Fluxo de criação/edição de produto:
-   - Campo/toggle: **"Este produto também é vendido em outras lojas da empresa?"**
-     - Se **sim**: mostrar checklist das outras lojas da company (via memberships/lista
-       de stores). Pré-preencher `costPrice` igual ao informado na loja atual em todas
-       as marcadas (editável antes de salvar). `price` é obrigatório e independente por
-       loja selecionada.
-     - Se **não**: cria só na loja atual, sem tocar em outras.
-   - Enviar `stores: [{ storeId, price, costPrice? }]` no payload de criação do
-     produto, conforme o contrato do backend (Fase 4 do plano de backend).
-   - O código de barras é opcional: se vazio, o backend gera um.
-3. Edição de `StoreProduct` isolada (preço/custo/ativo) a partir da loja ativa. Deixar
-   claro na UI que essa edição **não** afeta outras lojas que vendem o mesmo produto.
-4. **Estoque não é editado no formulário do produto.** Usar duas ações separadas:
-   "Entrada de mercadoria" (soma quantidade) e "Ajuste de inventário" (informa o
-   estoque contado + motivo). Os endpoints são diferentes para o histórico de auditoria
-   registrar a origem da mudança.
-5. Vasilhames: cadastro de tipos (nível empresa) e estoque por loja. O estoque de
-   vasilhame **só muda por movimentação** (envio/recebimento de fornecedor, ajuste
-   manual), nunca por edição direta.
-6. Excluir = o registro some das listagens, mas pode ser reativado (o backend usa soft
-   delete). Ao cadastrar um código que pertence a um produto excluído, oferecer
-   "reativar" em vez de mostrar só erro.
+## Fase 3 — Administração (empresa, lojas, equipe)
 
-**Critério de conclusão:** criar um produto marcando 2 lojas gera as duas ofertas sem
-recadastro manual; editar preço numa loja não altera visualmente a outra ao navegar até
-lá.
+1. **Empresa:** ver e editar razão social e nome fantasia (`/api/companies/:companyId`, dono).
+   O CNPJ não muda.
+2. **Lojas:** listar, criar, editar e excluir (`/api/companies/:companyId/stores`, dono).
+   Criar respeita o limite do plano (409 com a mensagem do limite). Excluir é recusado com
+   caixa ou comanda aberta. A loja nova já nasce com todos os donos como OWNER.
+3. **Equipe** (`/api/companies/:companyId/members`, dono):
+   - Convidar por e-mail com o papel em cada loja (`stores: [{ storeId, role }]`). Usuário
+     novo recebe o link de definir senha (ver Fase 1).
+   - Tabela por membro: loja × papel, alterando **por loja** (`PUT .../members/:membershipId/stores/:targetStoreId`).
+   - Revogar uma loja (`DELETE .../stores/:targetStoreId`) ou o membro inteiro
+     (`DELETE .../members/:membershipId`). O backend recusa (409) alterar o próprio papel
+     e deixar a empresa sem nenhum dono: mostrar a mensagem.
+4. **Nova empresa na organização** (`POST /api/organizations/:organizationId/companies`,
+   só o responsável pela cobrança; `GET /api/organizations/mine` lista as organizações),
+   respeitando o limite de empresas do plano.
 
 ---
 
-## Fase 5 — PDV (Ponto de Venda)
-1. Busca de produto (por código/nome) restrita à loja ativa.
-2. Carrinho com cálculo de total/desconto.
-3. Seleção de forma de pagamento, incluindo `CREDIT_STORE` (fiado) — nesse caso exige
-   selecionar ou cadastrar um `Customer` antes de concluir a venda.
-4. Fluxo de caixa: abrir caixa antes de vender (bloquear PDV se não houver
-   `CashRegister` `OPEN` na loja ativa), fechar caixa com conferência de saldo.
-5. Comandas: abrir, adicionar itens, fechar/converter em venda — seguir a decisão do
-   backend sobre timing de decremento de estoque (Fase 6 do plano de backend) para
-   feedback visual correto (ex: se decrementa ao adicionar item, mostrar estoque já
-   atualizado na tela de catálogo imediatamente).
+## Fase 4 — Catálogo, estoque e vasilhames
+
+1. **Produtos da loja ativa** (`GET /api/stores/:storeId/store-products`, com busca e
+   filtro de ativos): o backend já junta nome e código do produto.
+2. **Criar produto** (`POST /api/companies/:companyId/products`, gerente):
+   - Pergunta "este produto também é vendido em outras lojas da empresa?". Se sim,
+     checklist das lojas (`GET /api/companies/:companyId/stores`), com preço obrigatório
+     por loja e custo comum pré-preenchido (editável por loja). Payload:
+     `{ name, code?, packQuantity?, bottleTypeId?, costPrice?, stores: [{ storeId, price, costPrice? }] }`.
+   - Código de barras opcional (o backend gera um EAN-13 se vazio).
+3. **Colocar na loja** um produto que já existe no catálogo
+   (`POST /api/stores/:storeId/store-products`) e **tirar da loja** (`DELETE`).
+4. **Editar preço, custo e ativo** só desta loja (`PATCH .../store-products/:id`), deixando
+   claro que não afeta outras lojas.
+5. **Estoque nunca é editado no formulário.** Duas ações separadas:
+   "Entrada de mercadoria" (`.../stock-entries`, soma) e "Ajuste de inventário"
+   (`.../stock-adjustments`, estoque contado + motivo obrigatório). São separadas para o
+   histórico registrar a origem.
+6. **Estoque baixo** (`.../store-products/low-stock`, gerente).
+7. **Vasilhames:**
+   - Tipos (nível empresa, `/api/companies/:companyId/bottle-types`), com reativação.
+   - Estoque por tipo na loja (`GET /api/stores/:storeId/bottle-stock`).
+   - Movimentações (`/api/stores/:storeId/bottle-movements`): envio e recebimento de
+     fornecedor (funcionário) e ajuste manual (gerente, quantidade com sinal). O estoque
+     de vasilhame **só muda por movimentação** e nunca fica negativo nessas operações.
+   - Histórico de movimentações com filtros (tipo, cliente, período).
+8. **Excluir e reativar** produtos e tipos de vasilhame (soft delete).
+
+**Critério de conclusão:** criar um produto marcando 2 lojas gera as duas ofertas;
+editar o preço numa loja não altera a outra.
 
 ---
 
-## Fase 6 — Clientes e Fiado
-1. Listagem/busca de clientes (nível empresa).
-2. Página de detalhe do cliente:
-   - Card com saldo **total** consolidado (só gerente/dono; o backend não envia `total`
-     para funcionário).
-   - Tabela com saldo **por loja**
-     (`GET /api/companies/:companyId/customers/:id/balances`).
-   - Histórico de pagamentos e vendas fiado.
-3. Fluxo de pagamento com **abatimento cruzado**:
-   - Formulário: valor pago, loja onde está sendo pago, e um modo "automático" (deixa o
-     backend decidir a alocação, conforme regra padrão do plano de backend) vs. modo
-     "manual" (mostra a lista de dívidas por loja e permite distribuir o valor entre
-     elas, validando em tempo real que a soma bate com o total antes de habilitar o
-     botão de confirmar).
-   - Endpoint: `POST /api/stores/:storeId/customers/:customerId/payments`, onde
-     `storeId` é a loja ativa (onde o dinheiro está sendo recebido). Exige caixa aberto
-     nessa loja.
-4. Saldo de vasilhame por cliente (por loja) e ação de devolução. Por padrão, a
-   devolução só abate a dívida **da própria loja** (decisão P7 do backend, pode mudar).
+## Fase 5 — PDV, caixa e comandas
 
-**Critério de conclusão:** dá pra pagar a dívida da Loja A estando com a Loja B ativa,
-tanto no modo automático quanto no manual, e o card de saldo total atualiza
-corretamente após o pagamento.
+1. **Caixa** (`/api/stores/:storeId/cash-register`):
+   - Abrir (`open`, saldo inicial), ver o atual (`current`, com saldo calculado), entrada
+     (`movements` tipo `IN`, funcionário) e saída/sangria (`OUT`, **gerente**; o backend
+     recusa deixar o saldo negativo).
+   - Fechar (`close`): mostrar o saldo final e o **resumo por forma de pagamento** que o
+     backend devolve. O movimento do caixa não separa dinheiro de PIX/cartão: a
+     conferência usa esse resumo.
+   - Histórico de caixas fechados e o detalhe de cada um (`history`, `/:id`).
+2. **Venda** (`POST /api/stores/:storeId/sales`):
+   - **Exige caixa aberto na loja, em qualquer forma de pagamento (inclusive fiado).**
+     Sem caixa, o PDV fica bloqueado com o botão para abrir.
+   - Busca por nome/código e **leitor de código de barras** (`.../store-products/by-code/:code`,
+     só itens ativos).
+   - Carrinho com quantidades e desconto (o desconto não pode passar do total). O total
+     mostrado é uma prévia: o valor oficial é o que o backend devolve.
+   - Payload: `{ paymentMethod, customerId?, discount?, items: [{ storeProductId, quantity }], bottleReturns?: [{ bottleTypeId, quantity }] }`.
+     **Nunca enviar preço.**
+   - **Fiado (`CREDIT_STORE`)** exige escolher ou cadastrar o cliente.
+   - **Vasilhames:** cada produto com vasilhame faz o cliente levar 1 vasilhame por
+     unidade. Se houver produtos com vasilhame no carrinho, mostrar quantos vasilhames
+     saem e perguntar quantos o cliente devolve na hora (`bottleReturns`). **Se ele sair
+     devendo ou com crédito de vasilhame, é obrigatório identificar o cliente** (senão o
+     backend responde 400). Troca de 1 por 1 dispensa cliente.
+   - Estoque insuficiente volta 409 com o nome do produto: mostrar e manter o carrinho.
+3. **Histórico de vendas** (`GET /api/stores/:storeId/sales`): filtros por período
+   (`startDate`/`endDate` no formato `AAAA-MM-DD`, no fuso de São Paulo), forma de
+   pagamento, situação, cliente e vendedor. A resposta traz `meta.totalRevenue` e
+   `meta.totalProfit` (só vendas concluídas). Detalhe da venda com itens, vendedor,
+   cliente e vasilhames.
+4. **Cancelar venda** (`POST .../sales/:id/cancel`, **gerente**, exige caixa aberto):
+   devolve estoque, estorna caixa ou fiado e desfaz os vasilhames. Venda a prazo já paga
+   em parte não pode ser cancelada (409): mostrar a mensagem.
+5. **Comandas** (`/api/stores/:storeId/command-tabs`):
+   - Abrir (nome e cliente opcional), listar as abertas, ver o total parcial.
+   - **O estoque baixa ao adicionar o item** e o preço fica fixo no momento em que foi
+     adicionado: atualizar a tela de estoque na hora. Remover item devolve o estoque.
+   - Fechar gera a venda (forma de pagamento, desconto, cliente, devolução de vasilhames)
+     sem baixar estoque de novo. Comanda vazia não fecha (400).
+   - Cancelar devolve o estoque de todos os itens.
+
+**Layout:** o PDV é a tela mais usada; deve funcionar bem em tablet e com leitor de código
+de barras (foco no campo de busca, atalhos de teclado).
 
 ---
 
-## Fase 7 — Dashboards
-1. Dashboard da loja (gerente): `GET /api/stores/:storeId/dashboard`. Receita, lucro e
-   vendas de hoje, 7 dias e mês; top 5 produtos; gráfico de 7 dias; estoque baixo; fiado
-   em aberto. Tudo agregado no backend: **não somar dados no frontend**.
-2. Dashboard consolidado (dono da empresa): `GET /api/companies/:companyId/dashboard`,
-   com o total e a quebra por loja.
-3. Filtros por loja e por período.
-4. Histórico de alterações (auditoria): nas telas de detalhe (produto, venda, cliente,
-   membro), botão "Histórico" para gerente/dono que lista as versões com autor, data e
-   o que mudou (Fase 8 do plano de backend).
+## Fase 6 — Clientes e fiado
+
+1. **Clientes** (nível empresa, `/api/companies/:companyId/customers`): busca por nome ou
+   telefone, cadastrar e editar (funcionário), excluir e reativar (gerente). O backend não
+   exclui cliente com dívida.
+2. **Detalhe do cliente:**
+   - Saldos (`.../customers/:id/balances`): **total** consolidado (só gerente e dono; para
+     funcionário o backend devolve `total: null` e só as lojas dele), dívida por loja e
+     vasilhames devidos por loja.
+   - Histórico de pagamentos (`.../customers/:id/payments`) e de vendas a prazo
+     (`GET /api/stores/:storeId/sales?customerId=`).
+3. **Receber pagamento** (`POST /api/stores/:storeId/customers/:customerId/payments`):
+   - O dinheiro entra **na loja ativa** (a da URL) e exige **caixa aberto** nela. Não há
+     campo "loja onde está pagando": é sempre a loja ativa.
+   - Forma de pagamento: qualquer uma **menos** `CREDIT_STORE`.
+   - **Automático:** só o valor; o backend abate primeiro a dívida da loja ativa e depois
+     as demais (mais antigas primeiro).
+   - **Manual:** lista as dívidas por loja e distribui o valor (`allocations`). Validar na
+     tela que a soma bate com o valor e que nenhuma loja recebe mais do que deve.
+   - Não existe saldo credor: valor maior que a dívida total é recusado.
+4. **Vasilhames do cliente:** devolução (`.../bottle-returns`) e empréstimo avulso
+   (`.../bottle-loans`) na loja ativa. **A devolução só abate a dívida da própria loja**
+   (decisão do produto): se o cliente deve na loja A, a devolução é feita estando na loja
+   A. Mostrar o saldo por loja e, ao tentar devolver em outra loja ou mais do que deve,
+   exibir a mensagem do 409.
+
+**Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
+automático e manual, e os saldos se atualizam.
 
 ---
 
-## Fase 8 — Assinatura e cobrança (Asaas)
-Depende da Fase 10 do plano de backend. Os endpoints ficam em
-`/organizations/:organizationId/billing`. Antes de implementar, confirmar com o backend
-o formato real das respostas.
+## Fase 7 — Painéis, histórico de alterações e notificações
 
-1. **Cadastro público** (antes do login): tela "Criar conta" com nome, e-mail, senha,
-   CNPJ, razão social, nome fantasia e nome da primeira loja. Escolha do plano a partir
-   de `GET /plans` (público). Começa em trial, sem pedir forma de pagamento.
-2. **Aviso de status e modo somente leitura.** Regra decidida: inadimplência **nunca
-   bloqueia o sistema inteiro**, só deixa em modo leitura. Usar
-   `subscription.accessMode` de `GET /me/memberships`:
+1. **Painel da loja** (`GET /api/stores/:storeId/dashboard`, gerente) e **painel da
+   empresa** (`GET /api/companies/:companyId/dashboard`, dono, com a quebra por loja em
+   `byStore`): receita, lucro e vendas de hoje, 7 dias e mês; top 5 produtos; gráfico dos
+   7 dias; estoque baixo; fiado em aberto. **Os períodos são fixos e calculados no
+   backend**; o painel não aceita filtro de período. Para períodos livres, usar o
+   histórico de vendas (Fase 5).
+2. **Histórico de alterações:** botão "Histórico" nos detalhes (produto da loja, venda,
+   comanda, caixa, movimentação de vasilhame, produto, cliente, tipo de vasilhame, loja,
+   membro e papel por loja), para gerente/dono:
+   - `GET /api/stores/:storeId/audit/:entity/:id` ou `/api/companies/:companyId/audit/:entity/:id`.
+   - Mostra cada versão com autor, data, ação (criado, alterado, excluído, reativado) e
+     **só os campos que mudaram**. `?at=<data ISO>` mostra o registro naquele momento.
+   - O papel do membro numa loja usa o id `membershipId:storeId`. As entidades aceitas
+     estão em [docs/API.md](docs/API.md).
+3. **Notificações** do sistema: contador de não lidas
+   (`GET /api/me/notifications/unread-count`), lista (`?unread=true`) e marcar como lida
+   (`POST /api/me/notifications/:id/read`).
+
+---
+
+## Fase 8 — Cadastro, assinatura e modo somente leitura
+
+### 8a. Já disponível no backend
+1. **Cadastro público** (`POST /api/auth/signup`): nome, e-mail, senha (mín. 8), CNPJ,
+   razão social, nome fantasia, nome da primeira loja e plano (de `GET /api/plans`,
+   público). Começa em **trial de 14 dias**, sem forma de pagamento. Já devolve os tokens
+   (entra logado). Limite: 3 cadastros por hora.
+2. **Aviso de assinatura e modo somente leitura.** Regra do produto: inadimplência **nunca
+   bloqueia o sistema inteiro**, só deixa em somente leitura. Usar `subscription` de
+   `GET /api/me/memberships` (`status`, `accessMode`, `reason`, `trialEndsAt`,
+   `pastDueSince`, `graceEndsAt`):
    - `FULL` em trial: "faltam X dias de teste" (destaque nos últimos 3 dias).
-   - `GRACE` (mensalidade vencida há até 5 dias): faixa em destaque "pagamento pendente:
-     o sistema ficará somente leitura em DD/MM", com botão para pagar.
-   - `READ_ONLY` (trial vencido, cancelado ou atraso maior que 5 dias): faixa fixa
-     explicando o motivo.
-     - Tudo pode ser consultado.
-     - Botões de escrita (vender, abrir caixa, cadastrar, receber fiado etc.) ficam
-       desabilitados, com tooltip explicando o motivo.
-     - Continuam habilitados: **fechar o caixa que já estava aberto** e a **tela de
-       assinatura** para pagar e liberar.
-   - Mesmo assim, tratar o 402 `SUBSCRIPTION_READ_ONLY` vindo do backend (o status pode
-     mudar com a tela aberta) com a mensagem do `reason`, levando à tela de assinatura.
-   - Quem não é o responsável pela cobrança vê o aviso com "fale com o responsável pela
-     assinatura" em vez do botão de pagar.
-   - Depois que o pagamento é confirmado, o acesso completo volta sem precisar sair e
-     entrar de novo (recarregar `GET /me/memberships`).
-3. **Tela "Assinatura"** (só para o responsável pela cobrança; o OWNER da company só
-   visualiza):
-   - plano atual, status, forma de pagamento, próximo vencimento e lista de faturas
-     (com link `invoiceUrl` para cada uma);
-   - dados de cobrança (CPF/CNPJ e e-mail), com validação de CPF/CNPJ;
-   - **assinar ou trocar a forma de pagamento**, com duas opções:
-     - **Cartão de crédito:** abrir a `invoiceUrl` retornada (nova aba). **O cartão é
-       digitado na página do Asaas; nunca criar campo de número de cartão no nosso
-       frontend.**
-     - **Pix Automático:** mostrar o QR Code e o "copia e cola" retornados, com a
-       explicação: "autorize uma vez no app do seu banco; as próximas mensalidades são
-       debitadas automaticamente";
-   - depois de assinar, mostrar "aguardando confirmação do pagamento" e consultar o
-     status a cada poucos segundos (por alguns minutos), porque a ativação chega por
-     webhook e não na resposta da chamada;
-   - trocar de plano (avisar que vale a partir do próximo ciclo) e cancelar (avisar até
-     quando o acesso continua).
+   - `GRACE` (mensalidade vencida há até 5 dias): faixa "pagamento pendente: o sistema
+     ficará somente leitura em DD/MM".
+   - `READ_ONLY` (`reason`: `TRIAL_EXPIRED`, `PAST_DUE` ou `CANCELED`): faixa fixa com o
+     motivo. Tudo pode ser consultado; os botões de escrita (vender, abrir caixa,
+     cadastrar, **receber fiado**...) ficam desabilitados com o motivo. **Fechar o caixa já
+     aberto continua habilitado.**
+   - Mesmo assim, tratar o 402 `{ code: "SUBSCRIPTION_READ_ONLY", reason }` (o status
+     pode mudar com a tela aberta).
+   - Quem não é o responsável pela cobrança (`isBillingOwner: false`) vê "fale com o
+     responsável pela assinatura" em vez do botão de pagar.
+   - Recarregar `GET /api/me/memberships` periodicamente e ao voltar para a aba, para o
+     acesso completo voltar sozinho quando a assinatura for regularizada.
 
-**Critério de conclusão:** um usuário novo cria a conta, usa em trial, assina com Pix
-Automático ou cartão no sandbox e vê o status mudar para ativo sem recarregar a página.
+### 8b. Depende da cobrança com Asaas (Fase 10 do backend, AINDA NÃO FEITA)
+🛑 **Não implementar** até o backend ter os endpoints `/api/organizations/:organizationId/billing/*`.
+Enquanto isso, o botão "pagar/assinar" mostra que a assinatura é regularizada pelo
+suporte. Quando a Fase 10 existir, a tela "Assinatura" terá: plano, status, forma de
+pagamento, próximo vencimento e faturas (com `invoiceUrl`); dados de cobrança (CPF/CNPJ e
+e-mail); assinar com **cartão** (abrir a `invoiceUrl` do Asaas: **nunca criar campo de
+número de cartão no nosso frontend**) ou **Pix Automático** (QR Code e "copia e cola");
+"aguardando confirmação" consultando o status por alguns minutos (a ativação chega por
+webhook); trocar de plano e cancelar. Confirmar o formato real com o backend antes.
 
 ---
 
-## Fase 9 — Polish
-1. Estados de loading/erro consistentes, especialmente em fluxos transacionais (venda
-   com estoque insuficiente, alocação de pagamento inválida) — mensagens claras vindas
-   do erro do backend, não genéricas.
-2. Layout adaptado pra uso em tablet no PDV (tela de venda é a mais usada no dia a dia).
+## Fase 9 — Painel da plataforma (opcional)
 
-**Reportar ao final:** qualquer endpoint assumido neste plano que não bateu com o que o
-backend realmente expõe, e decisões de UX tomadas nos pontos em aberto.
+Só para usuários com `platformRole` (`SUPERADMIN` lê e escreve; `SUPPORT` só lê), em
+`/api/platform/*`: planos, organizações (com ajuste manual de status, plano, fim do teste e
+atraso: hoje é assim que a assinatura é regularizada), usuários (ativar/desativar) e
+notificações (criar, agendar, expirar). ⚠️ Perguntar ao usuário se quer esta área no mesmo
+app (rota separada, ex.: `/plataforma`) antes de começar.
+
+---
+
+## Fase 10 — Acabamento
+
+1. Carregamento e erros consistentes, principalmente nos fluxos de dinheiro e estoque
+   (venda com estoque insuficiente, alocação inválida, caixa fechado), sempre com a
+   mensagem do backend.
+2. PDV adaptado para tablet; layout responsivo no restante.
+3. Revisão: nenhum `any`, nenhum preço enviado em venda/comanda, nenhum id de empresa/loja
+   em header, tokens tratados conforme F1.
+4. **Revisão da Central de Dúvidas:** todos os artigos obrigatórios existem, cada caminho
+   "onde encontrar" bate com o menu real, toda tela tem o botão "?" apontando para um
+   artigo, e as mensagens de erro citadas nos artigos são as que o sistema mostra.
+
+**Reportar ao final:** endpoints que não bateram com o que a API realmente expõe,
+respostas recebidas nas paradas F1–F4 e decisões de UX tomadas.
