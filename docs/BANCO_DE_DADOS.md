@@ -2,7 +2,7 @@
 
 PostgreSQL 16, acessado via Prisma 7. A fonte da verdade é o [schema.prisma](../backend/prisma/schema.prisma); este documento explica como ler e usar esse modelo. Se os dois divergirem, vale o schema.
 
-> **Estado atual:** o banco e o schema já estão no modelo multi-tenant com auditoria. O código do backend (`backend/src`) ainda é o da versão antiga, de uma distribuidora só, e não compila contra este schema. Ele será refatorado seguindo o [plano_implementacao_backend.md](../plano_implementacao_backend.md).
+> **Estado atual:** o banco, o schema e o backend (`backend/src`) estão no modelo multi-tenant com auditoria, implementados conforme o [plano_implementacao_backend.md](../plano_implementacao_backend.md). Só a cobrança com Asaas (que usa os campos `billing*` e a `tb_billing_events`) ainda não tem código. As rotas estão em [API.md](API.md).
 
 ## Sumário
 
@@ -18,11 +18,12 @@ PostgreSQL 16, acessado via Prisma 7. A fonte da verdade é o [schema.prisma](..
 
 ## 1. Visão geral
 
-São 26 tabelas de negócio (`tb_*`) e 26 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
+São 27 tabelas de negócio (`tb_*`) e 27 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
 
 | Domínio | Tabelas | Em uma frase |
 |---|---|---|
 | Identidade e multi-tenancy | `tb_plans`, `tb_organizations`, `tb_users`, `tb_companies`, `tb_stores`, `tb_memberships`, `tb_membership_stores` | Quem paga, quem é o dono de quê e quem pode acessar qual loja |
+| Sessão | `tb_refresh_tokens` | Refresh tokens com rotação: cada login é uma sessão que pode ser encerrada |
 | Catálogo e estoque | `tb_products`, `tb_store_products` | Produto é da distribuidora; preço, custo e estoque são de cada loja |
 | Vasilhames | `tb_bottle_types`, `tb_store_bottle_types`, `tb_bottle_movements` | Tipos de vasilhame, estoque físico por loja e o registro de cada movimentação |
 | Clientes e fiado | `tb_customers`, `tb_customer_store_balances`, `tb_customer_store_bottle_balances`, `tb_customer_payments`, `tb_customer_payment_allocations` | Cadastro único por distribuidora, dívida separada por loja |
@@ -73,6 +74,7 @@ erDiagram
     User ||--o{ Notification : "cria"
     Notification ||--o{ NotificationRead : "lida por"
     User ||--o{ NotificationRead : "leu"
+    User ||--o{ RefreshToken : "sessões"
     Organization |o--o{ BillingEvent : "webhooks do gateway"
 ```
 
@@ -145,6 +147,26 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
+### 3.1.1 Sessão (refresh tokens)
+
+A autenticação usa **dois tokens**: um *access token* (JWT de vida curta, 15 minutos por padrão, não fica no banco) e um *refresh token* opaco, com **rotação**, que fica em `tb_refresh_tokens`.
+
+| Tabela | Para que serve | Colunas e regras principais |
+|---|---|---|
+| `tb_refresh_tokens` | Uma linha por refresh token emitido | `userId`; `familyId` (todos os tokens de um mesmo login, ou seja, uma sessão/dispositivo); `tokenHash` (**único**; só o hash SHA-256, o token em si nunca é guardado); `expiresAt` (30 dias por padrão); `revokedAt`; `replacedById` (o token que o substituiu na rotação); `userAgent` e `ip` (para o usuário reconhecer o dispositivo) |
+
+Como funciona:
+
+1. **Login ou cadastro** cria uma nova família com o primeiro refresh token.
+2. **Renovar** (`POST /api/auth/refresh`) troca o refresh token por um par novo: o token usado é revogado (`revokedAt`, `replacedById`) e o novo nasce na **mesma família**. Se duas requisições tentarem usar o mesmo token ao mesmo tempo, só uma vence.
+3. **Reuso detectado:** apresentar um token que já foi revogado indica que ele foi copiado. A **família inteira é revogada** (a sessão cai nos dois lados) e o usuário precisa entrar de novo. Outras sessões do mesmo usuário (outros dispositivos) não são afetadas.
+4. **Logout** revoga a família; **logout geral**, trocar ou redefinir a senha revogam todos os refresh tokens do usuário.
+5. Usuário desativado não consegue renovar, e o access token dele deixa de valer na hora porque o guard confere o usuário a cada requisição.
+
+Cuidados com os dados:
+- `tokenHash` **não existe** na tabela de histórico (`th_refresh_token_history`): o hash é um segredo e uma consulta de auditoria nunca deve expô-lo.
+- Tokens expirados ou revogados antigos podem ser limpos por soft delete (`deletedAt`) em rotina agendada.
+
 ### 3.2 Catálogo e estoque
 
 | Tabela | Para que serve | Colunas e regras principais |
@@ -160,7 +182,11 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 |---|---|---|
 | `tb_bottle_types` | Tipo de vasilhame (litrão, 600 ml, engradado…) | Único por (`companyId`, `name`) |
 | `tb_store_bottle_types` | Estoque físico do tipo em cada loja | Único por (`storeId`, `bottleTypeId`); `stock`. Sem `createdAt` |
-| `tb_bottle_movements` | Registro de cada movimentação | `type`: `CUSTOMER_BORROW`, `CUSTOMER_RETURN`, `SUPPLIER_SEND`, `SUPPLIER_RECEIVE`, `MANUAL_ADJUSTMENT`. `quantity`, `customerId` e `saleId` opcionais. Sem `updatedAt` |
+| `tb_bottle_movements` | Registro de cada movimentação | `type`: `CUSTOMER_BORROW`, `CUSTOMER_RETURN`, `SUPPLIER_SEND`, `SUPPLIER_RECEIVE`, `MANUAL_ADJUSTMENT`. `quantity` **com sinal** (positivo entra na loja, negativo sai), `customerId` e `saleId` opcionais. Tem **um único `storeId`**. Sem `updatedAt` |
+
+**Regra: devolução de vasilhame só na mesma loja da dívida.** O saldo que o cliente deve (`tb_customer_store_bottle_balances`) é por loja, e o `tb_bottle_movements` registra uma loja só. Por isso o schema não consegue representar "o cliente devolveu na loja B para abater a dívida da loja A" (diferente do fiado em dinheiro, que tem alocação entre lojas). A aplicação, então, **só aceita a devolução na própria loja onde o cliente deve**: se ele deve na loja A e tenta devolver na B, a operação é recusada com mensagem explicando. Isso foi uma decisão do produto; permitir devolução entre lojas exigiria mudar o schema (o movimento teria de guardar a loja da dívida) e passa por aprovação.
+
+O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um registro em `tb_bottle_movements`** (não têm histórico próprio, ver seção 4).
 
 ### 3.4 Clientes e fiado
 
@@ -270,6 +296,7 @@ fc_auditoria()
 | `tb_customer_store_balances.balance` | Já fica em `tb_sales` (fiado) e `tb_customer_payment_allocations` |
 | `tb_customer_store_bottle_balances.balance` | Já fica em `tb_bottle_movements` |
 | `tb_billing_events.payload` | O corpo do webhook é imutável e já fica na própria `tb_` |
+| `tb_refresh_tokens.tokenHash` | É um segredo: uma consulta de auditoria nunca pode expô-lo |
 | `updatedAt` | `historyStart` cumpre esse papel |
 
 Já o `tb_store_products.stock` **é** versionado: entrada de mercadoria e ajuste manual não são registrados em nenhuma outra tabela. A consequência é que cada venda também gera uma versão do `StoreProduct`, já que baixa o estoque.
@@ -327,12 +354,17 @@ Nada é apagado de verdade.
 O banco cuida do histórico, mas depende de a aplicação informar **quem** e **de onde**:
 
 1. **Toda escrita** (`create`, `update`, `updateMany`, `upsert`, SQL puro) em tabela `tb_*` define:
-   - `modifierId` = ID do usuário autenticado (`sub` do JWT);
-   - `modifiedEndpoint` = rota, de preferência o padrão (`request.route.path`, ex.: `/api/stores/:storeId/sales`) em vez da URL com query string.
-2. A forma recomendada é uma **extensão do Prisma Client** com `AsyncLocalStorage` (por exemplo `nestjs-cls`), que preenche os dois campos automaticamente, inclusive dentro de `$transaction`. Injetar no body da requisição (como o `AuditInterceptor` atual) não cobre vendas e baixas de estoque feitas por service, e com `forbidNonWhitelisted: true` no `ValidationPipe` global quebraria os DTOs.
-3. **Exclusão** = `deletedAt`; **leituras** filtram `deletedAt: null`.
+   - `modifierId` = ID do usuário autenticado (o `sub` do JWT);
+   - `modifiedEndpoint` = rota no formato `MÉTODO /api/rota/:parametros` (ex.: `POST /api/stores/:storeId/sales`), sempre o padrão da rota, sem ids nem query string.
+2. **Como isso é feito (já implementado):** um **interceptor global** (`AuditContextInterceptor`) captura o usuário e a rota de cada requisição e abre um contexto (`AuditContext`, baseado em `AsyncLocalStorage`). Uma **extensão do Prisma Client** lê esse contexto e preenche os dois campos em toda escrita, inclusive dentro de `$transaction`, sem os services ou DTOs precisarem repassar nada. Se não houver contexto, a escrita **falha** (melhor falhar do que gravar sem autor). A extensão também:
+   - recusa `delete`/`deleteMany`;
+   - recusa escrita aninhada (`create: { ... }` dentro de outro `create`, `connectOrCreate` etc.), porque o registro filho ficaria sem autor: o filho é criado com uma chamada própria na mesma transação;
+   - esconde registros com `deletedAt` nas leituras e `update` (para enxergá-los, `AuditContext.withDeleted`);
+   - deixa os modelos `*History` somente leitura.
+3. **Exclusão** = `deletedAt`; **leituras** de relações dentro de `include`/`select` precisam filtrar `deletedAt: null` explicitamente (a extensão só filtra o nível de cima).
 4. **Nunca** escrever em `th_*`.
-5. Rotinas sem usuário (job agendado, seed) devem informar um `modifierId` próprio, por exemplo `system`, para não herdarem a autoria anterior.
+5. **Gravações sem usuário logado** usam `AuditContext.runAsSystem(origem, fn)`, com `modifierId = 'system'` e `modifiedEndpoint` igual à origem informada: `seed`, `webhook:asaas` ou `job:<nome>`. Quando a ação é de um usuário ainda não autenticado (cadastro, esqueci a senha, login), usa-se `AuditContext.actAs(idDoUsuario, fn)`, que mantém a rota e define o autor.
+6. SQL puro (`$executeRaw`) **não passa** pela extensão: se for inevitável usar em tabela de negócio, informe `modifierId` e `modifiedEndpoint` à mão.
 
 ---
 
@@ -346,6 +378,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261007000001_auditoria_triggers` | Cria `fc_auditoria`, `fc_bloqueia_delete` e os 50 triggers (auditoria e bloqueio de DELETE nas 25 tabelas da época) |
 | `20261008000000_billing_asaas` | Troca os campos do Stripe em `tb_organizations` pelos `billing*` (e no histórico), cria os enums `BillingProvider`/`BillingMethod`, a `tb_billing_events` com seu histórico e os 2 triggers dela |
 | `20261008000001_subscription_access` | Adiciona `trialEndsAt` e `pastDueSince` em `tb_organizations` (e no histórico) |
+| `20261013000000_refresh_tokens` | Cria `tb_refresh_tokens` (refresh token com rotação), `th_refresh_token_history` (sem `tokenHash`) e os 2 triggers |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda
@@ -396,4 +429,5 @@ Nunca crie função ou trigger direto no banco fora de uma migration, senão o a
 
 - **Seeds e testes não podem usar `deleteMany`**: o banco recusa. Para limpar, use `prisma migrate reset` ou `TRUNCATE ... CASCADE` (TRUNCATE não dispara o trigger de bloqueio).
 - **Alterar uma coluna que já existe** (tipo ou nome) exige alterá-la também na `th_` correspondente na mesma migration; o `jsonb_populate_record` casa por nome.
-- Valores em `Float` para dinheiro acumulam erro de arredondamento; a conversão para inteiro (centavos) ou `Decimal` é uma melhoria futura.
+- Valores em `Float` para dinheiro acumulam erro de arredondamento; a conversão para inteiro (centavos) ou `Decimal` é uma melhoria futura. Enquanto isso, a aplicação arredonda cada conta para centavos e atualiza o saldo de fiado por **comparação-e-troca** (o `UPDATE` só vale se o saldo ainda for o que foi lido), o que evita resíduos de ponto flutuante e perda de atualização concorrente.
+- **Testes** rodam no banco `distribuidora_test` (mesmo servidor do `DATABASE_URL`), criado e migrado automaticamente pelo `globalSetup` do Jest. O banco de desenvolvimento nunca é tocado: os testes recusam rodar em outro banco.

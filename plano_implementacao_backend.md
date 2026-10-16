@@ -1,5 +1,25 @@
 # Plano de Implementação — Backend (NestJS + Prisma)
 
+> ## Status da implementação (atualizado em 2026-10-14)
+>
+> - **Fases 0 a 9 e 11: implementadas e testadas** (377 testes em 26 suítes, no banco
+>   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
+> - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
+>   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
+>   hoje o status da assinatura é ajustado manualmente pela plataforma
+>   (`PATCH /api/platform/organizations/:id`).
+> - Lista de rotas e permissões: [docs/API.md](docs/API.md) (gerada por `npm run docs:api`).
+>   Dados de demonstração: `npm run db:seed`.
+> - Decisões já tomadas (refletidas neste plano, no `CLAUDE.md`, em
+>   `docs/BANCO_DE_DADOS.md` e no plano do frontend): rate limit em memória (sem Redis e
+>   sem cache); e-mail com nodemailer (`EMAIL_USER`/`EMAIL_PASS`); sessão com **access
+>   token (15 min) + refresh token com rotação** (tabela `tb_refresh_tokens`, P5);
+>   devolução de vasilhame **só na mesma loja da dívida** (P7); auditoria por
+>   **interceptor global + `AuditContext` + extensão do Prisma**.
+> - Decisões ⚠️ tomadas na implementação e desvios do plano: ver a seção
+>   [Relatório da implementação](#relatório-da-implementação) no fim deste arquivo.
+> - O código do backend foi commitado em `c340c67`.
+
 ## Contexto
 
 O sistema era single-tenant (uma distribuidora) e está virando um SaaS multi-tenant:
@@ -117,9 +137,9 @@ Hoje o único container do projeto é o Postgres local (`banco_saas_distribuidor
 | **P2** | **Rate limiting** (`@nestjs/throttler`) | Fase 1, antes dos endpoints de auth | Limites sugeridos na tabela abaixo. Armazenamento em memória (ou Redis, se P1 aprovado) |
 | **P3** | **Cache** | Fase 2 (lookup de permissões) e Fase 7 (dashboard) | Ver candidatos abaixo. Recomendar começar **sem cache**, medir e só então ligar os candidatos 1 e 2 |
 | **P4** | **E-mail** (convite, redefinição de senha) | Fase 1, antes do `MailModule` | Em dev, um container **Mailpit** (SMTP falso com caixa visível no navegador), para não mandar e-mail real. Em produção, o SMTP do `.env` (`EMAIL_USER`/`EMAIL_PASS`, Gmail) ou um provedor transacional. Perguntar qual |
-| **P5** | **Estratégia de sessão** | Fase 1, antes do login | Padrão sem mudar schema: só access token JWT com expiração de 12h, e guard que confere `isActive`/`deletedAt` do usuário a cada request (revogação imediata). Refresh token rotativo exige tabela nova (P9). Perguntar se 12h é aceitável |
+| ~~P5~~ | **Sessão: já decidido pelo usuário, não perguntar** | — | **Access token (JWT, 15 min) + refresh token opaco com rotação**, guardado em `tb_refresh_tokens` (só o hash). Detalhes na Fase 1 e em `docs/BANCO_DE_DADOS.md` §3.1.1. O guard confere `isActive`/`deletedAt` do usuário a cada request (revogação imediata) |
 | **P6** | **Asaas** (gateway de cobrança) | Início da Fase 10 | Pedir: conta **sandbox** e chave de API; como expor o webhook local (túnel `cloudflared` ou `ngrok`, ferramenta fora do projeto; nenhum container necessário); confirmação dos pontos ⚠️ da Fase 10 (trial com Pix Automático, troca de plano, eventos que cancelam a assinatura). O schema já está pronto (`Organization.billing*` e `tb_billing_events`) |
-| **P7** | **Devolução de vasilhame em outra loja** | Fase 5 | O schema não registra "devolvido fisicamente na loja B, abatendo dívida da loja A" (`BottleMovement` tem um único `storeId` e o saldo não tem histórico). Padrão: **só permitir devolução na mesma loja da dívida**. Cruzar lojas exige mudança de schema (P9) |
+| ~~P7~~ | **Devolução de vasilhame: já decidido pelo usuário, não perguntar** | — | **Só aceitar devolução na mesma loja onde está a dívida.** O schema não registra "devolvido fisicamente na loja B, abatendo dívida da loja A" (`BottleMovement` tem um único `storeId`). Recusar a devolução em outra loja com mensagem clara. Cruzar lojas exigiria mudar o schema (P9). Regra documentada em `docs/BANCO_DE_DADOS.md` §3.3 e no `CLAUDE.md` |
 | ~~P8~~ | **Trial e inadimplência: já decidido pelo usuário, não perguntar** | — | Trial de **14 dias**; carência de **5 dias** após o vencimento; depois disso, **somente leitura** (não é bloqueio total). Regras completas em "Acesso pela assinatura" (Fase 2, item 5) |
 | **P9** | **Qualquer mudança no schema** | Sempre que surgir | Explicar a necessidade, a alternativa sem mudar o schema e o impacto (tabela `th_` + triggers) |
 | **P10** | **Nova dependência fora da lista** da seção "Dependências" | Quando surgir | Dizer o porquê e a alternativa sem a dependência |
@@ -153,16 +173,24 @@ Já instaladas e usadas: `@nestjs/*` (core, common, platform-express, jwt, sched
 `@prisma/client` + `@prisma/adapter-pg` + `pg`, `bcryptjs`, `class-validator`,
 `class-transformer`, `dotenv`.
 
-A adicionar (aprovadas por este plano):
-- `@nestjs/config`: env tipado e validado na subida.
-- `nestjs-cls`: contexto da request (usuário, rota) via AsyncLocalStorage, para a
-  extensão de auditoria.
+Adicionadas (aprovadas por este plano) e já instaladas:
+- `@nestjs/config` **^4**: env tipado e validado na subida.
 - `helmet`: headers de segurança.
-- `@nestjs/swagger`: documentação em `/api/docs` (só fora de produção).
-- `nodemailer` (+ `@types/nodemailer`): envio de e-mail (configuração depende de P4).
+- `@nestjs/swagger` **^11**: documentação em `/api/docs` (só fora de produção).
+- `nodemailer` (+ `@types/nodemailer`): envio de e-mail.
+- `@nestjs/throttler` ^6: rate limiting em memória (P2, aprovado).
 
-Condicionais (só após a parada correspondente): `@nestjs/throttler` (P2),
-`@nestjs/cache-manager` + `cache-manager` (P3), `ioredis`/`@keyv/redis` (P1).
+**Atenção às versões:** `@nestjs/config` e `@nestjs/schedule` na linha 12 (e o
+`@nestjs/swagger` 12) são ESM-only/para Nest 12 e **quebram o Jest e o Nest 11**. Ficam
+fixados em `@nestjs/config@^4`, `@nestjs/schedule@^6` e `@nestjs/swagger@^11`. Não
+atualize sem conferir.
+
+**Não usamos `nestjs-cls`:** o contexto de auditoria é um `AuditContext` próprio sobre
+`AsyncLocalStorage` (menos uma dependência, e funciona fora do Nest: seed e testes).
+
+Condicionais (só após a parada correspondente): `@nestjs/cache-manager` +
+`cache-manager` (P3, decidido **não usar**), `ioredis`/`@keyv/redis` (P1, decidido **não
+usar**).
 
 Asaas: **sem SDK**. O Asaas não tem SDK oficial para Node; usar o `fetch` nativo do
 Node 24 num client próprio (Fase 10). Pacotes não oficiais do Asaas no npm são P10.
@@ -192,10 +220,13 @@ automáticos, sem nenhum endpoint de negócio ainda.
    |---|---|---|
    | `DATABASE_URL` | sim | |
    | `JWT_SECRET` | sim | **Definida pelo usuário no `.env`**; não impor tamanho mínimo nem máximo. Só exigir que exista (sem ela, a aplicação não sobe). **Remover o fallback `'super_secret_jwt_key'`** do código atual |
-   | `JWT_EXPIRES_IN` | não | padrão `12h` (P5) |
+   | `JWT_ACCESS_EXPIRES_IN` | não | validade do access token; padrão `15m` (P5) |
+   | `REFRESH_TOKEN_DAYS` | não | validade do refresh token em dias; padrão `30` (P5) |
+   | `BCRYPT_ROUNDS` | não | custo do bcrypt; padrão `12` (mínimo 4; os testes usam 4) |
    | `PORT` | não | padrão `3001` |
-   | `CORS_ORIGINS` | sim | lista separada por vírgula. Substitui o `origin: true` atual, que aceita qualquer origem com credenciais |
-   | `APP_URL` | sim | URL do frontend, usada nos links de e-mail |
+   | `CORS_ORIGINS` | em produção | lista separada por vírgula. Em dev/teste o padrão é `http://localhost:5173`. Substitui o `origin: true` antigo, que aceita qualquer origem com credenciais |
+   | `APP_URL` | em produção | URL do frontend, usada nos links de e-mail. Em dev/teste o padrão é `http://localhost:5173` |
+   | `LOW_STOCK_THRESHOLD` | não | limite padrão de estoque baixo; padrão `20` |
    | `APP_TIMEZONE` | não | padrão `America/Sao_Paulo` |
    | `TRIAL_DAYS` | não | padrão `14` (decidido pelo usuário). Só é usado no cadastro, para gravar `Organization.trialEndsAt`; mudar o valor não altera trials em andamento |
    | `SUBSCRIPTION_GRACE_DAYS` | não | padrão `5` (decidido pelo usuário): dias de acesso completo após a mensalidade vencer |
@@ -207,9 +238,18 @@ automáticos, sem nenhum endpoint de negócio ainda.
    Criar `backend/.env.example` com todas as chaves e valores fictícios. **O `.env` é
    do usuário: não edite.** Quando uma fase precisar de variável nova, informe quais
    são e peça para ele preencher.
-3. **Contexto da request** (`nestjs-cls`): guardar `userId` e `endpoint` =
+3. **Contexto da request:** `AuditContext` (`src/audit/audit-context.ts`), sobre
+   `AsyncLocalStorage`, guarda `userId` e `endpoint` =
    `` `${método} ${request.route.path}` `` (ex.: `POST /api/stores/:storeId/sales`, o
-   padrão da rota, sem ids nem query string).
+   padrão da rota, sem ids nem query string). Quem o preenche é o
+   **`AuditContextInterceptor` global** (decisão do usuário: auditoria via interceptor): ele
+   roda depois dos guards, então já enxerga `request.user`, e envolve o handler inteiro
+   no contexto. Detalhe importante: as promessas do Prisma são preguiçosas (só
+   executam ao dar `await`), por isso os helpers do `AuditContext` forçam a execução
+   dentro do contexto.
+
+   Quando o autor é um usuário ainda não autenticado (cadastro, login, esqueci a senha),
+   `AuditContext.actAs(idDoUsuario, fn)` mantém a rota e define o autor.
 
    Para o que roda **sem usuário logado**, helper `runAsSystem(origem, fn)`: define
    `userId = 'system'` e grava `origem` **exatamente como recebida** em
@@ -280,16 +320,36 @@ autor e rota, (c) `delete` é recusado com 409, (d) `findMany` não retorna excl
 
 ## Fase 1 — Autenticação e conta
 
-🛑 Antes de começar: **P2** (rate limiting), **P4** (e-mail), **P5** (sessão).
+🛑 P2 (rate limiting), P4 (e-mail) e P5 (sessão) **já foram respondidas pelo usuário**:
+rate limit em memória, e-mail com nodemailer (`EMAIL_USER`/`EMAIL_PASS`) e sessão com
+access + refresh token com rotação. Não perguntar de novo.
 
-1. **Senhas:** `bcryptjs`, custo 12. Mínimo 8 caracteres. Comparação sempre via
-   `bcrypt.compare`, inclusive quando o usuário não existe (comparar com um hash fixo)
-   para não revelar por tempo de resposta quais e-mails existem.
-2. **JWT** (`@nestjs/jwt`): payload `{ sub: userId, platformRole }`. **Papéis de loja
-   não vão no token**: mudam com frequência e são lidos do banco no guard (Fase 2).
+1. **Senhas:** `bcryptjs`, custo `BCRYPT_ROUNDS` (padrão 12). Mínimo 8 e máximo 72
+   caracteres (limite do bcrypt). Comparação sempre via `bcrypt.compare`, inclusive
+   quando o usuário não existe (comparar com um hash falso) para não revelar por tempo
+   de resposta quais e-mails existem.
+2. **Sessão: access token + refresh token com rotação** (decisão do usuário).
+   - **Access token:** JWT (`@nestjs/jwt`), payload `{ sub: userId, typ: 'access' }`,
+     validade `JWT_ACCESS_EXPIRES_IN` (padrão 15 min). **Papéis de loja não vão no
+     token**: mudam com frequência e são lidos do banco no guard (Fase 2).
+   - **Refresh token:** string aleatória opaca (48 bytes, base64url), validade
+     `REFRESH_TOKEN_DAYS` (padrão 30). No banco (`tb_refresh_tokens`) fica **só o hash
+     SHA-256**. Cada login abre uma *família* (`familyId`).
+   - **Rotação:** `POST /auth/refresh` troca o refresh token por um par novo, revoga o
+     usado (`revokedAt`, `replacedById`) e mantém a família. A reivindicação do token
+     antigo é atômica (`updateMany ... WHERE revokedAt IS NULL`), então de duas
+     renovações simultâneas só uma vence.
+   - **Detecção de reuso:** apresentar um token já revogado derruba a **família
+     inteira**, sem afetar as outras sessões do usuário.
+   - Troca/redefinição de senha e logout geral revogam todos os refresh tokens do usuário.
+   - Resposta de login, cadastro e refresh: `{ access_token, refresh_token, token_type:
+     'Bearer', expires_in (segundos) }` (e `user`, exceto no refresh).
+   - O frontend guarda os dois tokens, renova o access token quando recebe 401 ou antes
+     de expirar e, se o refresh falhar, volta ao login.
 3. **`AuthGuard` global** (`APP_GUARD`) com decorator `@Public()` para as exceções.
-   Valida o token e carrega o usuário (`isActive = true`, `deletedAt = null`); senão,
-   401. Grava `userId` no contexto da Fase 0.
+   Valida o access token (`typ === 'access'`) e carrega o usuário (`isActive = true`,
+   `deletedAt = null`); senão, 401. O `userId` chega ao contexto de auditoria pelo
+   `AuditContextInterceptor` (Fase 0).
 4. **Endpoints:**
    - `POST /auth/signup` (público): cria numa única transação `User`, `Organization`
      (`TRIAL`, `trialEndsAt = agora + TRIAL_DAYS`, plano de trial, `ownerUserId` = novo
@@ -301,21 +361,30 @@ autor e rota, (c) `delete` é recusado com 409, (d) `findMany` não retorna excl
      da company e `billingEmail` com o e-mail do usuário (editáveis na Fase 10). **Não
      chama o Asaas aqui:** o cadastro não pode falhar por indisponibilidade do gateway.
      Retorna o mesmo que o login.
-   - `POST /auth/login` (público): `{ access_token, user }`. Usuário inativo ou
-     excluído: mesma mensagem de credencial inválida.
+   - `POST /auth/login` (público): par de tokens + `user`. Usuário inativo ou excluído:
+     mesma mensagem de credencial inválida.
+   - `POST /auth/refresh` (público): `{ refreshToken }` → par novo de tokens. Token
+     inexistente, expirado, de usuário desativado ou reutilizado: 401.
+   - `POST /auth/logout` (público): `{ refreshToken }` → revoga a sessão. Idempotente.
+   - `POST /auth/logout-all` (autenticado): revoga todas as sessões do usuário.
    - `POST /auth/forgot-password` (público): sempre 200. Se o e-mail existir, envia
      link `APP_URL/redefinir-senha?token=...`. **Token sem tabela nova:** JWT de 30 min
      assinado com `JWT_SECRET + passwordHash atual` e `{ sub, purpose: 'reset' }`. Ao
      trocar a senha, o hash muda e o token deixa de valer (uso único).
    - `POST /auth/reset-password` (público): `{ token, newPassword }`.
-   - `POST /auth/change-password` (autenticado): exige a senha atual.
+   - `POST /auth/change-password` (autenticado): exige a senha atual, encerra as
+     outras sessões e devolve uma sessão nova para este dispositivo.
    - `GET /me`: dados do usuário (sem `passwordHash`) + `platformRole`.
    - `PATCH /me`: altera o próprio `name`. O e-mail não é alterado neste plano (⚠️).
    - `GET /me/memberships`: **contrato usado pelo frontend, não alterar o formato
      sem avisar**:
      ```json
      [
-       { "companyId": "...", "companyName": "...", "isCompanyOwner": true,
+       { "companyId": "...", "companyName": "...", "organizationId": "...",
+         "isCompanyOwner": true, "isBillingOwner": true,
+         "subscription": { "status": "...", "accessMode": "FULL|GRACE|READ_ONLY",
+                           "reason": null, "trialEndsAt": "...", "pastDueSince": null,
+                           "graceEndsAt": null },
          "stores": [{ "storeId": "...", "storeName": "...", "role": "MANAGER" }] }
      ]
      ```
@@ -496,7 +565,16 @@ estoque aparece no histórico com `modifiedEndpoint` de `stock-entries`.
 
 ## Fase 5 — Vasilhames, clientes e fiado
 
-🛑 Antes da devolução de vasilhame: **P7**.
+**P7 já decidida pelo usuário: a devolução de vasilhame só é aceita na mesma loja onde
+está a dívida.** Não perguntar de novo. O motivo e a mensagem ao usuário estão em
+`docs/BANCO_DE_DADOS.md` §3.3.
+
+O estoque de vasilhame (`StoreBottleType.stock`) e o saldo do cliente
+(`CustomerStoreBottleBalance.balance`) **só mudam por `src/bottles/bottle-ledger.ts`**, e
+o saldo de fiado (`CustomerStoreBalance.balance`) **só por `src/customers/customer-ledger.ts`**
+(`addCustomerDebt`: saldo em centavos arredondados, gravado por comparação-e-troca). Não
+altere essas colunas por outro caminho; cada alteração precisa do registro correspondente
+(`BottleMovement`, `Sale` fiado ou `CustomerPaymentAllocation`).
 
 1. **Vasilhames — catálogo** (`/companies/:companyId/bottle-types`): CRUD + restore.
    Excluir é bloqueado se algum cliente deve aquele tipo (`balance > 0`).
@@ -534,9 +612,13 @@ estoque aparece no histórico com `modifiedEndpoint` de `stock-entries`.
      da loja que recebe (sem caixa aberto → 409).
    - `GET .../payments`: histórico de pagamentos do cliente.
 6. **Devolução de vasilhame** (`POST /stores/:storeId/customers/:customerId/bottle-returns`,
-   `{ bottleTypeId, quantity > 0 }`), conforme P7. Padrão: mesma loja, sem passar da
-   dívida. Cria `BottleMovement` `CUSTOMER_RETURN` (+qtd), incrementa
-   `StoreBottleType.stock` e decrementa `CustomerStoreBottleBalance`.
+   `{ bottleTypeId, quantity > 0 }`), conforme P7: **só abate a dívida da própria loja
+   da rota**, e não pode passar do que o cliente deve nela. Se o cliente deve na loja A
+   e tenta devolver na B (ou devolve mais do que deve), responder **409** com a mensagem
+   "A devolução só abate a dívida da própria loja onde o vasilhame foi levado". Cria
+   `BottleMovement` `CUSTOMER_RETURN` (+qtd), incrementa `StoreBottleType.stock` e
+   decrementa `CustomerStoreBottleBalance` (a função `returnCustomerBottles` já faz a
+   verificação de forma atômica).
 7. **Empréstimo avulso** (fora de venda): `POST .../bottle-loans`, mesmo padrão com
    `CUSTOMER_BORROW` (−qtd).
 
@@ -843,7 +925,9 @@ rota daqui? Avise o usuário**, porque o plano de frontend precisa acompanhar.
 
 | Contrato | Rota |
 |---|---|
-| Acessos do usuário | `GET /api/me/memberships`: companies → lojas com `role`, `isCompanyOwner` e `subscription` (`status`, `accessMode`, `trialEndsAt`, `pastDueSince`, `graceEndsAt`) |
+| Sessão | `POST /api/auth/login`, `/signup`, `/refresh` devolvem `{ access_token, refresh_token, token_type, expires_in }` (login e cadastro também `user`). Access token de 15 min; refresh token com rotação (cada uso devolve um novo e invalida o anterior). `POST /api/auth/logout` e `/logout-all` encerram sessões |
+| Acessos do usuário | `GET /api/me/memberships`: companies → lojas com `role`, `isCompanyOwner`, `isBillingOwner` e `subscription` (`status`, `accessMode`, `reason`, `trialEndsAt`, `pastDueSince`, `graceEndsAt`) |
+| Devolução de vasilhame | `POST /api/stores/:storeId/customers/:customerId/bottle-returns`: só abate a dívida da própria loja (409 se o cliente deve em outra loja) |
 | Saldos do cliente | `GET /api/companies/:companyId/customers/:id/balances` |
 | Pagamento de fiado | `POST /api/stores/:storeId/customers/:customerId/payments` |
 | Criação de produto em várias lojas | `POST /api/companies/:companyId/products` com `stores: [{ storeId, price, costPrice? }]` |
@@ -860,3 +944,40 @@ rota daqui? Avise o usuário**, porque o plano de frontend precisa acompanhar.
 - Respostas recebidas nas paradas P1–P10.
 - Ambiguidades encontradas que este plano não cobria.
 - Rotas implementadas (ou o link do Swagger).
+
+---
+
+## Relatório da implementação
+
+### Decisões ⚠️ tomadas com o padrão sugerido (para o usuário confirmar)
+As regras de negócio estão marcadas no código com `TODO(decisão-produto)`.
+
+| Assunto | O que foi feito |
+|---|---|
+| Planos do seed | `Trial` (R$ 0, 1 empresa, 2 lojas), `Básico` (R$ 99, 1 empresa, 3 lojas), `Pro` (R$ 199, ilimitado). Só exemplo de desenvolvimento |
+| Vasilhame levado na venda | `quantity` vasilhames por produto (como no sistema antigo), não `quantity × packQuantity` |
+| Estoque de vasilhame negativo | Permitido **na venda** (não se barra o PDV); **nunca** nas movimentações manuais |
+| Cancelar venda a prazo já paga em parte | Bloqueado (409): estorno manual. Alternativa: deixar o saldo do cliente negativo |
+| Pagamento de fiado maior que a dívida | Recusado (400); não existe saldo credor |
+| Alocação automática de pagamento | Primeiro a loja que recebeu; depois as demais, da dívida mais antiga para a mais nova |
+| Motivo do ajuste de estoque | Só no log (não há coluna; guardar exigiria mudar o schema, P9) |
+| Forma de pagamento no caixa | Toda venda não fiado (dinheiro, PIX, cartão) entra como movimento `SALE`; a separação por forma vem do resumo das vendas no fechamento |
+| Matriz de permissões | A padrão da Fase 2 (ver `docs/API.md`). Funcionário cria e edita clientes; gerente exclui |
+| Plataforma × dados das empresas | SUPERADMIN/SUPPORT **não** acessam rotas de empresa/loja (404); só `/api/platform/*` |
+| Cancelar comanda | Devolve o estoque, fecha e some da lista (soft delete) |
+| Falha ao enviar e-mail | Vai para o log e não derruba a operação (convite e cadastro continuam) |
+| Lista de lojas da empresa | Qualquer membro vê (necessário para montar o produto compartilhado) |
+| E-mail do usuário | Não é editável por `PATCH /me` (só o nome) |
+
+### Desvios deste plano
+- **Sessão:** access token de 15 min + refresh token com rotação (pedido do usuário), no lugar do token único de 12 h. Exigiu a tabela nova `tb_refresh_tokens`.
+- **Auditoria:** `AuditContext` próprio (AsyncLocalStorage) preenchido por um **interceptor global**, em vez de `nestjs-cls`.
+- **Versões:** `@nestjs/config` ^4, `@nestjs/schedule` ^6 e `@nestjs/swagger` ^11 (as linhas 12 são ESM-only e quebram o Jest).
+- **Extras além do plano:** `GET /stores/:storeId/cash-register/:id` (detalhe do caixa), `GET /me/notifications/unread-count`, `POST /auth/logout-all`, `GET /companies/:companyId/customers/:id/payments`, job diário de limpeza de refresh tokens e `docs/API.md` gerado.
+- **Trava de caixa:** vendas, pagamentos e cancelamentos usam um lock **compartilhado** por loja; abrir, fechar e movimentar manualmente usam lock **exclusivo**. Assim o caixa nunca fecha no meio de uma venda.
+- **Saldo de fiado:** atualizado por comparação-e-troca com arredondamento em centavos (`customer-ledger.ts`), pois o dinheiro é `Float`.
+
+### O que o usuário precisa fazer
+- Preencher no `backend/.env`: `JWT_SECRET` (já existe) e, em produção, `CORS_ORIGINS` e `APP_URL` (veja `backend/.env.example`).
+- Para enviar e-mail de verdade, `EMAIL_USER`/`EMAIL_PASS` (já existem no `.env`); sem eles o link aparece só no log.
+- Confirmar as decisões ⚠️ da tabela acima.
