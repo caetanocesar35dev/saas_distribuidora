@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
-import { BottlesService } from './bottles.service';
+import { BottleMovementsService } from './bottle-movements.service';
 import { BottlesController } from './bottles.controller';
-import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-  imports: [PrismaModule],
   controllers: [BottlesController],
-  providers: [BottlesService],
-  exports: [BottlesService],
+  providers: [BottleMovementsService],
+  exports: [BottleMovementsService],
 })
 export class BottlesModule {}

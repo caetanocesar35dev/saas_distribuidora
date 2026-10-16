@@ -1,0 +1,43 @@
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { Env } from './config/env';
+
+/** Configuração HTTP compartilhada entre main.ts e os testes e2e. */
+export function configureApp(
+  app: INestApplication,
+  options: { swagger?: boolean } = {},
+) {
+  const config = app.get(ConfigService<Env, true>);
+
+  app.use(helmet());
+  app.enableCors({
+    origin: config.get('CORS_ORIGINS', { infer: true }),
+    credentials: true,
+  });
+  app.setGlobalPrefix('api');
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.enableShutdownHooks();
+
+  const isProd = config.get('NODE_ENV', { infer: true }) === 'production';
+  if (options.swagger ?? !isProd) {
+    const document = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder()
+        .setTitle('SaaS Distribuidora')
+        .setVersion('1.0')
+        .addBearerAuth()
+        .build(),
+    );
+    SwaggerModule.setup('api/docs', app, document);
+  }
+}

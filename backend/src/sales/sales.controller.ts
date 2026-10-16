@@ -1,37 +1,121 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Query, Request } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import {
+  CurrentUser,
+  StoreRole,
+  Tenant,
+} from '../common/decorators/access.decorators';
+import type {
+  AuthUser,
+  StoreTenant,
+} from '../common/decorators/access.decorators';
+import { CommandTabsService } from './command-tabs.service';
+import {
+  AddCommandItemDto,
+  CloseCommandTabDto,
+  CreateCommandTabDto,
+  CreateSaleDto,
+  ListCommandTabsQuery,
+  ListSalesQuery,
+} from './dto/sales.dto';
 import { SalesService } from './sales.service';
-import { AuthGuard } from '../auth/auth.guard';
-import { PaymentMethod } from '@prisma/client';
 
-@UseGuards(AuthGuard)
-@Controller('sales')
+@ApiTags('sales')
+@ApiBearerAuth()
+@Controller('stores/:storeId/sales')
 export class SalesController {
-  constructor(private salesService: SalesService) {}
+  constructor(private readonly sales: SalesService) {}
 
   @Post()
-  async create(@Body() body: { paymentMethod: PaymentMethod; customerId?: number; discount?: number; items: { productId: number; quantity: number }[]; bottleMovements?: { bottleTypeId: number; quantity: number; type: 'CUSTOMER_BORROW' | 'CUSTOMER_RETURN' }[] }, @Request() req: any) {
-    return this.salesService.create(body, req.user.sub);
+  create(
+    @Tenant() tenant: StoreTenant,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateSaleDto,
+  ) {
+    return this.sales.create(tenant.storeId, tenant.companyId, user.id, dto);
   }
 
   @Get()
-  async findAll(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('search') search?: string,
-    @Query('paymentMethod') paymentMethod?: string,
-    @Query('startDate') startDate?: string,
-    @Query('endDate') endDate?: string,
-  ) {
-    return this.salesService.findAll({ page, limit, search, paymentMethod, startDate, endDate });
+  list(@Tenant() tenant: StoreTenant, @Query() query: ListSalesQuery) {
+    return this.sales.list(tenant.storeId, query);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.salesService.findOne(Number(id));
+  get(@Tenant() tenant: StoreTenant, @Param('id') id: string) {
+    return this.sales.get(tenant.storeId, id);
   }
 
+  @StoreRole(Role.MANAGER)
+  @HttpCode(200)
   @Post(':id/cancel')
-  async cancel(@Param('id') id: string) {
-    return this.salesService.cancel(Number(id));
+  cancel(@Tenant() tenant: StoreTenant, @Param('id') id: string) {
+    return this.sales.cancel(tenant.storeId, id);
+  }
+}
+
+@ApiTags('sales')
+@ApiBearerAuth()
+@Controller('stores/:storeId/command-tabs')
+export class CommandTabsController {
+  constructor(private readonly tabs: CommandTabsService) {}
+
+  @Post()
+  create(@Tenant() tenant: StoreTenant, @Body() dto: CreateCommandTabDto) {
+    return this.tabs.create(tenant.storeId, tenant.companyId, dto);
+  }
+
+  @Get()
+  list(@Tenant() tenant: StoreTenant, @Query() query: ListCommandTabsQuery) {
+    return this.tabs.list(tenant.storeId, query.status);
+  }
+
+  @Get(':id')
+  get(@Tenant() tenant: StoreTenant, @Param('id') id: string) {
+    return this.tabs.get(tenant.storeId, id);
+  }
+
+  @Post(':id/items')
+  addItem(
+    @Tenant() tenant: StoreTenant,
+    @Param('id') id: string,
+    @Body() dto: AddCommandItemDto,
+  ) {
+    return this.tabs.addItem(tenant.storeId, id, dto);
+  }
+
+  @Delete(':id/items/:itemId')
+  removeItem(
+    @Tenant() tenant: StoreTenant,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ) {
+    return this.tabs.removeItem(tenant.storeId, id, itemId);
+  }
+
+  @HttpCode(200)
+  @Post(':id/close')
+  close(
+    @Tenant() tenant: StoreTenant,
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: CloseCommandTabDto,
+  ) {
+    return this.tabs.close(tenant.storeId, tenant.companyId, user.id, id, dto);
+  }
+
+  @HttpCode(200)
+  @Post(':id/cancel')
+  cancel(@Tenant() tenant: StoreTenant, @Param('id') id: string) {
+    return this.tabs.cancel(tenant.storeId, id);
   }
 }

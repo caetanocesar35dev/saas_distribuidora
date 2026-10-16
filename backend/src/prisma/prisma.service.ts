@@ -1,32 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging, @typescript-eslint/no-empty-object-type --
+   A mesclagem classe + interface é de propósito: a classe é o token de injeção do Nest e a interface
+   dá a ela a tipagem completa do PrismaClient estendido (auditoria + soft delete). */
+import { ExtendedPrismaClient } from './prisma.extension';
 
-@Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
-  private static pool: Pool;
-  private static adapter: PrismaPg;
-
-  constructor() {
-    if (!PrismaService.pool) {
-      PrismaService.pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-      });
-      PrismaService.adapter = new PrismaPg(PrismaService.pool);
-    }
-    super({ adapter: PrismaService.adapter });
-  }
-
-  async onModuleInit() {
-    // Conexão implícita na primeira consulta
-  }
-
-  async onModuleDestroy() {
-    await this.$disconnect();
-    // Fechar o pool de conexões ao encerrar o módulo
-    if (PrismaService.pool) {
-      await PrismaService.pool.end();
-    }
-  }
-}
+/** Token de injeção do PrismaClient estendido. */
+export abstract class PrismaService {}
+export interface PrismaService extends ExtendedPrismaClient {}

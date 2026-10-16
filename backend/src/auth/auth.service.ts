@@ -1,189 +1,268 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
-import { CreateUserDto } from './dto/create-user.dto';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { AuditContext } from '../audit/audit-context';
+import { isValidCnpj, onlyDigits } from '../common/utils/document';
+import { addDays } from '../common/utils/time';
+import { Env } from '../config/env';
+import { MailService } from '../mail/mail.service';
+import { PrismaService } from '../prisma/prisma.service';
+import {
+  ChangePasswordDto,
+  LoginDto,
+  ResetPasswordDto,
+  SignupDto,
+} from './dto/auth.dto';
+import { Session, SessionMeta, TokenService } from './token.service';
+
+const INVALID_CREDENTIALS = 'E-mail ou senha incorretos.';
+const INVALID_RESET_LINK = 'Link inválido ou expirado.';
+
+export interface AuthResult extends Session {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    platformRole: string | null;
+  };
+}
 
 @Injectable()
 export class AuthService {
+  private dummyHash?: string;
+
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditContext,
+    private readonly tokens: TokenService,
+    private readonly mail: MailService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
-  async login(email: string, pass: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-    });
+  private get rounds(): number {
+    return this.config.get('BCRYPT_ROUNDS', { infer: true });
+  }
 
-    if (!user) {
-      throw new UnauthorizedException('E-mail ou senha incorretos');
-    }
+  private hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, this.rounds);
+  }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException('Este usuário está desativado. Contate o administrador.');
-    }
+  /** Hash falso para comparar quando o e-mail não existe: o tempo de resposta não revela quem existe. */
+  private async getDummyHash(): Promise<string> {
+    this.dummyHash ??= await this.hashPassword(randomBytes(16).toString('hex'));
+    return this.dummyHash;
+  }
 
-    const isMatch = await bcrypt.compare(pass, user.password);
-    if (!isMatch) {
-      throw new UnauthorizedException('E-mail ou senha incorretos');
-    }
-
-    const payload = { sub: user.id, email: user.email, name: user.name, role: user.role };
+  private toResult(
+    session: Session,
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      platformRole: string | null;
+    },
+  ): AuthResult {
     return {
-      access_token: await this.jwtService.signAsync(payload),
+      ...session,
       user: {
         id: user.id,
-        email: user.email,
         name: user.name,
-        role: user.role,
+        email: user.email,
+        platformRole: user.platformRole,
       },
     };
   }
 
-  async getProfile(userId: number) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-    if (!user) {
-      throw new UnauthorizedException('Usuário não encontrado');
-    }
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
-  }
+  /**
+   * Cadastro público: cria numa única transação o usuário, a organização (em trial), a company, a
+   * primeira loja e o vínculo de OWNER. O gateway de pagamento não é chamado aqui.
+   */
+  async signup(dto: SignupDto, meta: SessionMeta = {}): Promise<AuthResult> {
+    const cnpj = onlyDigits(dto.cnpj);
+    if (!isValidCnpj(cnpj)) throw new BadRequestException('CNPJ inválido.');
 
-  async register(data: CreateUserDto, currentUserId: number) {
-    // 1. Verifica se quem está tentando criar tem permissão de ADMIN
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: currentUserId },
-    });
-
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      throw new UnauthorizedException('Apenas administradores podem registrar novos usuários/funcionários');
-    }
-
-    // 2. Verifica se o e-mail já existe
-    const existingUser = await this.prisma.user.findUnique({
-      where: { email: data.email },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Este e-mail já está em uso por outro usuário');
-    }
-
-    // 3. Faz o hash da senha
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-
-    // 4. Cria o usuário
-    const user = await this.prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        name: data.name,
-        role: data.role || 'USER',
-      },
-    });
-
-    // 5. Retorna o usuário criado sem a senha
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    };
-  }
-
-  async getAllUsers(currentUserId: number) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: currentUserId },
-    });
-
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      throw new UnauthorizedException('Apenas administradores podem listar usuários');
-    }
-
-    return this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-      },
-      orderBy: { id: 'asc' },
-    });
-  }
-
-  async toggleUserActive(userId: number, currentUserId: number) {
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: currentUserId },
-    });
-
-    if (!currentUser || currentUser.role !== 'ADMIN') {
-      throw new UnauthorizedException('Apenas administradores podem gerenciar usuários');
-    }
-
-    if (userId === currentUserId) {
-      throw new ConflictException('Você não pode desativar seu próprio usuário');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new UnauthorizedException('Usuário não encontrado');
-    }
-
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { isActive: !user.isActive },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        isActive: true,
+    await this.audit.withDeleted(async () => {
+      if (
+        await this.prisma.user.findUnique({
+          where: { email: dto.email },
+          select: { id: true },
+        })
+      ) {
+        throw new ConflictException('Este e-mail já está cadastrado.');
+      }
+      if (
+        await this.prisma.company.findUnique({
+          where: { cnpj },
+          select: { id: true },
+        })
+      ) {
+        throw new ConflictException('Este CNPJ já está cadastrado.');
       }
     });
-  }
 
-  async changeOwnPassword(userId: number, currentPass: string, newPass: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new UnauthorizedException('Usuário não encontrado');
-
-    const isMatch = await bcrypt.compare(currentPass, user.password);
-    if (!isMatch) throw new UnauthorizedException('Senha atual incorreta');
-
-    const hashedPassword = await bcrypt.hash(newPass, 10);
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { password: hashedPassword },
-    });
-
-    return { message: 'Senha atualizada com sucesso' };
-  }
-
-  async resetPasswordByAdmin(adminId: number, targetUserId: number, newPass: string) {
-    const admin = await this.prisma.user.findUnique({ where: { id: adminId } });
-    if (!admin || admin.role !== 'ADMIN') {
-      throw new UnauthorizedException('Apenas administradores podem redefinir senhas');
+    const plan = dto.planId
+      ? await this.prisma.plan.findFirst({ where: { id: dto.planId } })
+      : await this.prisma.plan.findFirst({ orderBy: { priceInCents: 'asc' } });
+    if (!plan) {
+      throw dto.planId
+        ? new BadRequestException('Plano não encontrado.')
+        : new ConflictException('Nenhum plano disponível para o cadastro.');
     }
 
-    const targetUser = await this.prisma.user.findUnique({ where: { id: targetUserId } });
-    if (!targetUser) throw new UnauthorizedException('Usuário alvo não encontrado');
+    const passwordHash = await this.hashPassword(dto.password);
+    const userId = randomUUID();
+    const trialDays = this.config.get('TRIAL_DAYS', { infer: true });
 
-    const hashedPassword = await bcrypt.hash(newPass, 10);
-    await this.prisma.user.update({
-      where: { id: targetUserId },
-      data: { password: hashedPassword },
+    // O autor das gravações do cadastro é o próprio usuário que está sendo criado.
+    const user = await this.audit.actAs(userId, () =>
+      this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: { id: userId, name: dto.name, email: dto.email, passwordHash },
+        });
+        const organization = await tx.organization.create({
+          data: {
+            name: dto.nomeFantasia || dto.razaoSocial,
+            ownerUserId: userId,
+            planId: plan.id,
+            subscriptionStatus: 'TRIAL',
+            trialEndsAt: addDays(new Date(), trialDays),
+            billingEmail: dto.email,
+            billingDocument: cnpj,
+          },
+        });
+        const company = await tx.company.create({
+          data: {
+            cnpj,
+            razaoSocial: dto.razaoSocial,
+            nomeFantasia: dto.nomeFantasia,
+            organizationId: organization.id,
+          },
+        });
+        const store = await tx.store.create({
+          data: { companyId: company.id, name: dto.storeName },
+        });
+        const membership = await tx.membership.create({
+          data: { userId, companyId: company.id },
+        });
+        await tx.membershipStore.create({
+          data: {
+            membershipId: membership.id,
+            storeId: store.id,
+            role: 'OWNER',
+          },
+        });
+        return created;
+      }),
+    );
+
+    const session = await this.tokens.issueSession(user.id, meta);
+    return this.toResult(session, user);
+  }
+
+  async login(dto: LoginDto, meta: SessionMeta = {}): Promise<AuthResult> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
     });
+    const matches = await bcrypt.compare(
+      dto.password,
+      user?.passwordHash ?? (await this.getDummyHash()),
+    );
+    if (!user || !matches || !user.isActive)
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
 
-    return { message: 'Senha redefinida com sucesso' };
+    const session = await this.tokens.issueSession(user.id, meta);
+    return this.toResult(session, user);
+  }
+
+  async refresh(
+    refreshToken: string,
+    meta: SessionMeta = {},
+  ): Promise<Session> {
+    return this.tokens.rotate(refreshToken, meta);
+  }
+
+  async logout(refreshToken: string): Promise<{ message: string }> {
+    await this.tokens.revokeByToken(refreshToken);
+    return { message: 'Sessão encerrada.' };
+  }
+
+  async logoutAll(userId: string): Promise<{ message: string }> {
+    await this.tokens.revokeAllForUser(userId);
+    return { message: 'Todas as sessões foram encerradas.' };
+  }
+
+  /** Resposta sempre igual, exista o e-mail ou não. */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findFirst({
+      where: { email, isActive: true },
+    });
+    if (user) {
+      const token = await this.tokens.signPasswordToken(user, '30m');
+      const url = `${this.config.get('APP_URL', { infer: true })}/redefinir-senha?token=${encodeURIComponent(token)}`;
+      await this.mail.sendPasswordReset(user.email, user.name, url);
+    }
+    return {
+      message: 'Se o e-mail estiver cadastrado, enviaremos as instruções.',
+    };
+  }
+
+  /** Redefinição de senha e também definição da primeira senha de um usuário convidado. */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
+    const userId = this.tokens.peekPasswordTokenSubject(dto.token);
+    if (!userId) throw new BadRequestException(INVALID_RESET_LINK);
+
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isActive: true },
+    });
+    if (!user || !(await this.tokens.verifyPasswordToken(dto.token, user))) {
+      throw new BadRequestException(INVALID_RESET_LINK);
+    }
+
+    const passwordHash = await this.hashPassword(dto.newPassword);
+    await this.audit.actAs(user.id, () =>
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+    );
+    await this.tokens.revokeAllForUser(user.id);
+    return { message: 'Senha redefinida com sucesso.' };
+  }
+
+  /** Troca a senha, encerra as outras sessões e devolve uma sessão nova para este dispositivo. */
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+    meta: SessionMeta = {},
+  ): Promise<AuthResult> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isActive: true },
+    });
+    if (!user) throw new UnauthorizedException();
+    if (!(await bcrypt.compare(dto.currentPassword, user.passwordHash))) {
+      throw new BadRequestException('Senha atual incorreta.');
+    }
+
+    const passwordHash = await this.hashPassword(dto.newPassword);
+    await this.audit.actAs(userId, () =>
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      }),
+    );
+    await this.tokens.revokeAllForUser(userId);
+    const session = await this.tokens.issueSession(userId, meta);
+    return this.toResult(session, user);
+  }
+
+  /** Senha aleatória inutilizável, para usuários criados por convite (definem a senha pelo link). */
+  async unusablePasswordHash(): Promise<string> {
+    return this.hashPassword(randomBytes(32).toString('hex'));
   }
 }
-

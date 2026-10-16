@@ -1,14 +1,32 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import {
+  CompanyOwner,
+  StoreRole,
+  Tenant,
+} from '../common/decorators/access.decorators';
+import type {
+  CompanyTenant,
+  StoreTenant,
+} from '../common/decorators/access.decorators';
 import { DashboardService } from './dashboard.service';
-import { AuthGuard } from '../auth/auth.guard';
 
-@UseGuards(AuthGuard)
-@Controller('dashboard')
+@ApiTags('dashboard')
+@ApiBearerAuth()
+@Controller()
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(private readonly dashboard: DashboardService) {}
 
-  @Get('metrics')
-  getMetrics() {
-    return this.dashboardService.getMetrics();
+  @StoreRole(Role.MANAGER)
+  @Get('stores/:storeId/dashboard')
+  store(@Tenant() tenant: StoreTenant) {
+    return this.dashboard.forStore(tenant.storeId);
+  }
+
+  @CompanyOwner()
+  @Get('companies/:companyId/dashboard')
+  company(@Tenant() tenant: CompanyTenant) {
+    return this.dashboard.forCompany(tenant.companyId);
   }
 }

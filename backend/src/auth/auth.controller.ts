@@ -1,50 +1,96 @@
-import { Controller, Post, Body, Get, UseGuards, Request, Patch, Param } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Req } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import type { Request } from 'express';
+import { CurrentUser, Public } from '../common/decorators/access.decorators';
+import type { AuthUser } from '../common/decorators/access.decorators';
 import { AuthService } from './auth.service';
-import { AuthGuard } from './auth.guard';
-import { CreateUserDto } from './dto/create-user.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RefreshTokenDto,
+  ResetPasswordDto,
+  SignupDto,
+} from './dto/auth.dto';
+import { SessionMeta } from './token.service';
 
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+
+function metaOf(req: Request): SessionMeta {
+  return { userAgent: req.headers['user-agent'], ip: req.ip };
+}
+
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: HOUR } })
+  @Post('signup')
+  signup(@Body() dto: SignupDto, @Req() req: Request) {
+    return this.auth.signup(dto, metaOf(req));
+  }
+
+  @Public()
+  @HttpCode(200)
+  @Throttle({
+    default: { limit: 5, ttl: MINUTE },
+    hourly: { limit: 20, ttl: HOUR },
+  })
   @Post('login')
-  async login(@Body() body: any) {
-    return this.authService.login(body.email, body.password);
+  login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.auth.login(dto, metaOf(req));
   }
 
-  @UseGuards(AuthGuard)
-  @Get('me')
-  async getProfile(@Request() req: any) {
-    return this.authService.getProfile(req.user.sub);
+  @Public()
+  @HttpCode(200)
+  @Post('refresh')
+  refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
+    return this.auth.refresh(dto.refreshToken, metaOf(req));
   }
 
-  @UseGuards(AuthGuard)
-  @Post('register')
-  async register(@Body() body: CreateUserDto, @Request() req: any) {
-    return this.authService.register(body, req.user.sub);
+  @Public()
+  @HttpCode(200)
+  @Post('logout')
+  logout(@Body() dto: RefreshTokenDto) {
+    return this.auth.logout(dto.refreshToken);
   }
 
-  @UseGuards(AuthGuard)
-  @Get('users')
-  async getAllUsers(@Request() req: any) {
-    return this.authService.getAllUsers(req.user.sub);
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @Post('logout-all')
+  logoutAll(@CurrentUser() user: AuthUser) {
+    return this.auth.logoutAll(user.id);
   }
 
-  @UseGuards(AuthGuard)
-  @Patch('users/:id/toggle-active')
-  async toggleUserActive(@Param('id') id: string, @Request() req: any) {
-    return this.authService.toggleUserActive(Number(id), req.user.sub);
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 3, ttl: HOUR } })
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
   }
 
-  @UseGuards(AuthGuard)
+  @Public()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: HOUR } })
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto);
+  }
+
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: HOUR } })
   @Post('change-password')
-  async changeOwnPassword(@Body() body: any, @Request() req: any) {
-    return this.authService.changeOwnPassword(req.user.sub, body.currentPassword, body.newPassword);
-  }
-
-  @UseGuards(AuthGuard)
-  @Post('users/:id/reset-password')
-  async resetPasswordByAdmin(@Param('id') id: string, @Body() body: any, @Request() req: any) {
-    return this.authService.resetPasswordByAdmin(req.user.sub, Number(id), body.newPassword);
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: ChangePasswordDto,
+    @Req() req: Request,
+  ) {
+    return this.auth.changePassword(user.id, dto, metaOf(req));
   }
 }
