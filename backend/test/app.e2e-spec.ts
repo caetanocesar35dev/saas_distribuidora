@@ -18,9 +18,9 @@ describe('Infraestrutura HTTP: segurança, Swagger, CORS e rate limit (e2e)', ()
     it('CORS: só a origem configurada (CORS_ORIGINS) é aceita', async () => {
       const allowed = await t.http
         .get('/api/health')
-        .set('Origin', 'http://localhost:5173');
+        .set('Origin', 'http://localhost:3000');
       expect(allowed.headers['access-control-allow-origin']).toBe(
-        'http://localhost:5173',
+        'http://localhost:3000',
       );
       expect(allowed.headers['access-control-allow-credentials']).toBe('true');
 

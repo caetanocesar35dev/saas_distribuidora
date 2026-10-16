@@ -46,7 +46,8 @@ migration (veja §7 da documentação do banco).
 
 Ficam em `backend/.env` (fora do git). Copie o [.env.example](.env.example), que lista todas
 as variáveis com os padrões. **Obrigatórias:** `DATABASE_URL` e `JWT_SECRET` (você define o
-segredo). Em produção também `CORS_ORIGINS` e `APP_URL`. Sem `EMAIL_USER`/`EMAIL_PASS` nenhum
+segredo). Em produção também `CORS_ORIGINS` e `APP_URL` (em desenvolvimento o padrão de
+ambas é `http://localhost:3000`, a porta do Next). Sem `EMAIL_USER`/`EMAIL_PASS` nenhum
 e-mail é enviado (a mensagem aparece só no log).
 
 Sessão: access token de 15 min (`JWT_ACCESS_EXPIRES_IN`) e refresh token com rotação de

@@ -106,6 +106,8 @@ os campos é a extensão do Prisma).
   `DATABASE_URL` em `backend/.env`. **Não existe docker-compose.** O container não tem
   restart automático: se o banco não responder, rode `docker start banco_saas_distribuidora`.
 - Container novo (Redis, Mailpit etc.) só com aprovação do usuário.
+- Portas em desenvolvimento: API na **3001** e frontend Next na **3000**. O padrão de
+  `CORS_ORIGINS` e `APP_URL` no backend é `http://localhost:3000` (decidido pelo usuário).
 
 ## Comandos (em `backend/`)
 

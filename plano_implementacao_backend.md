@@ -224,8 +224,8 @@ automáticos, sem nenhum endpoint de negócio ainda.
    | `REFRESH_TOKEN_DAYS` | não | validade do refresh token em dias; padrão `30` (P5) |
    | `BCRYPT_ROUNDS` | não | custo do bcrypt; padrão `12` (mínimo 4; os testes usam 4) |
    | `PORT` | não | padrão `3001` |
-   | `CORS_ORIGINS` | em produção | lista separada por vírgula. Em dev/teste o padrão é `http://localhost:5173`. Substitui o `origin: true` antigo, que aceita qualquer origem com credenciais |
-   | `APP_URL` | em produção | URL do frontend, usada nos links de e-mail. Em dev/teste o padrão é `http://localhost:5173` |
+   | `CORS_ORIGINS` | em produção | lista separada por vírgula. Em dev/teste o padrão é `http://localhost:3000` (Next em desenvolvimento). Substitui o `origin: true` antigo, que aceita qualquer origem com credenciais |
+   | `APP_URL` | em produção | URL do frontend, usada nos links de e-mail. Em dev/teste o padrão é `http://localhost:3000` (Next em desenvolvimento) |
    | `LOW_STOCK_THRESHOLD` | não | limite padrão de estoque baixo; padrão `20` |
    | `APP_TIMEZONE` | não | padrão `America/Sao_Paulo` |
    | `TRIAL_DAYS` | não | padrão `14` (decidido pelo usuário). Só é usado no cadastro, para gravar `Organization.trialEndsAt`; mudar o valor não altera trials em andamento |

@@ -48,7 +48,7 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   const DATABASE_URL = need('DATABASE_URL');
   const JWT_SECRET = need('JWT_SECRET');
 
-  // Em produção, CORS_ORIGINS e APP_URL são obrigatórios. Em dev/teste, o padrão é o Vite local.
+  // Em produção, CORS_ORIGINS e APP_URL são obrigatórios. Em dev/teste, o padrão é o Next local (porta 3000).
   const corsRaw = raw.CORS_ORIGINS as string | undefined;
   const appUrlRaw = raw.APP_URL as string | undefined;
   if (isProd && !corsRaw) missing.push('CORS_ORIGINS');
@@ -73,11 +73,11 @@ export function validateEnv(raw: Record<string, unknown>): Env {
       30,
       1,
     ),
-    CORS_ORIGINS: (corsRaw || 'http://localhost:5173')
+    CORS_ORIGINS: (corsRaw || 'http://localhost:3000')
       .split(',')
       .map((o) => o.trim())
       .filter(Boolean),
-    APP_URL: (appUrlRaw || 'http://localhost:5173').replace(/\/$/, ''),
+    APP_URL: (appUrlRaw || 'http://localhost:3000').replace(/\/$/, ''),
     APP_TIMEZONE: (raw.APP_TIMEZONE as string) || 'America/Sao_Paulo',
     TRIAL_DAYS: toInt(raw.TRIAL_DAYS, 'TRIAL_DAYS', 14, 1),
     SUBSCRIPTION_GRACE_DAYS: toInt(

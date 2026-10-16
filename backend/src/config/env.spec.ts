@@ -15,8 +15,8 @@ describe('validateEnv', () => {
       LOW_STOCK_THRESHOLD: 20,
       BCRYPT_ROUNDS: 12,
       APP_TIMEZONE: 'America/Sao_Paulo',
-      CORS_ORIGINS: ['http://localhost:5173'],
-      APP_URL: 'http://localhost:5173',
+      CORS_ORIGINS: ['http://localhost:3000'],
+      APP_URL: 'http://localhost:3000',
       EMAIL_HOST: 'smtp.gmail.com',
       EMAIL_PORT: 465,
     });

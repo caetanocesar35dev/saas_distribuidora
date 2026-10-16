@@ -45,6 +45,10 @@ Regras:
 - **Tipos da API em um lugar só** (`src/lib/api/types.ts` ou gerados do Swagger, ver F2).
   Nenhuma tela declara o formato de resposta por conta própria.
 - Variável de ambiente: `NEXT_PUBLIC_API_URL` (padrão `http://localhost:3001/api`).
+- **Portas em desenvolvimento (decidido pelo usuário):** o Next roda na porta padrão
+  **3000** e a API na **3001**. O backend já usa `http://localhost:3000` como padrão de
+  `CORS_ORIGINS` e `APP_URL`, então não é preciso mexer no `backend/.env`. Se mudar a porta
+  do Next, essas duas variáveis precisam mudar junto.
 - Interface em **português do Brasil**, valores em R$ (`Intl.NumberFormat('pt-BR')`) e
   datas no fuso `America/Sao_Paulo`.
 
@@ -55,7 +59,6 @@ Regras:
 | **F1** | **Onde guardar os tokens** | Recomendado: um BFF fino no Next (route handlers) que guarda o refresh token em **cookie httpOnly** e repassa as chamadas; o JavaScript da página nunca vê o refresh token (proteção contra XSS). Alternativa mais simples: access token em memória e refresh token no `localStorage` (mais exposto). A escolha muda a Fase 0 |
 | **F2** | **Bibliotecas além da stack** | Recomendado: TanStack Query (cache e recarga após alterações), React Hook Form + Zod (formulários), um gráfico (Recharts) e um gerador de tipos do Swagger (`openapi-typescript`). Pedir aprovação da lista; não instalar outras sem perguntar |
 | **F3** | **Componentes visuais** | Tailwind puro com componentes próprios, ou uma base pronta sobre Tailwind (ex.: shadcn/ui). Perguntar |
-| **F4** | **Porta do Next em desenvolvimento** | O Next usa a porta 3000; o backend tem `CORS_ORIGINS` e `APP_URL` padrão `http://localhost:5173` (do Vite). Pedir ao usuário para pôr `CORS_ORIGINS=http://localhost:3000` e `APP_URL=http://localhost:3000` no `backend/.env` (o agente não edita o `.env`), ou rodar o Next na 5173 |
 
 ---
 
@@ -172,7 +175,7 @@ citam mudam junto. O critério de conclusão de cada fase inclui os artigos daqu
 
 ## Fase 0 — Fundamentos
 
-🛑 Antes: **F1**, **F2**, **F3** e **F4**.
+🛑 Antes: **F1**, **F2** e **F3**.
 
 1. Criar o projeto Next (ver Stack), configurar Tailwind, ESLint e `tsconfig` estrito,
    `NEXT_PUBLIC_API_URL` e um `.env.example` do frontend.
@@ -455,4 +458,4 @@ app (rota separada, ex.: `/plataforma`) antes de começar.
    artigo, e as mensagens de erro citadas nos artigos são as que o sistema mostra.
 
 **Reportar ao final:** endpoints que não bateram com o que a API realmente expõe,
-respostas recebidas nas paradas F1–F4 e decisões de UX tomadas.
+respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
