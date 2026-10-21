@@ -6,9 +6,8 @@ vasilhames e fiado. Hierarquia: `Organization` (cobrança) → `Company` (distri
 não existe `ADMIN`).
 
 - `backend/`: NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16.
-- `frontend/`: será refeito em **Next.js (App Router) + React + TypeScript (strict) +
-  Tailwind CSS** (decisão do usuário). O código atual é legado (React + Vite + JavaScript)
-  e só serve de referência visual.
+- `frontend/`: **Next.js (App Router) + React + TypeScript (strict) + Tailwind CSS +
+  shadcn/ui** (decisão do usuário). Substituiu o legado em Vite, que só existe no git.
 
 ## Leia antes de mexer
 
@@ -30,11 +29,16 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 377
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 386
   testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
-- **O frontend ainda é legado** (versão single-tenant) e será refeito pelo plano dele. As
-  regras de negócio antigas ficam no git (`git show a4ff703:<arquivo>`).
+- **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
+  login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
+  vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 75
+  testes unitários e 31 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
+  (`git show a4ff703:<arquivo>`).
 
 ## Regras que nunca podem ser quebradas
 
@@ -79,7 +83,10 @@ os campos é a extensão do Prisma).
   refresh token usado; reutilizar um já usado derruba a sessão inteira. Troca de senha e
   logout geral revogam tudo. O guard confere a cada requisição se o usuário está ativo.
   Detalhes em `docs/BANCO_DE_DADOS.md` §3.1.1.
-- Rate limit em memória (`@nestjs/throttler`); **sem Redis e sem cache** por enquanto.
+- Rate limit em memória (`@nestjs/throttler`); **sem Redis e sem cache** por enquanto. A chave é o
+  usuário logado ou o IP; o frontend chama a API por um BFF e repassa o IP em `X-Forwarded-For`,
+  por isso o backend confia nesse cabeçalho **só** de proxies de loopback/rede privada
+  (`trust proxy` em `app.setup.ts`).
 
 **Assinatura (decidido pelo usuário)**
 - Trial de **14 dias**; carência de **5 dias** após a mensalidade vencer.
@@ -97,8 +104,25 @@ os campos é a extensão do Prisma).
 **Frontend (decidido pelo usuário)**
 - O sistema tem uma **Central de Dúvidas** que ensina donos, gerentes e atendentes a usar
   cada funcionalidade e **onde encontrá-la no menu**. Toda tela criada ou alterada só está
-  pronta quando o artigo dela foi criado ou atualizado. Detalhes na seção "Central de
-  Dúvidas" do `plano_implementacao_frontend.md`.
+  pronta quando o artigo dela foi criado ou atualizado (`frontend/src/content/duvidas/`; o
+  botão "?" de cada tela aponta para o artigo). Detalhes na seção "Central de Dúvidas" do
+  `plano_implementacao_frontend.md`.
+- **Sessão no navegador (decidido pelo usuário, F1):** o navegador só fala com o próprio Next
+  (`/api/*`), que repassa ao backend (BFF). Os tokens ficam em **cookies httpOnly**; o
+  JavaScript da página nunca os vê. O BFF renova a sessão sozinho, em fila (refresh token é de
+  uso único). Env do servidor: `API_URL` (não é `NEXT_PUBLIC_`).
+- Os tipos da API ficam só em `frontend/src/lib/api/types.ts`, escritos à mão (o Swagger do
+  backend não descreve corpos nem respostas). **Mudou um DTO ou uma resposta no backend: atualize
+  esse arquivo.** Nunca enviar preço/custo em venda ou comanda; ids de empresa/loja só na URL.
+- Bibliotecas além da stack (aprovadas em F2): TanStack Query, React Hook Form + Zod, Recharts,
+  Vitest e Playwright. Outras só com aprovação. Componentes do shadcn são **Base UI** (`render=`, não `asChild`).
+- **CNPJ é alfanumérico** (12 primeiros caracteres letras ou dígitos, 2 verificadores numéricos):
+  nunca tratar com `onlyDigits`; usar `normalizeCnpj`/`isValidCnpj` (backend em
+  `src/common/utils/document.ts`, frontend em `src/lib/format.ts`). Grava sem máscara e em
+  maiúsculas. No cadastro, em "Nova empresa" e em Lojas (CNPJ opcional da loja), o **navegador**
+  consulta `publica.cnpj.ws` (3 consultas/min por IP, por isso não passa pelo BFF) e preenche
+  razão social e nome fantasia, ou o endereço e telefone da loja (`useCnpjAutofill`); a consulta é
+  só sugestão (decidido pelo usuário).
 
 ## Ambiente local
 
@@ -108,6 +132,25 @@ os campos é a extensão do Prisma).
 - Container novo (Redis, Mailpit etc.) só com aprovação do usuário.
 - Portas em desenvolvimento: API na **3001** e frontend Next na **3000**. O padrão de
   `CORS_ORIGINS` e `APP_URL` no backend é `http://localhost:3000` (decidido pelo usuário).
+
+## Comandos do frontend (em `frontend/`)
+
+```bash
+npm run dev          # http://localhost:3000 (precisa do backend na 3001)
+npm run build        # build de produção
+npm run lint         # ESLint; deve terminar sem erros nem avisos
+npx tsc --noEmit     # tipos
+npm test             # unitários (Vitest)
+npm run test:e2e     # ponta a ponta (Playwright; precisa de banco, backend e seed; grava dados)
+```
+
+Tela ou regra nova no frontend precisa de teste: lógica pura em `*.test.ts` (Vitest) e fluxo
+com banco em `e2e/` (Playwright). O login do backend tem limite (5/min, 20/h por e-mail), por
+isso os testes de ponta a ponta reaproveitam sessões salvas (`e2e/global-setup.ts`).
+
+Antes de mexer em API de rota, layout ou arquivo especial do Next, leia o guia em
+`frontend/node_modules/next/dist/docs/` (versão nova, com mudanças; ver `frontend/AGENTS.md`).
+Não monte código com `node -e`/heredoc no shell (os escapes quebram): use Write/Edit.
 
 ## Comandos (em `backend/`)
 

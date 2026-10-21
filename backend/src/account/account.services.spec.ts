@@ -181,6 +181,30 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       );
     });
 
+    it('confere o CNPJ opcional da loja e grava sem máscara, em maiúsculas', async () => {
+      const store = await as(w.owner.id, () =>
+        stores.create(w.company.id, {
+          name: 'Loja C',
+          cnpj: '12.abc.345/01de-35',
+        }),
+      );
+      expect(store.cnpj).toBe('12ABC34501DE35');
+      await expect(
+        as(w.owner.id, () =>
+          stores.update(w.company.id, store.id, { cnpj: '12.345' }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        as(w.owner.id, () =>
+          stores.create(w.company.id, { name: 'Loja D', cnpj: 'qualquer' }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      const updated = await as(w.owner.id, () =>
+        stores.update(w.company.id, store.id, { cnpj: '11.222.333/0001-81' }),
+      );
+      expect(updated.cnpj).toBe('11222333000181');
+    });
+
     it('respeita maxStoresPerCompany do plano', async () => {
       await ctx.audit.runAsSystem('seed', () =>
         ctx.prisma.plan.update({

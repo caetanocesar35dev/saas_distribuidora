@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { isValidCnpj, onlyDigits } from '../common/utils/document';
+import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompanyDto } from './dto/account.dto';
 
@@ -63,7 +63,7 @@ export class OrganizationsService {
     userId: string,
     dto: CreateCompanyDto,
   ) {
-    const cnpj = onlyDigits(dto.cnpj);
+    const cnpj = normalizeCnpj(dto.cnpj);
     if (!isValidCnpj(cnpj)) throw new BadRequestException('CNPJ inválido.');
 
     const org = await this.prisma.organization.findFirst({

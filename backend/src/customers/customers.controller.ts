@@ -37,7 +37,10 @@ export class CustomersController {
 
   @Get()
   list(@Tenant() tenant: CompanyTenant, @Query() query: ListCustomersQuery) {
-    return this.customers.list(tenant.companyId, query);
+    return this.customers.list(tenant.companyId, query, {
+      role: tenant.role,
+      storeIds: tenant.storeIds,
+    });
   }
 
   @Post()

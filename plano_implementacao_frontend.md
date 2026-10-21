@@ -11,7 +11,10 @@ antigas ficam no git (`git show a4ff703:frontend/src/<arquivo>`).
 **Fonte da verdade dos contratos (consulte antes de montar qualquer tela):**
 - [docs/API.md](docs/API.md): todas as rotas, o papel mínimo de cada uma e o que acontece
   em somente leitura. É gerado do código do backend (`npm run docs:api`).
-- Swagger em `http://localhost:3001/api/docs` (fora de produção): corpos e respostas.
+- Swagger em `http://localhost:3001/api/docs` (fora de produção): **só lista as rotas**; ele
+  não descreve corpos nem respostas (não há `@ApiProperty`). Os contratos vêm dos DTOs
+  (`backend/src/**/dto/*.ts`) e dos services, e estão replicados à mão em
+  `frontend/src/lib/api/types.ts`.
 - [plano_implementacao_backend.md](plano_implementacao_backend.md) (regras de negócio e o
   "Relatório da implementação" no fim) e [CLAUDE.md](CLAUDE.md) (regras gerais).
 
@@ -42,9 +45,12 @@ Regras:
   banco ou rotas `app/api/*` que dupliquem a API (exceção possível: a parada F1).
 - A área logada roda como **Client Components** (dados por usuário, com token). Páginas
   públicas (login, cadastro, redefinir senha) podem ser simples.
-- **Tipos da API em um lugar só** (`src/lib/api/types.ts` ou gerados do Swagger, ver F2).
-  Nenhuma tela declara o formato de resposta por conta própria.
-- Variável de ambiente: `NEXT_PUBLIC_API_URL` (padrão `http://localhost:3001/api`).
+- **Tipos da API em um lugar só** (`src/lib/api/types.ts`, escritos à mão a partir dos DTOs:
+  o gerador `openapi-typescript` não serve enquanto o Swagger não descrever as respostas).
+  Nenhuma tela declara o formato de resposta por conta própria. **Mudou um DTO ou uma
+  resposta no backend: atualize `types.ts`.**
+- Variável de ambiente do servidor: `API_URL` (padrão `http://localhost:3001/api`). Como o
+  navegador só fala com o Next (BFF, F1), **não existe** `NEXT_PUBLIC_API_URL`.
 - **Portas em desenvolvimento (decidido pelo usuário):** o Next roda na porta padrão
   **3000** e a API na **3001**. O backend já usa `http://localhost:3000` como padrão de
   `CORS_ORIGINS` e `APP_URL`, então não é preciso mexer no `backend/.env`. Se mudar a porta
@@ -52,13 +58,13 @@ Regras:
 - Interface em **português do Brasil**, valores em R$ (`Intl.NumberFormat('pt-BR')`) e
   datas no fuso `America/Sao_Paulo`.
 
-### Paradas obrigatórias do frontend (perguntar ao usuário antes)
+### Paradas obrigatórias do frontend (respondidas pelo usuário em 2026-10-16)
 
 | ID | Assunto | Recomendação a apresentar |
 |---|---|---|
-| **F1** | **Onde guardar os tokens** | Recomendado: um BFF fino no Next (route handlers) que guarda o refresh token em **cookie httpOnly** e repassa as chamadas; o JavaScript da página nunca vê o refresh token (proteção contra XSS). Alternativa mais simples: access token em memória e refresh token no `localStorage` (mais exposto). A escolha muda a Fase 0 |
-| **F2** | **Bibliotecas além da stack** | Recomendado: TanStack Query (cache e recarga após alterações), React Hook Form + Zod (formulários), um gráfico (Recharts) e um gerador de tipos do Swagger (`openapi-typescript`). Pedir aprovação da lista; não instalar outras sem perguntar |
-| **F3** | **Componentes visuais** | Tailwind puro com componentes próprios, ou uma base pronta sobre Tailwind (ex.: shadcn/ui). Perguntar |
+| **F1** | **Onde guardar os tokens** | ✅ **Decidido: BFF fino no Next (route handlers) com o refresh token em cookie httpOnly.** O JavaScript da página nunca vê o refresh token. É a única exceção à regra de não criar rotas `app/api/*` |
+| **F2** | **Bibliotecas além da stack** | ✅ **Aprovada a lista completa:** TanStack Query, React Hook Form + Zod, Recharts e openapi-typescript. Outras só com nova aprovação. **Aprovadas depois (2026-10-16), para testes automatizados do frontend: Vitest e Playwright.** **`openapi-typescript` não foi instalada:** o Swagger do backend não tem os schemas de corpo e resposta (ficam vazios), então não gera tipo útil. Os tipos são escritos à mão |
+| **F3** | **Componentes visuais** | ✅ **Decidido: shadcn/ui sobre Tailwind** |
 
 ---
 
@@ -175,7 +181,7 @@ citam mudam junto. O critério de conclusão de cada fase inclui os artigos daqu
 
 ## Fase 0 — Fundamentos
 
-🛑 Antes: **F1**, **F2** e **F3**.
+✅ Paradas **F1**, **F2** e **F3** já respondidas (ver tabela acima).
 
 1. Criar o projeto Next (ver Stack), configurar Tailwind, ESLint e `tsconfig` estrito,
    `NEXT_PUBLIC_API_URL` e um `.env.example` do frontend.
@@ -350,6 +356,12 @@ de barras (foco no campo de busca, atalhos de teclado).
 1. **Clientes** (nível empresa, `/api/companies/:companyId/customers`): busca por nome ou
    telefone, cadastrar e editar (funcionário), excluir e reativar (gerente). O backend não
    exclui cliente com dívida.
+   - ✅ **Dívida na lista (pedido do usuário, 2026-10-21):** a lista já mostra a coluna
+     "Dívida nesta loja", para quem trabalha em mais de uma loja "Outras lojas" e, só para gerente
+     e dono, "Dívida total" (todas as lojas da empresa), sem abrir
+     cliente por cliente. Há o filtro "Só quem deve no fiado" (`withDebt=true`). Cada item de
+     `GET .../customers` traz `debts: [{ storeId, balance }]` (só saldo devedor e só as lojas que
+     a pessoa enxerga, como nos saldos). Vasilhames devidos continuam só no detalhe.
 2. **Detalhe do cliente:**
    - Saldos (`.../customers/:id/balances`): **total** consolidado (só gerente e dono; para
      funcionário o backend devolve `total: null` e só as lojas dele), dívida por loja e
@@ -370,6 +382,21 @@ de barras (foco no campo de busca, atalhos de teclado).
    (decisão do produto): se o cliente deve na loja A, a devolução é feita estando na loja
    A. Mostrar o saldo por loja e, ao tentar devolver em outra loja ou mais do que deve,
    exibir a mensagem do 409.
+5. ✅ **Aviso antes de vender no fiado (pedido do usuário, 2026-10-21).** No PDV e no
+   fechamento de comanda (`CheckoutDialog`), ao concluir no fiado um cliente que já deve,
+   abre um diálogo: "Fulano já possui R$ X em venda fiada, divididos em Y vendas", com a
+   data da mais antiga, o detalhe por loja (se deve em mais de uma) e quanto a dívida da loja
+   fica com esta venda; pergunta se quer mesmo vender ("Sim, vender no fiado" / "Não,
+   voltar"). Cliente sem dívida: vende direto, sem aviso. Se a consulta falhar, pergunta se
+   quer vender mesmo assim.
+   - O saldo vem de `.../customers/:id/balances`, que passou a trazer por loja
+     `openCreditSales` e `oldestOpenCreditSaleAt`. **O pagamento não é ligado a uma venda**
+     (abate o saldo da loja), então as "vendas em aberto" são contadas como se cada
+     pagamento quitasse primeiro as mais antigas: as vendas fiadas mais recentes (não
+     canceladas) cuja soma cobre o saldo; uma paga em parte conta como aberta. Dívida sem
+     venda registrada mostra só o valor.
+   - Valem as lojas que a pessoa enxerga (o atendente só recebe as dele). O saldo é buscado
+     de novo na hora de concluir (nunca do cache).
 
 **Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
 automático e manual, e os saldos se atualizam.
@@ -405,6 +432,21 @@ automático e manual, e os saldos se atualizam.
    razão social, nome fantasia, nome da primeira loja e plano (de `GET /api/plans`,
    público). Começa em **trial de 14 dias**, sem forma de pagamento. Já devolve os tokens
    (entra logado). Limite: 3 cadastros por hora.
+   - ✅ **CNPJ alfanumérico e consulta automática (pedido do usuário, 2026-10-16).** O CNPJ
+     aceita letras nos 12 primeiros caracteres (IN RFB 2.229/2024; os 2 dígitos verificadores
+     continuam numéricos; cada caractere vale o código ASCII menos 48). Backend e frontend
+     validam igual e gravam **sem máscara e em maiúsculas** (`normalizeCnpj`). Ao completar um
+     CNPJ válido no cadastro e em "Nova empresa", o navegador consulta
+     `https://publica.cnpj.ws/cnpj/{cnpj}` e preenche razão social e nome fantasia (não troca o
+     que a pessoa já digitou). Não encontrou ou deu erro: a pessoa preenche à mão; o cadastro
+     nunca depende da consulta. A consulta sai **do navegador**, não do BFF, porque a API
+     pública limita 3 consultas por minuto **por IP** (pelo servidor, todos os clientes
+     dividiriam o limite); ela libera CORS. Código em `src/lib/cnpj-lookup.ts` e
+     `src/hooks/use-cnpj-autofill.ts`.
+   - ✅ **Também em Lojas › Nova loja/Editar (pedido do usuário, 2026-10-16):** o CNPJ opcional
+     da loja usa a mesma consulta e preenche endereço, CEP, telefone e (se vazio) o nome da loja
+     com o nome fantasia. O backend passou a **validar** o CNPJ da loja quando ele vem (antes
+     aceitava qualquer texto) e grava no mesmo formato do CNPJ da empresa.
 2. **Aviso de assinatura e modo somente leitura.** Regra do produto: inadimplência **nunca
    bloqueia o sistema inteiro**, só deixa em somente leitura. Usar `subscription` de
    `GET /api/me/memberships` (`status`, `accessMode`, `reason`, `trialEndsAt`,
@@ -440,8 +482,8 @@ webhook); trocar de plano e cancelar. Confirmar o formato real com o backend ant
 Só para usuários com `platformRole` (`SUPERADMIN` lê e escreve; `SUPPORT` só lê), em
 `/api/platform/*`: planos, organizações (com ajuste manual de status, plano, fim do teste e
 atraso: hoje é assim que a assinatura é regularizada), usuários (ativar/desativar) e
-notificações (criar, agendar, expirar). ⚠️ Perguntar ao usuário se quer esta área no mesmo
-app (rota separada, ex.: `/plataforma`) antes de começar.
+notificações (criar, agendar, expirar). ✅ **Decidido pelo usuário (2026-10-16):** a área fica
+no mesmo app, em rota separada `/plataforma`.
 
 ---
 
@@ -459,3 +501,92 @@ app (rota separada, ex.: `/plataforma`) antes de começar.
 
 **Reportar ao final:** endpoints que não bateram com o que a API realmente expõe,
 respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
+
+---
+
+## Relatório da implementação (2026-10-16)
+
+### Status por fase
+
+| Fase | Status |
+|---|---|
+| 0 Fundamentos | ✅ Projeto Next 16.4, BFF com cookies httpOnly, cliente da API tipado, tratamento central de erros, sessão, contexto de loja/empresa, estrutura da Central de Dúvidas |
+| 1 Autenticação e contexto | ✅ Login, cadastro, esqueci a senha, `/redefinir-senha?token=` (também convite), seleção de empresa/loja, troca no topo, Minha conta |
+| 2 Autorização na interface | ✅ `useCurrentRole`, `RequireRole`, `RequireCompanyOwner`, `PageGuard`, `ActionButton` (apaga sozinho por papel e por somente leitura) |
+| 3 Administração | ✅ Dados da empresa, lojas, equipe (convite, papel por loja, revogar), nova empresa |
+| 4 Catálogo, estoque, vasilhames | ✅ Estoque (entrada e ajuste separados), produtos (criar em várias lojas, editar, excluir, reativar pelo erro 409), tipos de vasilhame, movimentações |
+| 5 PDV, caixa, comandas | ✅ PDV com leitor de código de barras, atalhos F2/F9, desconto, fiado, vasilhames; caixa (abrir, entrada, sangria, fechar com resumo, histórico); vendas (filtros, detalhe, cancelar); comandas |
+| 6 Clientes e fiado | ✅ Cadastro, saldos por loja, pagamento automático e manual por loja, empréstimo e devolução de vasilhame (só na loja da dívida) |
+| 7 Painéis, histórico, notificações | ✅ Painel da loja e da empresa (gráfico de 7 dias), `HistoryButton` (diff por campo), sino e lista de notificações |
+| 8a Cadastro e somente leitura | ✅ Faixas de teste, carência e somente leitura; botões apagados com o motivo; fechar caixa continua liberado; recarga periódica dos memberships |
+| 8b Pagamento da assinatura | ⏸ Não feita: depende da Fase 10 do backend (Asaas). A tela Assinatura mostra o estado e diz que o suporte regulariza |
+| 9 Plataforma | ✅ `/plataforma`: organizações (lista com filtros e detalhe com **ajuste manual da assinatura**, que hoje é a forma de regularizar), planos, usuários (ativar/desativar) e notificações (criar, agendar, expirar). SUPPORT só consulta (botões apagados); quem é da plataforma e não tem loja entra direto nela |
+| 10 Acabamento | ✅ Estados de carregamento/erro, responsivo (celular e tablet), revisão da Central de Dúvidas (60 artigos; todo botão "?" e todo "veja também" aponta para um artigo existente, conferido por teste) |
+
+### Decisões e desvios (todos já refletidos nas seções acima)
+
+- **F1/F2/F3** respondidas pelo usuário (BFF com cookie httpOnly; lista completa de bibliotecas;
+  shadcn/ui). `openapi-typescript` **não** foi instalada: o Swagger do backend não descreve
+  corpos nem respostas. Os tipos estão em `src/lib/api/types.ts`.
+- **BFF:** o navegador só fala com `/api/*` do Next. Tokens em cookies `sd_at` e `sd_rt`
+  (httpOnly, SameSite=Lax, Secure em produção). Renovação em fila única por refresh token, com
+  resultado guardado por 60 s para as requisições que já saíram com o cookie antigo (testado: 6
+  chamadas paralelas só com o refresh token renovaram uma vez só). `auth/refresh` não é exposto.
+  Requisições que gravam conferem o `Origin`. Env do servidor: `API_URL`.
+- **Mudança no backend:** `trust proxy` restrito a loopback/rede privada (`app.setup.ts`), para o
+  rate limit por IP funcionar por pessoa atrás do BFF (sem isso, `reset-password` teria um limite
+  global de 10 por hora). Há teste e2e. Documentado no plano e no CLAUDE.md do backend.
+- **Next 16.4:** `cacheComponents`/`partialPrefetching` (padrão do `create-next-app`) foram
+  **desligados** em `next.config.ts`: o Cache Components mantém telas antigas montadas ao navegar
+  e a área logada é toda dinâmica. Componentes do shadcn são **Base UI** (`render=`, não
+  `asChild`; `Select` precisa da lista de itens).
+- **Dependências de teste:** Vitest e Playwright (aprovados depois de F2). O `@types/node`
+  subiu de `^20` para `^24` (a versão do Node em uso), porque o Vitest 5 não aceita os tipos 20.
+- O PDV limpa a busca e devolve o foco depois de escolher um produto; mostra o total como
+  **prévia** (o valor oficial é o do backend); atendente não vê custo nem lucro.
+
+### Lacunas do backend a decidir (nada foi contornado no frontend)
+
+1. **Swagger sem schemas** de corpo e resposta (por isso os tipos à mão). Adicionar
+   `@ApiProperty`/plugin do Nest resolveria e permitiria gerar os tipos.
+2. **Não há listagem de excluídos** (produtos, tipos de vasilhame, clientes). Produto e tipo
+   se reativam pelo erro 409 (a mensagem traz o id; a tela oferece "Reativar"). **Cliente
+   excluído não tem caminho na interface** (a regra "reativar" do plano fica só na API).
+3. `GET /sales` devolve `costPrice` e `totalCost` também para o atendente. A interface esconde,
+   mas a API entrega.
+4. O motivo do ajuste de inventário só vai para o log do servidor (já era a parada P9 do backend).
+5. A fila de renovação do BFF é em memória: com mais de uma instância do Next, usar afinidade de
+   sessão ou mover a fila para um armazenamento comum.
+
+### Como foi verificado
+
+`tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
+Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend):
+
+- **75 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
+  consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,
+  histórico de alterações, cliente da API, renovação de sessão em fila (um teste quebra de
+  propósito a fila para provar que ele a pega), BFF (origem, renovação, cookies) e a integridade
+  da Central de Dúvidas.
+- **31 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
+  venda com troca de vasilhame 1 por 1 (e bloqueio quando sai devendo sem cliente); fiado com
+  cliente novo e recebimento (valor acima da dívida recusado na tela); comanda lançada, fechada e
+  cancelada (estoque devolvido); cancelamento de venda; histórico; entrada e ajuste de estoque;
+  produto novo e código repetido; tipos e movimentação de vasilhame; empréstimo e devolução
+  (inclusive "só na loja da dívida"); atendente, gerente e dono (menus, colunas, URL direta, 403
+  do backend); modo somente leitura (faixa, botões apagados, fechar caixa liberado, 402);
+  cadastro de conta nova (com CNPJ alfanumérico e a consulta de CNPJ simulada); área da plataforma. Verificação visual feita à mão em 1280, 800 e
+  390 px.
+
+Bugs que os testes acharam e foram corrigidos: o menu do usuário quebrava (rótulo fora de grupo
+no Base UI); o botão "Histórico" só com ícone não tinha nome acessível; cancelar uma comanda (ou
+excluir um cliente) recarregava o detalhe que acabara de sumir, a tela virava "não encontrada" e
+o redirecionamento da própria tela nunca acontecia; a busca da Central de Dúvidas só olhava o
+perfil escolhido; o histórico mostrava códigos em inglês.
+
+### Pendências
+
+- Fase 8b (pagamento da assinatura) depois da Fase 10 do backend.
+- Deploy do frontend (Dockerfile e pipeline), que ninguém pediu ainda.
+- Os testes de ponta a ponta gravam no banco de desenvolvimento e dependem do seed; não rodam
+  ainda em pipeline (que também não existe).

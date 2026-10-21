@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { AuditContext } from '../audit/audit-context';
-import { isValidCnpj, onlyDigits } from '../common/utils/document';
+import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { addDays } from '../common/utils/time';
 import { Env } from '../config/env';
 import { MailService } from '../mail/mail.service';
@@ -84,7 +84,7 @@ export class AuthService {
    * primeira loja e o vínculo de OWNER. O gateway de pagamento não é chamado aqui.
    */
   async signup(dto: SignupDto, meta: SessionMeta = {}): Promise<AuthResult> {
-    const cnpj = onlyDigits(dto.cnpj);
+    const cnpj = normalizeCnpj(dto.cnpj);
     if (!isValidCnpj(cnpj)) throw new BadRequestException('CNPJ inválido.');
 
     await this.audit.withDeleted(async () => {

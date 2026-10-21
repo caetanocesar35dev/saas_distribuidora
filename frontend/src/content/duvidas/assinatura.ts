@@ -1,0 +1,75 @@
+import type { Article } from "./types";
+
+export const assinatura: Article[] = [
+  {
+    id: "assinatura-teste",
+    category: "assinatura",
+    title: "Período de teste",
+    purpose: "Entender os 14 dias grátis e o que acontece quando acabam.",
+    where: "Faixa no topo da tela · Menu › Painel da empresa › Assinatura",
+    minRole: null,
+    audience: ["OWNER"],
+    steps: [
+      "Toda conta nova começa com 14 dias de teste, sem informar cartão.",
+      "Durante o teste tudo funciona normalmente. Uma faixa no topo mostra quantos dias faltam (e fica em destaque nos últimos 3 dias).",
+      "Quando o teste acaba, o sistema não é bloqueado: ele passa a ser somente para consulta até a assinatura ser regularizada.",
+    ],
+    related: ["assinatura-somente-leitura", "assinatura-regularizar"],
+    keywords: ["trial", "teste grátis", "14 dias"],
+  },
+  {
+    id: "assinatura-atraso",
+    category: "assinatura",
+    title: "Mensalidade em atraso",
+    purpose: "Saber o prazo de carência quando a mensalidade vence sem pagamento.",
+    where: "Faixa no topo da tela · Menu › Painel da empresa › Assinatura",
+    minRole: null,
+    audience: ["OWNER"],
+    steps: [
+      "Se a mensalidade vence e não é paga, o sistema continua funcionando por 5 dias de carência. Uma faixa amarela avisa a data limite.",
+      "Passada a carência, o sistema fica somente para consulta.",
+      "Pagando a assinatura, o acesso completo volta sozinho em alguns minutos (o sistema confere de tempos em tempos e ao voltar para a aba).",
+    ],
+    related: ["assinatura-somente-leitura", "assinatura-regularizar"],
+    keywords: ["atraso", "carência", "vencida", "inadimplência"],
+  },
+  {
+    id: "assinatura-somente-leitura",
+    category: "assinatura",
+    title: "O que funciona no modo somente leitura",
+    purpose: "Entender o que continua liberado quando a assinatura está vencida.",
+    where: "Faixa vermelha no topo da tela",
+    minRole: null,
+    audience: ["EMPLOYEE", "MANAGER", "OWNER"],
+    steps: [
+      "Continua liberado: consultar tudo (vendas, estoque, clientes, caixas, painéis) e fechar o caixa que já estava aberto.",
+      "Fica bloqueado: vender, abrir caixa, lançar comandas, cadastrar ou editar qualquer coisa e também receber pagamento de fiado.",
+      "Os botões bloqueados ficam apagados e, ao passar o mouse, mostram o motivo.",
+      "Para liberar tudo de novo, o responsável pela assinatura precisa regularizar o pagamento.",
+    ],
+    problems: [
+      {
+        message: "O período de teste terminou. O sistema está somente para consulta...",
+        fix: "A assinatura precisa ser regularizada. Fale com o responsável pela assinatura (normalmente o dono).",
+      },
+    ],
+    related: ["assinatura-regularizar", "caixa-fechar"],
+    keywords: ["somente leitura", "bloqueado", "botão apagado", "consulta"],
+  },
+  {
+    id: "assinatura-regularizar",
+    category: "assinatura",
+    title: "Como regularizar a assinatura",
+    purpose: "Voltar ao acesso completo depois do teste ou de um atraso.",
+    where: "Menu › Painel da empresa › Assinatura",
+    minRole: "OWNER",
+    audience: ["OWNER"],
+    steps: [
+      "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano.",
+      "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: entre em contato informando o nome da empresa.",
+      "Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso \"fale com o responsável\".",
+    ],
+    related: ["assinatura-somente-leitura"],
+    keywords: ["pagar", "pagamento", "assinar", "regularizar", "plano"],
+  },
+];

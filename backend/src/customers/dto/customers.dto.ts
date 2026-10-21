@@ -3,6 +3,7 @@ import { PaymentMethod } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsEnum,
   IsNotEmpty,
@@ -43,6 +44,14 @@ export class ListCustomersQuery extends PaginationQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  /** Só clientes com dívida de fiado nas lojas que quem pede enxerga. */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  withDebt?: boolean;
 }
 
 export class PaymentAllocationDto {

@@ -1,8 +1,9 @@
 # API: rotas e permissões
 
 > **Arquivo gerado** por `npm run docs:api` a partir do código (controllers e decorators). Não edite à mão:
-> rode o comando de novo ao mudar rotas ou permissões. A documentação interativa (Swagger, com os
-> corpos e as respostas) fica em `/api/docs` fora de produção.
+> rode o comando de novo ao mudar rotas ou permissões. O Swagger (`/api/docs`, fora de produção) lista as
+> rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
+> os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
 Total: **98 rotas**. Todas começam com `/api`.
 

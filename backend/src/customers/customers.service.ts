@@ -33,7 +33,19 @@ export interface Viewer {
 export interface CustomerBalances {
   /** Soma das dívidas em todas as lojas. Só gerente e dono enxergam (funcionário recebe null). */
   total: number | null;
-  perStore: { storeId: string; storeName: string; balance: number }[];
+  perStore: {
+    storeId: string;
+    storeName: string;
+    balance: number;
+    /**
+     * Vendas fiadas ainda em aberto que compõem a dívida. O pagamento não é ligado a uma venda
+     * (abate o saldo da loja), então conta-se como se ele quitasse primeiro as mais antigas: as
+     * vendas mais recentes cuja soma cobre o saldo. Uma venda paga em parte conta como aberta.
+     */
+    openCreditSales: number;
+    /** Data da venda fiada em aberto mais antiga (null se não há dívida). */
+    oldestOpenCreditSaleAt: Date | null;
+  }[];
   bottles: {
     storeId: string;
     storeName: string;
@@ -50,7 +62,20 @@ export class CustomersService {
     private readonly audit: AuditContext,
   ) {}
 
-  async list(companyId: string, query: ListCustomersQuery) {
+  /**
+   * Lista os clientes já com a dívida de fiado de cada um (`debts`, por loja), para a tela não
+   * precisar abrir cliente por cliente. Como nos saldos, o funcionário só vê as lojas dele.
+   */
+  async list(companyId: string, query: ListCustomersQuery, viewer: Viewer) {
+    const storeFilter = hasMinRole(viewer.role, Role.MANAGER)
+      ? {}
+      : { storeId: { in: viewer.storeIds } };
+    const debtWhere = {
+      balance: { gt: 0 },
+      store: { deletedAt: null, companyId },
+      ...storeFilter,
+    } satisfies Prisma.CustomerStoreBalanceWhereInput;
+
     const where: Prisma.CustomerWhereInput = {
       companyId,
       ...(query.search
@@ -61,8 +86,9 @@ export class CustomersService {
             ],
           }
         : {}),
+      ...(query.withDebt ? { storeBalances: { some: debtWhere } } : {}),
     };
-    const [data, total] = await Promise.all([
+    const [customers, total] = await Promise.all([
       this.prisma.customer.findMany({
         where,
         select: CUSTOMER_SELECT,
@@ -71,6 +97,22 @@ export class CustomersService {
       }),
       this.prisma.customer.count({ where }),
     ]);
+
+    const debts = customers.length
+      ? await this.prisma.customerStoreBalance.findMany({
+          where: {
+            ...debtWhere,
+            customerId: { in: customers.map((c) => c.id) },
+          },
+          select: { customerId: true, storeId: true, balance: true },
+        })
+      : [];
+    const data = customers.map((c) => ({
+      ...c,
+      debts: debts
+        .filter((d) => d.customerId === c.id)
+        .map((d) => ({ storeId: d.storeId, balance: roundMoney(d.balance) })),
+    }));
     return paginate(data, total, query.page, query.limit);
   }
 
@@ -183,13 +225,16 @@ export class CustomersService {
       }),
     ]);
 
-    const perStore = debts
-      .map((d) => ({
-        storeId: d.storeId,
-        storeName: d.store.name,
-        balance: roundMoney(d.balance),
-      }))
-      .sort((a, b) => a.storeName.localeCompare(b.storeName));
+    const perStore = (
+      await Promise.all(
+        debts.map(async (d) => ({
+          storeId: d.storeId,
+          storeName: d.store.name,
+          balance: roundMoney(d.balance),
+          ...(await this.openCreditSales(customerId, d.storeId, d.balance)),
+        })),
+      )
+    ).sort((a, b) => a.storeName.localeCompare(b.storeName));
 
     return {
       total: seesAll
@@ -210,5 +255,46 @@ export class CustomersService {
             a.bottleTypeName.localeCompare(b.bottleTypeName),
         ),
     };
+  }
+
+  /**
+   * Quantas vendas fiadas (não canceladas) da loja ainda compõem a dívida: percorre das mais
+   * recentes para as mais antigas até a soma cobrir o saldo (pagamento quita as mais antigas).
+   */
+  private async openCreditSales(
+    customerId: string,
+    storeId: string,
+    balance: number,
+  ): Promise<{ openCreditSales: number; oldestOpenCreditSaleAt: Date | null }> {
+    const owed = toCents(balance);
+    if (owed <= 0) return { openCreditSales: 0, oldestOpenCreditSaleAt: null };
+
+    const BATCH = 200;
+    let covered = 0;
+    let count = 0;
+    let oldest: Date | null = null;
+    for (let skip = 0; covered < owed; skip += BATCH) {
+      const sales = await this.prisma.sale.findMany({
+        where: {
+          customerId,
+          storeId,
+          paymentMethod: 'CREDIT_STORE',
+          status: 'COMPLETED',
+          total: { gt: 0 },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { total: true, createdAt: true },
+        skip,
+        take: BATCH,
+      });
+      for (const sale of sales) {
+        covered += toCents(sale.total);
+        count += 1;
+        oldest = sale.createdAt;
+        if (covered >= owed) break;
+      }
+      if (sales.length < BATCH) break;
+    }
+    return { openCreditSales: count, oldestOpenCreditSaleAt: oldest };
   }
 }

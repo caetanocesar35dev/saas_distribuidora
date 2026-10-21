@@ -165,6 +165,31 @@ export class Factory {
     );
   }
 
+  /**
+   * Venda fiada (sem itens: só para montar o cenário) que soma o valor à dívida do cliente na
+   * loja, como a venda de verdade faz.
+   */
+  async creditSale(
+    customerId: string,
+    storeId: string,
+    total: number,
+    createdAt = new Date(),
+  ) {
+    const sale = await this.run(() =>
+      this.prisma.sale.create({
+        data: {
+          storeId,
+          customerId,
+          total,
+          paymentMethod: 'CREDIT_STORE',
+          createdAt,
+        },
+      }),
+    );
+    await this.debt(customerId, storeId, total);
+    return sale;
+  }
+
   /** Estoque de vasilhame da loja (sem registrar movimento: só para montar o cenário). */
   bottleStock(storeId: string, bottleTypeId: string, stock: number) {
     return this.run(() =>

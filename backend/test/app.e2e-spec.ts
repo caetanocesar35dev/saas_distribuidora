@@ -109,6 +109,19 @@ describe('Infraestrutura HTTP: segurança, Swagger, CORS e rate limit (e2e)', ()
       await t.http.post('/api/auth/forgot-password').send(body).expect(429);
     });
 
+    it('atrás do BFF do frontend, o limite vale por IP repassado em X-Forwarded-For', async () => {
+      const attempt = (ip: string) =>
+        t.http
+          .post('/api/auth/reset-password')
+          .set('X-Forwarded-For', ip)
+          .send({ token: 'invalido', newPassword: 'Senha@1234' });
+
+      for (let i = 0; i < 10; i++) await attempt('203.0.113.10').expect(400);
+      await attempt('203.0.113.10').expect(429);
+      // outro navegador (outro IP repassado) não é afetado
+      await attempt('203.0.113.11').expect(400);
+    });
+
     it('rotas comuns têm um limite alto por usuário (não atrapalha o uso normal)', async () => {
       const user = await t.factory.user();
       const auth = await t.login(user.email);

@@ -2,7 +2,7 @@
 
 > ## Status da implementação (atualizado em 2026-10-14)
 >
-> - **Fases 0 a 9 e 11: implementadas e testadas** (377 testes em 26 suítes, no banco
+> - **Fases 0 a 9 e 11: implementadas e testadas** (386 testes em 26 suítes, no banco
 >   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
 >   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
@@ -288,7 +288,10 @@ automáticos, sem nenhum endpoint de negócio ainda.
    driver nativo. Nunca vazar mensagem SQL crua.
 6. **Segurança e infraestrutura HTTP:** `helmet`, CORS por `CORS_ORIGINS`, Swagger em
    `/api/docs` fora de produção, `GET /api/health` (ping no banco, público),
-   `enableShutdownHooks`.
+   `enableShutdownHooks`. `trust proxy` restrito a loopback e redes privadas (`loopback, linklocal,
+   uniquelocal`): o frontend chama a API por um servidor intermediário (BFF do Next) que repassa o IP
+   do navegador em `X-Forwarded-For`; sem isso, todo acesso anônimo (login, cadastro, redefinir
+   senha) dividiria o mesmo limite do rate limit. Adicionado na Fase 0 do frontend (2026-10-16).
 7. **Seed** (`prisma/seed.ts`, via `runAsSystem('seed', ...)`; já referenciado em
    `prisma.config.ts`):
    - Planos (⚠️ nomes, preços e limites: sugerir `Trial`, `Básico` e `Pro`, para o
@@ -589,13 +592,20 @@ altere essas colunas por outro caminho; cada alteração precisa do registro cor
    - `GET /stores/:storeId/bottle-stock`: estoque por tipo.
 3. **`CustomerModule`** (`/companies/:companyId/customers`): CRUD + restore + busca por
    nome/telefone. Excluir é bloqueado se houver saldo devedor (dinheiro ou vasilhame)
-   em qualquer loja.
+   em qualquer loja. A listagem (pedido do usuário, 2026-10-21) traz em cada cliente
+   `debts: [{ storeId, balance }]` (só saldo devedor, só as lojas que quem pede enxerga: o
+   funcionário vê as dele) e aceita `withDebt=true` para listar só quem deve.
 4. **`GET /companies/:companyId/customers/:id/balances`:**
    ```json
    { "total": 150.0,
-     "perStore": [{ "storeId": "...", "storeName": "...", "balance": 100.0 }],
+     "perStore": [{ "storeId": "...", "storeName": "...", "balance": 100.0,
+                    "openCreditSales": 3, "oldestOpenCreditSaleAt": "2026-10-01T..." }],
      "bottles": [{ "storeId": "...", "bottleTypeId": "...", "bottleTypeName": "...", "balance": 3 }] }
    ```
+   `openCreditSales` e `oldestOpenCreditSaleAt` (pedido do usuário, 2026-10-21, para o aviso de
+   fiado no PDV): o pagamento não é ligado a uma venda, então contam-se as vendas fiadas mais
+   recentes (`COMPLETED`) cuja soma cobre o saldo, como se o pagamento quitasse primeiro as
+   mais antigas. Sem schema novo.
    `total` calculado na hora (`aggregate`), nunca armazenado. EMPLOYEE só vê as lojas a
    que tem acesso e não vê `total`; MANAGER e OWNER veem tudo (⚠️, vem do comentário
    do schema).

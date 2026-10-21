@@ -8,7 +8,9 @@ API REST em NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16, servida
 > catálogo, vasilhames, clientes/fiado, caixa, vendas, comandas, painéis, histórico de
 > alterações, plataforma e notificações. **Falta só a cobrança com Asaas** (Fase 10).
 > Todas as rotas e permissões: [docs/API.md](../docs/API.md). Fora de produção, o Swagger
-> fica em `http://localhost:3001/api/docs`.
+> fica em `http://localhost:3001/api/docs` e lista as rotas, mas **ainda não descreve corpos nem
+> respostas** (os contratos estão nos DTOs e services; o frontend os replica em
+> `frontend/src/lib/api/types.ts`).
 
 ## Scripts
 

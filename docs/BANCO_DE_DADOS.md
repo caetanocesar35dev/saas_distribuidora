@@ -142,8 +142,8 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
 | `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
 | `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum). **Não tem papel fixo**: o papel é por loja |
-| `tb_companies` | A distribuidora (tenant) | `cnpj` (único), `razaoSocial`, `nomeFantasia`, `organizationId` |
-| `tb_stores` | Loja física | `companyId`, `name`, `cnpj`, `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
+| `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
+| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
