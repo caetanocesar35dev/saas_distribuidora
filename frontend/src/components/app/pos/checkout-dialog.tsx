@@ -4,6 +4,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Money } from "@/components/app/common";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { FormField } from "@/components/app/form";
 import { IntInput, MoneyInput } from "@/components/app/inputs";
 import { CustomerPicker, type PickedCustomer } from "@/components/app/pos/customer-picker";
@@ -18,7 +27,13 @@ import {
 } from "@/components/ui/dialog";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
 import type { BottleReturnLine, PaymentMethod } from "@/lib/api/types";
-import { creditWarning, salesLabel, type CreditWarning } from "@/lib/credit-warning";
+import {
+  creditLimitCheck,
+  creditWarning,
+  salesLabel,
+  type CreditLimitCheck,
+  type CreditWarning,
+} from "@/lib/credit-warning";
 import {
   formatDate,
   formatMoney,
@@ -26,7 +41,7 @@ import {
   PAYMENT_METHODS,
   roundMoney,
 } from "@/lib/format";
-import { useStore } from "@/lib/session/context";
+import { useHasRole, useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
 
 /** Vasilhames que saem junto com a venda (1 por unidade de produto com vasilhame). */
@@ -41,6 +56,8 @@ export interface CheckoutPayload {
   discount: number;
   customerId?: string;
   bottleReturns: BottleReturnLine[];
+  /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
+  allowOverCreditLimit?: boolean;
 }
 
 /**
@@ -94,14 +111,18 @@ export function CheckoutDialog({
   const change = method === "MONEY" && received !== undefined ? roundMoney(received - total) : null;
   const valid = !discountTooHigh && !missingCustomer && subtotal > 0;
 
-  // ---- aviso de fiado em aberto: antes de vender no fiado, mostra quanto o cliente já deve
+  // ---- aviso de fiado em aberto e limite de crédito: antes de vender no fiado, mostra quanto o
+  // cliente já deve e se a venda passa do limite (atendente é barrado; gerente e dono confirmam)
   const client = useQueryClient();
   const { storeId } = useStore();
+  const canPassLimit = useHasRole("MANAGER");
   const [checkingCredit, setCheckingCredit] = useState(false);
   const [creditCheck, setCreditCheck] = useState<{
     payload: CheckoutPayload;
     customerName: string;
-    warning: CreditWarning | null; // null = não foi possível consultar
+    failed: boolean; // não foi possível consultar
+    warning: CreditWarning | null; // dívida em aberto
+    limit: CreditLimitCheck | null; // só quando passa do limite
   } | null>(null);
   // Já busca a dívida ao escolher fiado + cliente, para o aviso abrir na hora.
   useCustomerBalances(companyId, customer?.id ?? "", method === "CREDIT_STORE" && !!customer);
@@ -115,10 +136,25 @@ export function CheckoutDialog({
         staleTime: 0, // sempre o saldo de agora
       });
       const warning = creditWarning(balances, storeId);
-      if (warning) setCreditCheck({ payload, customerName: customer.name, warning });
-      else onSubmit(payload);
+      const limit = creditLimitCheck(balances, total);
+      const over = limit?.over ? limit : null;
+      if (warning || over) {
+        setCreditCheck({
+          payload,
+          customerName: customer.name,
+          failed: false,
+          warning,
+          limit: over,
+        });
+      } else onSubmit(payload);
     } catch {
-      setCreditCheck({ payload, customerName: customer.name, warning: null });
+      setCreditCheck({
+        payload,
+        customerName: customer.name,
+        failed: true,
+        warning: null,
+        limit: null,
+      });
     } finally {
       setCheckingCredit(false);
     }
@@ -292,14 +328,17 @@ export function CheckoutDialog({
         {creditCheck && (
           <CreditConfirmDialog
             customerName={creditCheck.customerName}
+            failed={creditCheck.failed}
             warning={creditCheck.warning}
+            limit={creditCheck.limit}
+            canPassLimit={canPassLimit}
             saleTotal={total}
             currentStoreId={storeId}
             onCancel={() => setCreditCheck(null)}
             onConfirm={() => {
-              const { payload } = creditCheck;
+              const { payload, limit } = creditCheck;
               setCreditCheck(null);
-              onSubmit(payload);
+              onSubmit(limit ? { ...payload, allowOverCreditLimit: true } : payload);
             }}
           />
         )}
@@ -308,23 +347,53 @@ export function CheckoutDialog({
   );
 }
 
-/** Pergunta ao atendente se quer mesmo vender no fiado para quem já deve. */
+/**
+ * Antes de vender no fiado: mostra a dívida em aberto e, se a venda passa do limite de crédito,
+ * barra o atendente ou pede a confirmação de gerente e dono.
+ */
 function CreditConfirmDialog({
   customerName,
+  failed,
   warning,
+  limit,
+  canPassLimit,
   saleTotal,
   currentStoreId,
   onCancel,
   onConfirm,
 }: {
   customerName: string;
+  failed: boolean;
   warning: CreditWarning | null;
+  limit: CreditLimitCheck | null;
+  canPassLimit: boolean;
   saleTotal: number;
   currentStoreId: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  if (!warning) {
+  if (limit && !canPassLimit) {
+    return (
+      <AlertDialog open onOpenChange={(open) => !open && onCancel()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Venda acima do limite de crédito</AlertDialogTitle>
+            <AlertDialogDescription>
+              O limite de crédito de <strong className="text-foreground">{customerName}</strong> é{" "}
+              <strong className="text-foreground">{formatMoney(limit.limit)}</strong>, e esta venda
+              passa desse valor. Só gerente ou dono pode vender no fiado acima do limite. Escolha
+              outra forma de pagamento ou chame o gerente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Entendi</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  }
+
+  if (failed) {
     return (
       <ConfirmDialog
         open
@@ -338,31 +407,49 @@ function CreditConfirmDialog({
     );
   }
 
-  const here = warning.stores.find((s) => s.storeId === currentStoreId);
+  const here = warning?.stores.find((s) => s.storeId === currentStoreId);
   return (
     <ConfirmDialog
       open
       onOpenChange={(open) => !open && onCancel()}
-      title="Cliente com fiado em aberto"
+      title={limit ? "Venda acima do limite de crédito" : "Cliente com fiado em aberto"}
       description={
-        <>
-          <strong className="text-foreground">{customerName}</strong> já possui{" "}
-          <strong className="text-foreground">{formatMoney(warning.amount)}</strong> em venda fiada
-          {warning.sales > 0 && (
-            <>
-              , divididos em{" "}
-              <strong className="text-foreground">{salesLabel(warning.sales)}</strong>
-            </>
-          )}
-          .{warning.oldest && ` A mais antiga em aberto é de ${formatDate(warning.oldest)}.`}
-        </>
+        warning ? (
+          <>
+            <strong className="text-foreground">{customerName}</strong> já possui{" "}
+            <strong className="text-foreground">{formatMoney(warning.amount)}</strong> em venda
+            fiada
+            {warning.sales > 0 && (
+              <>
+                , divididos em{" "}
+                <strong className="text-foreground">{salesLabel(warning.sales)}</strong>
+              </>
+            )}
+            .{warning.oldest && ` A mais antiga em aberto é de ${formatDate(warning.oldest)}.`}
+          </>
+        ) : (
+          <>
+            <strong className="text-foreground">{customerName}</strong> não tem fiado em aberto.
+          </>
+        )
       }
       cancelLabel="Não, voltar"
-      confirmLabel="Sim, vender no fiado"
+      confirmLabel={limit ? "Sim, vender acima do limite" : "Sim, vender no fiado"}
+      destructive={!!limit}
       onConfirm={onConfirm}
     >
       <div className="space-y-2 text-sm">
-        {warning.stores.length > 1 && (
+        {limit && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-destructive"
+          >
+            O limite de crédito do cliente é <strong>{formatMoney(limit.limit)}</strong>. Com esta
+            venda, a dívida em todas as lojas passa para <strong>{formatMoney(limit.after)}</strong>{" "}
+            ({formatMoney(roundMoney(limit.after - limit.limit))} acima do limite).
+          </p>
+        )}
+        {warning && warning.stores.length > 1 && (
           <ul className="divide-y rounded-lg border">
             {warning.stores.map((s) => (
               <li key={s.storeId} className="flex justify-between gap-3 px-3 py-1.5">
@@ -378,15 +465,21 @@ function CreditConfirmDialog({
             ))}
           </ul>
         )}
-        <p className="rounded-lg bg-muted/50 px-3 py-2">
-          Com esta venda de <Money value={saleTotal} />, a dívida{" "}
-          {warning.stores.length > 1 ? "nesta loja " : ""}passa para{" "}
-          <strong>
-            <Money value={roundMoney((here?.amount ?? 0) + saleTotal)} />
-          </strong>
-          .
+        {warning && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2">
+            Com esta venda de <Money value={saleTotal} />, a dívida{" "}
+            {warning.stores.length > 1 ? "nesta loja " : ""}passa para{" "}
+            <strong>
+              <Money value={roundMoney((here?.amount ?? 0) + saleTotal)} />
+            </strong>
+            .
+          </p>
+        )}
+        <p className="font-medium">
+          {limit
+            ? "Deseja realmente vender no fiado acima do limite?"
+            : "Deseja realmente fazer a venda no fiado?"}
         </p>
-        <p className="font-medium">Deseja realmente fazer a venda no fiado?</p>
       </div>
     </ConfirmDialog>
   );

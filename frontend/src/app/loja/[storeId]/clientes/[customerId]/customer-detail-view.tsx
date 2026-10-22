@@ -6,12 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
-import {
-  Money,
-  PageHeader,
-  QueryBoundary,
-  StatCard,
-} from "@/components/app/common";
+import { Money, PageHeader, QueryBoundary, StatCard } from "@/components/app/common";
 import { ActionButton } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
 import { Pagination } from "@/components/app/pagination";
@@ -34,8 +29,10 @@ import type { Customer, CustomerBalances } from "@/lib/api/types";
 import {
   formatDateTime,
   formatInt,
+  formatMoney,
   formatPhone,
   PAYMENT_METHOD_LABEL,
+  roundMoney,
   SALE_STATUS_LABEL,
 } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
@@ -63,7 +60,31 @@ function Balances({
         )}
         <StatCard
           label="Dívida nesta loja"
-          value={<Money value={balances.perStore.find((d) => d.storeId === activeStoreId)?.balance ?? 0} />}
+          value={
+            <Money
+              value={balances.perStore.find((d) => d.storeId === activeStoreId)?.balance ?? 0}
+            />
+          }
+        />
+        <StatCard
+          label="Limite de crédito no fiado"
+          value={
+            balances.creditLimit === null ? "Sem limite" : <Money value={balances.creditLimit} />
+          }
+          hint={
+            balances.creditLimit !== null && balances.total !== null
+              ? balances.total > balances.creditLimit
+                ? `Passou do limite em ${formatMoney(roundMoney(balances.total - balances.creditLimit))}.`
+                : `Disponível: ${formatMoney(roundMoney(balances.creditLimit - balances.total))}.`
+              : "Gerente e dono definem em Editar."
+          }
+          tone={
+            balances.creditLimit !== null &&
+            balances.total !== null &&
+            balances.total > balances.creditLimit
+              ? "danger"
+              : "default"
+          }
         />
       </div>
 
@@ -164,7 +185,9 @@ function PaymentsHistory({ customerId }: { customerId: string }) {
                 <TableBody>
                   {result.data.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="whitespace-nowrap">{formatDateTime(p.createdAt)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatDateTime(p.createdAt)}
+                      </TableCell>
                       <TableCell>{p.store.name}</TableCell>
                       <TableCell>{PAYMENT_METHOD_LABEL[p.paymentMethod]}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">
@@ -222,7 +245,9 @@ function CreditSales({ customerId }: { customerId: string }) {
                         #{s.id.slice(0, 8)}
                       </Link>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">{formatDateTime(s.createdAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDateTime(s.createdAt)}
+                    </TableCell>
                     <TableCell>{SALE_STATUS_LABEL[s.status]}</TableCell>
                     <TableCell className="text-right">
                       <Money value={s.total} />
@@ -256,7 +281,11 @@ function CustomerBody({ customer }: { customer: Customer }) {
         <ActionButton onClick={() => setDialog("pay")} disabled={!balances.data}>
           <BanknoteIcon /> Receber pagamento
         </ActionButton>
-        <ActionButton variant="outline" onClick={() => setDialog("return")} disabled={!balances.data}>
+        <ActionButton
+          variant="outline"
+          onClick={() => setDialog("return")}
+          disabled={!balances.data}
+        >
           Devolução de vasilhame
         </ActionButton>
         <ActionButton variant="outline" onClick={() => setDialog("loan")}>
@@ -276,7 +305,10 @@ function CustomerBody({ customer }: { customer: Customer }) {
           {openTabs.map((t, i) => (
             <span key={t.id}>
               {i > 0 && ", "}
-              <Link href={`/loja/${storeId}/comandas/${t.id}`} className="text-primary hover:underline">
+              <Link
+                href={`/loja/${storeId}/comandas/${t.id}`}
+                className="text-primary hover:underline"
+              >
                 {t.name}
               </Link>
             </span>
@@ -311,9 +343,15 @@ function CustomerBody({ customer }: { customer: Customer }) {
         <CreditSales customerId={customer.id} />
       </section>
 
-      {dialog === "loan" && <BottleLoanDialog customerId={customer.id} onClose={() => setDialog(null)} />}
+      {dialog === "loan" && (
+        <BottleLoanDialog customerId={customer.id} onClose={() => setDialog(null)} />
+      )}
       {dialog === "edit" && (
-        <CustomerFormDialog companyId={companyId} customer={customer} onClose={() => setDialog(null)} />
+        <CustomerFormDialog
+          companyId={companyId}
+          customer={customer}
+          onClose={() => setDialog(null)}
+        />
       )}
       <ConfirmDialog
         open={dialog === "delete"}
@@ -357,7 +395,12 @@ export function CustomerDetailView({ customerId }: { customerId: string }) {
               help="clientes-fiado"
               actions={
                 <HistoryButton
-                  target={{ scope: "company", scopeId: companyId, entity: "customers", id: data.id }}
+                  target={{
+                    scope: "company",
+                    scopeId: companyId,
+                    entity: "customers",
+                    id: data.id,
+                  }}
                   title={`Histórico de ${data.name}`}
                 />
               }

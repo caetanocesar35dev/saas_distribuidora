@@ -29,14 +29,14 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 386
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 392
   testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 75
-  testes unitários e 31 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 78
+  testes unitários e 34 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
@@ -100,6 +100,25 @@ os campos é a extensão do Prisma).
 **Código**
 - Bodies tipados com classe DTO (class-validator), nunca `any` ou `Dto & {...}` (isso
   desliga a validação). Nunca retornar `passwordHash`. Preços sempre lidos do banco.
+- **Atendente (EMPLOYEE) nunca recebe custo nem lucro:** o `HideCostInterceptor` global tira
+  `costPrice`, `totalCost`, `totalProfit` e `profit` de toda resposta de rota de loja/empresa
+  quando o papel é menor que MANAGER. Campo novo de custo ou lucro: use um desses nomes (ou
+  inclua o nome novo em `COST_KEYS`).
+
+**Fiado: limite de crédito (decidido pelo usuário)**
+- `Customer.creditLimit` (null = sem limite) vale contra a dívida **somada em todas as lojas**.
+  Só gerente e dono definem (403 para o atendente). Na venda fiada (PDV e fechamento de
+  comanda), acima do limite o atendente é barrado (403) e gerente/dono só passam com
+  `allowOverCreditLimit: true` (sem isso, 409). A conferência é `assertCreditLimit`
+  (`src/customers/credit-limit.ts`), dentro da transação da venda.
+
+**LGPD (decidido pelo usuário)**
+- O cadastro público exige `acceptTerms: true` e grava `User.termsAcceptedAt` e `termsVersion`.
+  Os textos ficam em `frontend/src/content/legal.ts` (páginas `/termos` e `/privacidade`, são um
+  **modelo**: falta revisão jurídica). Os dados de quem opera o sistema vêm das variáveis
+  `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_CNPJ`, `LEGAL_CONTACT_EMAIL` e `LEGAL_FORUM` do
+  ambiente do frontend (decidido pelo usuário; ver `frontend/.env.example`). Mudou o texto: troque
+  `TERMS_VERSION` nos dois lugares (`backend/src/auth/terms.ts` e o `legal.ts`).
 
 **Frontend (decidido pelo usuário)**
 - O sistema tem uma **Central de Dúvidas** que ensina donos, gerentes e atendentes a usar

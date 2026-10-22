@@ -147,6 +147,7 @@ export function PosView() {
         discount: payload.discount > 0 ? payload.discount : undefined,
         items: cart.map((l) => ({ storeProductId: l.item.id, quantity: l.quantity })),
         bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
+        allowOverCreditLimit: payload.allowOverCreditLimit,
       },
       {
         onSuccess: (sale) => {

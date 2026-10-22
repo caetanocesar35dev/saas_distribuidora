@@ -28,7 +28,10 @@ test.describe("login e sair", () => {
     const errors = trackPageErrors(page);
     await loginPelaTela(page, "dono@exemplo.com", "Loja Centro");
 
-    await page.getByRole("button", { name: /Loja Centro/ }).first().click();
+    await page
+      .getByRole("button", { name: /Loja Centro/ })
+      .first()
+      .click();
     await page.getByRole("menuitem", { name: /Loja Norte/ }).click();
     await expect(page.getByRole("button", { name: /Loja Norte/ }).first()).toBeVisible();
 
@@ -67,7 +70,10 @@ test.describe("login e sair", () => {
 test.describe("segurança da sessão", () => {
   test.use({ storageState: STATE.dono });
 
-  test("os tokens ficam em cookies httpOnly e a página nunca os enxerga", async ({ page, context }) => {
+  test("os tokens ficam em cookies httpOnly e a página nunca os enxerga", async ({
+    page,
+    context,
+  }) => {
     await page.goto("/selecionar?trocar=1");
     const cookies = await context.cookies();
     expect(cookies.find((c) => c.name === "sd_at")?.httpOnly).toBe(true);
@@ -128,5 +134,13 @@ test.describe("recuperar a senha e ajuda", () => {
     await page.getByRole("link", { name: /Sangria: tirar dinheiro do caixa/ }).click();
     await expect(page.getByText("Onde encontrar")).toBeVisible();
     await expect(page.getByText("Menu › Caixa › Caixa atual › Saída (sangria)")).toBeVisible();
+  });
+
+  test("termos de uso e política de privacidade abrem sem login", async ({ page }) => {
+    await page.goto("/termos");
+    await expect(page.getByRole("heading", { name: "Termos de uso" })).toBeVisible();
+    await page.goto("/privacidade");
+    await expect(page.getByRole("heading", { name: "Política de privacidade" })).toBeVisible();
+    await expect(page.getByText(/art\. 18 da LGPD/)).toBeVisible();
   });
 });

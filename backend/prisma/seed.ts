@@ -243,11 +243,17 @@ async function main() {
         },
       });
       const fiado = (storeId: string, item: string, quantity: number) =>
-        sales.create(storeId, company.id, owner.id, {
-          paymentMethod: 'CREDIT_STORE',
-          customerId: customer.id,
-          items: [{ storeProductId: offers[`${item}|${storeId}`], quantity }],
-        });
+        sales.create(
+          storeId,
+          company.id,
+          owner.id,
+          {
+            paymentMethod: 'CREDIT_STORE',
+            customerId: customer.id,
+            items: [{ storeProductId: offers[`${item}|${storeId}`], quantity }],
+          },
+          'OWNER',
+        );
       await fiado(centro.id, 'Cerveja Litrão', 5); // dívida em dinheiro e 5 litrões emprestados
       await fiado(norte.id, 'Refrigerante 2L', 4);
 

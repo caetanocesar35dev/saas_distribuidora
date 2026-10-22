@@ -76,6 +76,10 @@ test("cadastro de conta nova, administração da empresa e conta pessoal", async
   await page.getByLabel("Nome da primeira loja").fill("Loja Matriz");
   await page.getByRole("button", { name: "Criar conta e começar" }).click();
   await expect(page.getByText("CNPJ inválido.")).toBeVisible();
+  // sem aceitar os termos (LGPD) a conta não é criada
+  await expect(
+    page.getByText("Para criar a conta, aceite os termos de uso e a política de privacidade."),
+  ).toBeVisible();
   expect(lookups).toEqual([]);
 
   // ---- CNPJ alfanumérico, digitado em minúsculas: a máscara corrige e a consulta preenche
@@ -87,6 +91,7 @@ test("cadastro de conta nova, administração da empresa e conta pessoal", async
   await expect(page.getByLabel("Nome fantasia (opcional)")).toHaveValue("Bebidas Nova");
   await expect(page.getByText(/preenchidos com a consulta pública do CNPJ/)).toBeVisible();
   expect(lookups).toEqual([document]);
+  await page.getByRole("checkbox", { name: /Li e aceito os Termos de uso/ }).check();
   await page.getByRole("button", { name: "Criar conta e começar" }).click();
   await page.waitForURL(/\/loja\//, { timeout: 20_000 });
   await expect(page.getByText(/Seu período de teste termina em/).first()).toBeVisible();

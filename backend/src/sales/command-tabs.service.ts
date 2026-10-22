@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { roundMoney, toCents, fromCents } from '../common/utils/money';
 import { PrismaTx } from '../prisma/prisma.extension';
@@ -178,6 +178,7 @@ export class CommandTabsService {
     userId: string,
     tabId: string,
     dto: CloseCommandTabDto,
+    role: Role,
   ) {
     const saleId = await this.prisma.$transaction(async (tx) => {
       const tab = await this.lockOpenTab(tx, storeId, tabId);
@@ -210,6 +211,8 @@ export class CommandTabsService {
         bottleReturns: dto.bottleReturns,
         commandTabId: tabId,
         skipStock: true,
+        role,
+        allowOverCreditLimit: dto.allowOverCreditLimit,
       });
     });
     return this.sales.get(storeId, saleId);

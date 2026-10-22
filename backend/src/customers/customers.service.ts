@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,8 +21,25 @@ const CUSTOMER_SELECT = {
   companyId: true,
   name: true,
   phone: true,
+  creditLimit: true,
   createdAt: true,
 } satisfies Prisma.CustomerSelect;
+
+/** O limite de crédito do fiado só é definido por gerente ou dono (decisão do usuário). */
+function assertCanSetCreditLimit(
+  dto: { creditLimit?: number | null },
+  role: Role,
+) {
+  if (dto.creditLimit !== undefined && !hasMinRole(role, Role.MANAGER)) {
+    throw new ForbiddenException(
+      'Só gerente ou dono pode definir o limite de crédito do cliente.',
+    );
+  }
+}
+
+/** `undefined` = não mexe; `null` = sem limite; número = limite em reais (centavos). */
+const creditLimitValue = (value: number | null | undefined) =>
+  value === undefined || value === null ? value : roundMoney(value);
 
 /** Quem está pedindo: define o que pode ver nos saldos e pagamentos. */
 export interface Viewer {
@@ -33,6 +51,8 @@ export interface Viewer {
 export interface CustomerBalances {
   /** Soma das dívidas em todas as lojas. Só gerente e dono enxergam (funcionário recebe null). */
   total: number | null;
+  /** Limite de crédito do fiado (soma de todas as lojas); null = sem limite. */
+  creditLimit: number | null;
   perStore: {
     storeId: string;
     storeName: string;
@@ -125,18 +145,34 @@ export class CustomersService {
     return customer;
   }
 
-  create(companyId: string, dto: CreateCustomerDto) {
+  async create(companyId: string, dto: CreateCustomerDto, role: Role) {
+    assertCanSetCreditLimit(dto, role);
     return this.prisma.customer.create({
-      data: { companyId, name: dto.name, phone: dto.phone },
+      data: {
+        companyId,
+        name: dto.name,
+        phone: dto.phone,
+        creditLimit: creditLimitValue(dto.creditLimit),
+      },
       select: CUSTOMER_SELECT,
     });
   }
 
-  async update(companyId: string, id: string, dto: UpdateCustomerDto) {
+  async update(
+    companyId: string,
+    id: string,
+    dto: UpdateCustomerDto,
+    role: Role,
+  ) {
+    assertCanSetCreditLimit(dto, role);
     await this.get(companyId, id);
     return this.prisma.customer.update({
       where: { id },
-      data: { name: dto.name, phone: dto.phone },
+      data: {
+        name: dto.name,
+        phone: dto.phone,
+        creditLimit: creditLimitValue(dto.creditLimit),
+      },
       select: CUSTOMER_SELECT,
     });
   }
@@ -190,7 +226,7 @@ export class CustomersService {
     customerId: string,
     viewer: Viewer,
   ): Promise<CustomerBalances> {
-    await this.get(companyId, customerId);
+    const customer = await this.get(companyId, customerId);
     const seesAll = hasMinRole(viewer.role, Role.MANAGER);
     const storeFilter = seesAll ? {} : { storeId: { in: viewer.storeIds } };
 
@@ -237,6 +273,7 @@ export class CustomersService {
     ).sort((a, b) => a.storeName.localeCompare(b.storeName));
 
     return {
+      creditLimit: customer.creditLimit,
       total: seesAll
         ? fromCents(perStore.reduce((sum, d) => sum + toCents(d.balance), 0))
         : null,

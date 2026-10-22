@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -45,17 +46,27 @@ describe('Serviços de clientes e fiado', () => {
   describe('CustomersService', () => {
     it('cria, busca por nome ou telefone (sem diferenciar maiúsculas) e pagina', async () => {
       await as(() =>
-        customers.create(w.company.id, {
-          name: 'Maria da Silva',
-          phone: '81999990000',
-        }),
+        customers.create(
+          w.company.id,
+          {
+            name: 'Maria da Silva',
+            phone: '81999990000',
+          },
+          'EMPLOYEE',
+        ),
       );
-      await as(() => customers.create(w.company.id, { name: 'José Souza' }));
       await as(() =>
-        customers.create(w.company.id, {
-          name: 'Ana Lima',
-          phone: '81988887777',
-        }),
+        customers.create(w.company.id, { name: 'José Souza' }, 'EMPLOYEE'),
+      );
+      await as(() =>
+        customers.create(
+          w.company.id,
+          {
+            name: 'Ana Lima',
+            phone: '81988887777',
+          },
+          'EMPLOYEE',
+        ),
       );
 
       expect(
@@ -97,7 +108,9 @@ describe('Serviços de clientes e fiado', () => {
         customers.get(w.company.id, foreign.id),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        as(() => customers.update(w.company.id, foreign.id, { name: 'X' })),
+        as(() =>
+          customers.update(w.company.id, foreign.id, { name: 'X' }, 'OWNER'),
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
         as(() => customers.remove(w.company.id, foreign.id)),
@@ -155,15 +168,64 @@ describe('Serviços de clientes e fiado', () => {
       ]);
     });
 
+    it('limite de crédito: só gerente e dono definem; null tira o limite', async () => {
+      await expect(
+        as(() =>
+          customers.create(
+            w.company.id,
+            { name: 'Zé', creditLimit: 100 },
+            'EMPLOYEE',
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      const c = await as(() =>
+        customers.create(
+          w.company.id,
+          { name: 'Zé', creditLimit: 100.555 },
+          'MANAGER',
+        ),
+      );
+      expect(c.creditLimit).toBe(100.56);
+
+      // atendente edita nome e telefone, mas não o limite
+      await as(() =>
+        customers.update(w.company.id, c.id, { name: 'Zé Silva' }, 'EMPLOYEE'),
+      );
+      await expect(
+        as(() =>
+          customers.update(
+            w.company.id,
+            c.id,
+            { creditLimit: 500 },
+            'EMPLOYEE',
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect((await customers.get(w.company.id, c.id)).creditLimit).toBe(
+        100.56,
+      );
+
+      const cleared = await as(() =>
+        customers.update(w.company.id, c.id, { creditLimit: null }, 'OWNER'),
+      );
+      expect(cleared).toMatchObject({ name: 'Zé Silva', creditLimit: null });
+    });
+
     it('atualiza nome e telefone', async () => {
       const c = await as(() =>
-        customers.create(w.company.id, { name: 'Antigo' }),
+        customers.create(w.company.id, { name: 'Antigo' }, 'EMPLOYEE'),
       );
       const updated = await as(() =>
-        customers.update(w.company.id, c.id, {
-          name: 'Novo',
-          phone: '81911112222',
-        }),
+        customers.update(
+          w.company.id,
+          c.id,
+          {
+            name: 'Novo',
+            phone: '81911112222',
+          },
+          'EMPLOYEE',
+        ),
       );
       expect(updated).toMatchObject({ name: 'Novo', phone: '81911112222' });
     });
@@ -317,7 +379,12 @@ describe('Serviços de clientes e fiado', () => {
         await ctx.factory.debt(c.id, w.storeA.id, 10);
         await ctx.factory.debt(c.id, w.storeA.id, -10);
         const b = await customers.balances(w.company.id, c.id, owner());
-        expect(b).toEqual({ total: 0, perStore: [], bottles: [] });
+        expect(b).toEqual({
+          total: 0,
+          creditLimit: null,
+          perStore: [],
+          bottles: [],
+        });
       });
     });
   });

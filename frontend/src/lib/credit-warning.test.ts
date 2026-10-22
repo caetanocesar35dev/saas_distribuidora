@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CustomerBalances } from "@/lib/api/types";
-import { creditWarning, debtSplit, salesLabel } from "./credit-warning";
+import { creditLimitCheck, creditWarning, debtSplit, salesLabel } from "./credit-warning";
 
 const store = (
   storeId: string,
@@ -9,10 +9,15 @@ const store = (
   oldestOpenCreditSaleAt: string | null = null,
 ) => ({ storeId, storeName: `Loja ${storeId}`, balance, openCreditSales, oldestOpenCreditSaleAt });
 
-const balances = (perStore: CustomerBalances["perStore"]): CustomerBalances => ({
+const balances = (
+  perStore: CustomerBalances["perStore"],
+  extra: Partial<CustomerBalances> = {},
+): CustomerBalances => ({
   total: null,
+  creditLimit: null,
   perStore,
   bottles: [],
+  ...extra,
 });
 
 describe("creditWarning", () => {
@@ -62,6 +67,21 @@ describe("creditWarning", () => {
         "A",
       ),
     ).toEqual({ here: 10.1, others: 0.3, total: 10.4 });
+  });
+
+  it("limite de crédito: sem limite não confere; usa o total da empresa quando vem", () => {
+    expect(creditLimitCheck(balances([store("A", 40, 2)]), 10)).toBeNull();
+
+    // gerente/dono: total da empresa (inclui loja que não aparece em perStore)
+    const asManager = balances([store("A", 40, 2)], { total: 45, creditLimit: 50 });
+    expect(creditLimitCheck(asManager, 5)).toEqual({ limit: 50, debt: 45, after: 50, over: false });
+    expect(creditLimitCheck(asManager, 5.01)).toMatchObject({ after: 50.01, over: true });
+
+    // atendente: só as lojas que ele vê
+    const asEmployee = balances([store("A", 40, 2), store("B", -2, 0)], { creditLimit: 50 });
+    expect(creditLimitCheck(asEmployee, 20)).toEqual({ limit: 50, debt: 40, after: 60, over: true });
+    // sem dívida, a venda sozinha pode passar do limite
+    expect(creditLimitCheck(balances([], { total: 0, creditLimit: 0 }), 1)?.over).toBe(true);
   });
 
   it("escreve a quantidade de vendas", () => {

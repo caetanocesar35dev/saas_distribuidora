@@ -35,6 +35,7 @@ describe('AuthService', () => {
     razaoSocial: 'Maria Distribuidora LTDA',
     nomeFantasia: 'Maria Bebidas',
     storeName: 'Matriz',
+    acceptTerms: true,
     ...over,
   });
 

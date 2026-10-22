@@ -32,6 +32,13 @@ O backend precisa estar de pé (`npm run dev` em `backend/`, porta 3001). Para t
 | Variável | Padrão | Uso |
 |---|---|---|
 | `API_URL` | `http://localhost:3001/api` | URL da API. **Só o servidor do Next usa**: o navegador nunca fala direto com a API |
+| `LEGAL_OPERATOR_NAME` | (vazio) | Nome de quem opera o sistema, nos Termos de uso e na Política de privacidade (LGPD) |
+| `LEGAL_OPERATOR_CNPJ` | (vazio) | CNPJ de quem opera o sistema (com ou sem máscara) |
+| `LEGAL_CONTACT_EMAIL` | (vazio) | E-mail de contato e do encarregado de dados (DPO) |
+| `LEGAL_FORUM` | (vazio) | Foro dos termos de uso, ex.: `Recife/PE` |
+
+As variáveis `LEGAL_*` sem valor aparecem entre colchetes nas páginas `/termos` e `/privacidade`.
+Elas são lidas a cada acesso, então basta reiniciar o Next depois de mudar (não precisa de build).
 
 ## Como funciona
 

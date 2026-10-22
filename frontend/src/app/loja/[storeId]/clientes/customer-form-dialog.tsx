@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { FormField } from "@/components/app/form";
+import { MoneyInput } from "@/components/app/inputs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +16,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { useSaveCustomer } from "@/lib/api/hooks/customers";
 import type { Customer } from "@/lib/api/types";
+import { formatMoney } from "@/lib/format";
+import { useHasRole } from "@/lib/session/context";
 
 /** Cadastro e edição de cliente (o cliente vale para todas as lojas da empresa). */
 export function CustomerFormDialog({
@@ -31,6 +34,11 @@ export function CustomerFormDialog({
   const save = useSaveCustomer(companyId);
   const [name, setName] = useState(customer?.name ?? "");
   const [phone, setPhone] = useState(customer?.phone ?? "");
+  // Limite de crédito do fiado: só gerente e dono definem (o backend recusa o atendente).
+  const canSetLimit = useHasRole("MANAGER");
+  const [creditLimit, setCreditLimit] = useState<number | undefined>(
+    customer?.creditLimit ?? undefined,
+  );
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -48,7 +56,12 @@ export function CustomerFormDialog({
             save.mutate(
               {
                 id: customer?.id,
-                body: { name: name.trim(), phone: phone.trim() || undefined },
+                body: {
+                  name: name.trim(),
+                  phone: phone.trim() || undefined,
+                  // vazio = sem limite (null); o atendente não envia o campo
+                  ...(canSetLimit ? { creditLimit: creditLimit ?? null } : {}),
+                },
               },
               {
                 onSuccess: (saved) => {
@@ -78,6 +91,22 @@ export function CustomerFormDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
           </FormField>
+          {canSetLimit ? (
+            <FormField
+              label="Limite de crédito no fiado (opcional)"
+              htmlFor="cu-limit"
+              hint="Soma da dívida em todas as lojas. Acima dele, o atendente não vende no fiado; gerente e dono podem confirmar. Vazio = sem limite."
+            >
+              <MoneyInput id="cu-limit" value={creditLimit} onChange={setCreditLimit} />
+            </FormField>
+          ) : (
+            customer?.creditLimit != null && (
+              <p className="text-sm text-muted-foreground">
+                Limite de crédito no fiado: {formatMoney(customer.creditLimit)} (só gerente ou dono
+                altera).
+              </p>
+            )
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar

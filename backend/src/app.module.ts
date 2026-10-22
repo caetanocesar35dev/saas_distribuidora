@@ -4,6 +4,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuditContextInterceptor } from './audit/audit-context.interceptor';
+import { HideCostInterceptor } from './common/interceptors/hide-cost.interceptor';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuthModule } from './auth/auth.module';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
@@ -64,6 +65,8 @@ import { PrismaModule } from './prisma/prisma.module';
     { provide: APP_GUARD, useClass: SubscriptionGuard },
     { provide: APP_GUARD, useClass: AppThrottlerGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditContextInterceptor },
+    // Atendente nunca recebe custo nem lucro em nenhuma resposta.
+    { provide: APP_INTERCEPTOR, useClass: HideCostInterceptor },
   ],
 })
 export class AppModule {}

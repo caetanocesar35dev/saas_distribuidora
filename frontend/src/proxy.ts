@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   "/esqueci-a-senha",
   "/redefinir-senha",
   "/duvidas",
+  "/termos",
+  "/privacidade",
 ];
 // Quem já está logado não precisa ver estas telas (redefinir-senha e dúvidas continuam abertas).
 const GUEST_ONLY = ["/login", "/cadastro", "/esqueci-a-senha"];

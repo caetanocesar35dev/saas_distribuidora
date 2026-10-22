@@ -52,6 +52,7 @@ export const vendas: Article[] = [
       "Escolha o cliente na busca. Se ele ainda não existe, use Cadastrar novo cliente.",
       "Clique em Concluir. O valor entra na dívida do cliente nesta loja.",
       "Se o cliente já deve no fiado, o sistema avisa antes de concluir: quanto ele já deve, em quantas vendas, a data da mais antiga e quanto a dívida fica com esta venda. Clique em Sim, vender no fiado para concluir ou em Não, voltar para trocar a forma de pagamento.",
+      "Se o cliente tem limite de crédito e a venda faz a dívida (somando todas as lojas) passar dele, o atendente é barrado; gerente e dono veem o aviso e podem confirmar em Sim, vender acima do limite.",
       "Para receber depois, use Menu › Clientes e fiado › o cliente › Receber pagamento.",
     ],
     problems: [
@@ -64,6 +65,14 @@ export const vendas: Article[] = [
         fix: "Não é um erro: o cliente já deve em vendas anteriores. Confira o valor com ele e decida se vende no fiado de novo. As vendas contadas são as que ainda não foram pagas (cada pagamento quita primeiro as mais antigas). O atendente só vê a dívida das lojas em que trabalha.",
       },
       {
+        message: "Venda acima do limite de crédito",
+        fix: "A dívida do cliente passaria do limite definido pelo gerente ou dono. Atendente: receba em outra forma de pagamento ou chame o gerente. Gerente e dono podem confirmar a venda.",
+      },
+      {
+        message: "Esta venda passa do limite de crédito do cliente.",
+        fix: "Mesmo caso do aviso acima, quando a dívida em outras lojas (que o atendente não vê) faz passar do limite. Chame o gerente.",
+      },
+      {
         message: "Não foi possível conferir o fiado",
         fix: "O sistema não conseguiu consultar a dívida do cliente (por exemplo, internet instável). Você pode vender mesmo assim ou voltar e tentar de novo.",
       },
@@ -72,7 +81,7 @@ export const vendas: Article[] = [
         fix: "Com a assinatura vencida não dá para vender, nem no fiado, nem receber pagamento de fiado, até regularizar.",
       },
     ],
-    related: ["clientes-receber", "assinatura-somente-leitura"],
+    related: ["clientes-receber", "clientes-limite", "assinatura-somente-leitura"],
     keywords: ["fiado", "a prazo", "dívida", "pendura", "caderneta", "aviso de fiado", "já deve"],
   },
   {
@@ -121,7 +130,8 @@ export const vendas: Article[] = [
     id: "vendas-cancelar",
     category: "vendas",
     title: "Cancelar uma venda",
-    purpose: "Desfazer uma venda feita por engano: devolve estoque, estorna o valor e desfaz vasilhames.",
+    purpose:
+      "Desfazer uma venda feita por engano: devolve estoque, estorna o valor e desfaz vasilhames.",
     where: "Menu › Vendas › a venda › Cancelar venda",
     minRole: "MANAGER",
     audience: ["MANAGER"],

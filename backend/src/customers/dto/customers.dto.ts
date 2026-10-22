@@ -34,6 +34,16 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  /**
+   * Limite de crédito no fiado (soma de todas as lojas). `null` tira o limite. Só gerente e dono
+   * podem enviar este campo (o service recusa com 403 para o atendente).
+   */
+  @IsOptional()
+  @IsNumber(MONEY)
+  @Min(0)
+  @Max(10_000_000)
+  creditLimit?: number | null;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

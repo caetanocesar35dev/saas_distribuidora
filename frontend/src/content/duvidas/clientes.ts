@@ -11,7 +11,7 @@ export const clientes: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra Menu › Clientes e fiado e clique em Novo cliente.",
-      "Digite o nome e, se quiser, o telefone. Salve.",
+      "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado. Salve.",
       "Para achar alguém, use a busca por nome ou telefone. A lista já mostra quanto cada cliente deve no fiado.",
       "Para mudar os dados, abra o cliente e clique em Editar.",
       "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente.",
@@ -26,14 +26,15 @@ export const clientes: Article[] = [
         fix: "Registre as devoluções de vasilhame antes de excluir.",
       },
     ],
-    related: ["clientes-fiado", "faq-excluir-engano"],
+    related: ["clientes-fiado", "clientes-limite", "faq-excluir-engano"],
     keywords: ["novo cliente", "cadastro", "telefone"],
   },
   {
     id: "clientes-fiado",
     category: "clientes",
     title: "Ver a dívida do cliente por loja",
-    purpose: "Saber quanto o cliente deve e em qual loja, e quantos vasilhames ele tem emprestados.",
+    purpose:
+      "Saber quanto o cliente deve e em qual loja, e quantos vasilhames ele tem emprestados.",
     where: "Menu › Clientes e fiado",
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE", "MANAGER"],
@@ -45,8 +46,37 @@ export const clientes: Article[] = [
       "Gerentes e donos veem também a dívida total. O atendente vê só as lojas em que trabalha.",
       "Mais abaixo estão os pagamentos recebidos e as vendas no fiado desta loja.",
     ],
-    related: ["clientes-receber", "clientes-pagar-outra-loja"],
+    related: ["clientes-receber", "clientes-pagar-outra-loja", "clientes-limite"],
     keywords: ["dívida", "saldo", "fiado", "deve", "quem deve", "devedores", "lista de dívidas"],
+  },
+  {
+    id: "clientes-limite",
+    category: "clientes",
+    title: "Limite de crédito no fiado",
+    purpose:
+      "Definir até quanto cada cliente pode dever no fiado, somando todas as lojas da empresa.",
+    where: "Menu › Clientes e fiado › o cliente › Editar › Limite de crédito no fiado",
+    minRole: "MANAGER",
+    audience: ["MANAGER", "OWNER", "EMPLOYEE"],
+    steps: [
+      "Abra Menu › Clientes e fiado, clique em Abrir no cliente e depois em Editar (ou defina já em Novo cliente).",
+      "Preencha Limite de crédito no fiado e salve. Deixe vazio para o cliente não ter limite.",
+      "O limite vale para a dívida somada em todas as lojas. No detalhe do cliente aparece quanto ainda está disponível ou quanto passou.",
+      "Na venda no fiado (PDV ou fechamento de comanda), se a dívida passar do limite, o atendente é barrado e precisa escolher outra forma de pagamento ou chamar o gerente.",
+      "Gerente e dono veem o aviso com o limite e o valor que a dívida vai atingir, e podem confirmar em Sim, vender acima do limite.",
+    ],
+    problems: [
+      {
+        message: "Venda acima do limite de crédito",
+        fix: "A venda faria a dívida do cliente passar do limite. Atendente: receba à vista ou chame o gerente. Gerente e dono podem confirmar a venda ou aumentar o limite em Editar.",
+      },
+      {
+        message: "Só gerente ou dono pode definir o limite de crédito do cliente.",
+        fix: "O atendente não altera o limite. Peça a um gerente ou ao dono.",
+      },
+    ],
+    related: ["vendas-fiado", "clientes-fiado", "clientes-cadastrar"],
+    keywords: ["limite", "limite de crédito", "crédito", "teto", "bloquear fiado", "máximo"],
   },
   {
     id: "clientes-receber",

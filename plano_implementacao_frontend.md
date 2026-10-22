@@ -398,6 +398,14 @@ de barras (foco no campo de busca, atalhos de teclado).
    - Valem as lojas que a pessoa enxerga (o atendente só recebe as dele). O saldo é buscado
      de novo na hora de concluir (nunca do cache).
 
+6. ✅ **Limite de crédito no fiado (pedido do usuário, 2026-10-21).** Gerente e dono definem o
+   "Limite de crédito no fiado" no cadastro do cliente (o atendente não vê o campo); o detalhe
+   mostra o limite e quanto está disponível ou passou. No `CheckoutDialog`, se a venda faz a
+   dívida (todas as lojas) passar do limite: o atendente vê "Venda acima do limite de crédito"
+   só com "Entendi"; gerente e dono veem o limite e o valor final e confirmam em "Sim, vender
+   acima do limite" (envia `allowOverCreditLimit: true`). O atendente só enxerga as lojas dele,
+   então a tela barra quando dá para saber; o resto o backend barra (403).
+
 **Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
 automático e manual, e os saldos se atualizam.
 
@@ -447,6 +455,10 @@ automático e manual, e os saldos se atualizam.
      da loja usa a mesma consulta e preenche endereço, CEP, telefone e (se vazio) o nome da loja
      com o nome fantasia. O backend passou a **validar** o CNPJ da loja quando ele vem (antes
      aceitava qualquer texto) e grava no mesmo formato do CNPJ da empresa.
+   - ✅ **LGPD (pedido do usuário, 2026-10-21):** caixa obrigatória "Li e aceito os Termos de uso
+     e a Política de privacidade", com links para as páginas públicas `/termos` e
+     `/privacidade` (textos em `src/content/legal.ts`, um **modelo** a revisar; os dados do operador vêm das variáveis `LEGAL_*` do ambiente). O
+     backend exige `acceptTerms: true` e grava data e versão do aceite.
 2. **Aviso de assinatura e modo somente leitura.** Regra do produto: inadimplência **nunca
    bloqueia o sistema inteiro**, só deixa em somente leitura. Usar `subscription` de
    `GET /api/me/memberships` (`status`, `accessMode`, `reason`, `trialEndsAt`,
@@ -563,12 +575,12 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 `tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
 Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend):
 
-- **75 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
+- **78 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
   consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,
   histórico de alterações, cliente da API, renovação de sessão em fila (um teste quebra de
   propósito a fila para provar que ele a pega), BFF (origem, renovação, cookies) e a integridade
   da Central de Dúvidas.
-- **31 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
+- **34 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
   venda com troca de vasilhame 1 por 1 (e bloqueio quando sai devendo sem cliente); fiado com
   cliente novo e recebimento (valor acima da dívida recusado na tela); comanda lançada, fechada e
   cancelada (estoque devolvido); cancelamento de venda; histórico; entrada e ajuste de estoque;

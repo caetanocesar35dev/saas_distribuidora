@@ -131,6 +131,57 @@ describe('PDV: caixa, vendas, comandas e fiado pela API (e2e)', () => {
       .expect(200);
   });
 
+  it('o atendente nunca recebe custo nem lucro; gerente e dono recebem', async () => {
+    const s = await scenario();
+    await t.http
+      .post(`${s.base}/cash-register/open`)
+      .set(s.employee)
+      .send({ initialBalance: 0 })
+      .expect(201);
+    const sold = await t.http
+      .post(`${s.base}/sales`)
+      .set(s.employee)
+      .send({
+        paymentMethod: 'MONEY',
+        items: [{ storeProductId: s.beer.id, quantity: 2 }],
+      })
+      .expect(201);
+    const tab = await t.http
+      .post(`${s.base}/command-tabs`)
+      .set(s.employee)
+      .send({ name: 'Mesa 1' })
+      .expect(201);
+    await t.http
+      .post(`${s.base}/command-tabs/${tab.body.id}/items`)
+      .set(s.employee)
+      .send({ storeProductId: s.beer.id, quantity: 1 })
+      .expect(201);
+
+    const COST = /costPrice|totalCost|totalProfit|"profit"/;
+    const routes = [
+      `${s.base}/sales`,
+      `${s.base}/sales/${sold.body.id}`,
+      `${s.base}/store-products`,
+      `${s.base}/store-products/${s.beer.id}`,
+      `${s.base}/command-tabs/${tab.body.id}`,
+      `/api/companies/${s.w.company.id}/products`,
+    ];
+    // a resposta da própria venda também vem sem custo
+    expect(JSON.stringify(sold.body)).not.toMatch(COST);
+    for (const route of routes) {
+      const res = await t.http.get(route).set(s.employee).expect(200);
+      expect({ route, body: JSON.stringify(res.body) }).not.toEqual({
+        route,
+        body: expect.stringMatching(COST),
+      });
+    }
+
+    const asManager = await t.http.get(`${s.base}/sales`).set(s.manager);
+    expect(asManager.body.meta.totalProfit).toBeDefined();
+    expect(asManager.body.data[0].totalCost).toBeDefined();
+    expect(asManager.body.data[0].items[0].costPrice).toBeDefined();
+  });
+
   it('isolamento: quem não é da loja recebe 404 em qualquer rota do PDV', async () => {
     const s = await scenario();
     const other = await t.factory.world();

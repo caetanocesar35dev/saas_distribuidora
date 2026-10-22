@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  Equals,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -56,6 +57,12 @@ export class SignupDto {
   @IsOptional()
   @IsUUID()
   planId?: string;
+
+  /** Aceite dos termos de uso e da política de privacidade (LGPD): obrigatório. */
+  @Equals(true, {
+    message: 'É preciso aceitar os termos de uso e a política de privacidade.',
+  })
+  acceptTerms: boolean;
 }
 
 export class LoginDto {

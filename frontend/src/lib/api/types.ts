@@ -84,6 +84,8 @@ export interface SignupBody {
   nomeFantasia?: string;
   storeName: string;
   planId?: string;
+  /** Aceite dos termos de uso e da política de privacidade (obrigatório). */
+  acceptTerms: boolean;
 }
 
 export interface ChangePasswordBody {
@@ -244,7 +246,8 @@ export interface ProductOfferSummary {
   id: string;
   storeId: string;
   price: number;
-  costPrice: number;
+  /** Não vem para o atendente (o backend tira custo e lucro das respostas). */
+  costPrice?: number;
   stock: number;
   isActive: boolean;
 }
@@ -274,7 +277,8 @@ export interface StoreProduct {
   storeId: string;
   productId: string;
   price: number;
-  costPrice: number;
+  /** Não vem para o atendente. */
+  costPrice?: number;
   stock: number;
   isActive: boolean;
   product: {
@@ -395,7 +399,7 @@ export interface SaleItem {
   storeProductId: string;
   quantity: number;
   price: number;
-  costPrice: number;
+  costPrice?: number; // não vem para o atendente
   storeProduct: { product: { code: string; name: string } };
 }
 
@@ -412,7 +416,7 @@ export interface Sale {
   id: string;
   storeId: string;
   total: number;
-  totalCost: number;
+  totalCost?: number; // não vem para o atendente
   discount: number;
   paymentMethod: PaymentMethod;
   status: SaleStatus;
@@ -427,7 +431,8 @@ export interface Sale {
 }
 
 export interface SalesPage extends Paginated<Sale> {
-  meta: PageMeta & { totalRevenue: number; totalProfit: number };
+  /** `totalProfit` não vem para o atendente. */
+  meta: PageMeta & { totalRevenue: number; totalProfit?: number };
 }
 
 export interface BottleReturnLine {
@@ -442,6 +447,8 @@ export interface CreateSaleBody {
   discount?: number;
   items: { storeProductId: string; quantity: number }[];
   bottleReturns?: BottleReturnLine[];
+  /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
+  allowOverCreditLimit?: boolean;
 }
 
 export interface SalesQuery extends PageQuery {
@@ -459,7 +466,7 @@ export interface CommandItem {
   storeProductId: string;
   quantity: number;
   price: number;
-  costPrice: number;
+  costPrice?: number; // não vem para o atendente
   addedAt: string;
   storeProduct: { product: { code: string; name: string } };
 }
@@ -481,6 +488,7 @@ export interface CloseCommandTabBody {
   discount?: number;
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
+  allowOverCreditLimit?: boolean;
 }
 
 // ---- Clientes e fiado ------------------------------------------------------------------------
@@ -490,6 +498,8 @@ export interface Customer {
   companyId: string;
   name: string;
   phone: string | null;
+  /** Limite de crédito do fiado (soma de todas as lojas); null = sem limite. */
+  creditLimit: number | null;
   createdAt: string;
 }
 
@@ -501,11 +511,15 @@ export interface CustomerListItem extends Customer {
 export interface CustomerBody {
   name: string;
   phone?: string;
+  /** Só gerente e dono podem enviar. null tira o limite. */
+  creditLimit?: number | null;
 }
 
 export interface CustomerBalances {
   /** Só gerente e dono recebem o total; funcionário recebe null. */
   total: number | null;
+  /** Limite de crédito do fiado; null = sem limite. */
+  creditLimit: number | null;
   perStore: {
     storeId: string;
     storeName: string;

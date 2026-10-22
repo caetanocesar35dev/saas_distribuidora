@@ -43,6 +43,33 @@ export function creditWarning(
   };
 }
 
+export interface CreditLimitCheck {
+  limit: number;
+  /** Dívida considerada: o total da empresa (gerente/dono) ou só as lojas que o atendente vê. */
+  debt: number;
+  /** Dívida depois desta venda. */
+  after: number;
+  /** A venda passa do limite (pelo que a pessoa consegue ver). */
+  over: boolean;
+}
+
+/**
+ * Confere o limite de crédito do fiado antes de vender. O limite vale contra a dívida de TODAS as
+ * lojas: gerente e dono recebem esse total; o atendente só vê as lojas dele, então aqui só dá para
+ * saber que passou com certeza (o backend confere o resto e barra o atendente). null = sem limite.
+ */
+export function creditLimitCheck(
+  balances: CustomerBalances,
+  saleTotal: number,
+): CreditLimitCheck | null {
+  if (balances.creditLimit === null) return null;
+  const debt =
+    balances.total ??
+    roundMoney(balances.perStore.reduce((sum, s) => sum + Math.max(s.balance, 0), 0));
+  const after = roundMoney(debt + saleTotal);
+  return { limit: balances.creditLimit, debt, after, over: after > balances.creditLimit };
+}
+
 /** Dívida de um cliente da lista: "nesta loja", "nas outras lojas que vejo" e o total. */
 export function debtSplit(
   debts: { storeId: string; balance: number }[],

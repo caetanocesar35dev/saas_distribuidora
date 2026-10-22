@@ -18,7 +18,7 @@ export const acesso: Article[] = [
     problems: [
       {
         message: "E-mail ou senha incorretos.",
-        fix: "Confira se não há espaço sobrando e se o Caps Lock está desligado. Se não lembrar a senha, use \"Esqueci a senha\".",
+        fix: 'Confira se não há espaço sobrando e se o Caps Lock está desligado. Se não lembrar a senha, use "Esqueci a senha".',
       },
       {
         message: "Muitas tentativas em pouco tempo.",
@@ -36,7 +36,8 @@ export const acesso: Article[] = [
     id: "acesso-criar-conta",
     category: "acesso",
     title: "Criar uma conta para a sua distribuidora",
-    purpose: "Começar a usar o sistema: cria sua conta, a distribuidora e a primeira loja, com 14 dias de teste grátis.",
+    purpose:
+      "Começar a usar o sistema: cria sua conta, a distribuidora e a primeira loja, com 14 dias de teste grátis.",
     where: "Tela inicial › Criar conta",
     minRole: null,
     audience: ["OWNER"],
@@ -46,12 +47,18 @@ export const acesso: Article[] = [
       "Digite o CNPJ da distribuidora. Ele pode ter letras e números (CNPJ alfanumérico); a pontuação entra sozinha.",
       "Ao completar o CNPJ, o sistema busca os dados públicos da empresa e preenche a razão social e o nome fantasia. Confira e corrija se precisar. O que você já tiver digitado não é trocado.",
       "Se a busca não encontrar a empresa ou estiver fora do ar, preencha a razão social e o nome fantasia você mesmo.",
-      "Informe o nome da primeira loja, escolha o plano e clique em Criar conta e começar.",
+      "Informe o nome da primeira loja e escolha o plano.",
+      "Leia os Termos de uso e a Política de privacidade (os links abrem em outra aba) e marque Li e aceito. Sem esse aceite a conta não é criada.",
+      "Clique em Criar conta e começar.",
     ],
     problems: [
       {
         message: "CNPJ inválido.",
         fix: "Algum caractere foi digitado errado: os dois últimos são sempre números (dígitos verificadores). Confira no cartão CNPJ da empresa.",
+      },
+      {
+        message: "Para criar a conta, aceite os termos de uso e a política de privacidade.",
+        fix: "Marque a caixa Li e aceito, logo acima do botão Criar conta e começar.",
       },
       {
         message: "CNPJ não encontrado na consulta pública.",
@@ -67,7 +74,18 @@ export const acesso: Article[] = [
       },
     ],
     related: ["acesso-entrar", "gestao-nova-empresa"],
-    keywords: ["cadastro", "criar conta", "cnpj", "cnpj alfanumérico", "razão social", "nome fantasia", "teste grátis"],
+    keywords: [
+      "cadastro",
+      "criar conta",
+      "cnpj",
+      "cnpj alfanumérico",
+      "razão social",
+      "nome fantasia",
+      "teste grátis",
+      "termos de uso",
+      "privacidade",
+      "lgpd",
+    ],
   },
   {
     id: "acesso-esqueci-senha",
@@ -78,7 +96,7 @@ export const acesso: Article[] = [
     minRole: null,
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
-      "Na tela de entrar, clique em \"Esqueci a senha\".",
+      'Na tela de entrar, clique em "Esqueci a senha".',
       "Digite o e-mail da sua conta e clique em Enviar link.",
       "Abra o e-mail que chegou (veja também a caixa de spam) e clique no link.",
       "Digite a senha nova duas vezes e salve. Depois é só entrar.",
@@ -86,7 +104,7 @@ export const acesso: Article[] = [
     problems: [
       {
         message: "O link não funciona ou expirou.",
-        fix: "O link vale por 30 minutos e só funciona uma vez. Peça um novo em \"Esqueci a senha\".",
+        fix: 'O link vale por 30 minutos e só funciona uma vez. Peça um novo em "Esqueci a senha".',
       },
     ],
     related: ["acesso-email-nao-chegou", "acesso-entrar"],
@@ -103,7 +121,7 @@ export const acesso: Article[] = [
     steps: [
       "Espere alguns minutos e olhe também a caixa de spam ou lixo eletrônico.",
       "Confira se digitou o e-mail exatamente como foi cadastrado.",
-      "Peça o link de novo em \"Esqueci a senha\". Cada pedido gera um link novo e o anterior deixa de valer.",
+      'Peça o link de novo em "Esqueci a senha". Cada pedido gera um link novo e o anterior deixa de valer.',
       "Se continuar sem chegar, peça ao dono para conferir o seu e-mail em Menu › Empresa › Equipe.",
     ],
     problems: [
@@ -132,7 +150,7 @@ export const acesso: Article[] = [
     problems: [
       {
         message: "O link do convite expirou.",
-        fix: "O convite vale por 7 dias. Use \"Esqueci a senha\" com o mesmo e-mail para receber um link novo.",
+        fix: 'O convite vale por 7 dias. Use "Esqueci a senha" com o mesmo e-mail para receber um link novo.',
       },
     ],
     related: ["acesso-entrar", "gestao-equipe"],
@@ -149,7 +167,7 @@ export const acesso: Article[] = [
     steps: [
       "Clique no nome da loja, no topo da tela.",
       "Escolha a empresa e a loja na lista. O seu papel em cada loja aparece ao lado.",
-      "Para ver tudo de uma vez, escolha \"Ver todas as empresas e lojas\".",
+      'Para ver tudo de uma vez, escolha "Ver todas as empresas e lojas".',
     ],
     problems: [
       {
@@ -177,7 +195,7 @@ export const acesso: Article[] = [
     problems: [
       {
         message: "Senha atual incorreta.",
-        fix: "Digite a senha que você usa hoje. Se não lembra, saia e use \"Esqueci a senha\".",
+        fix: 'Digite a senha que você usa hoje. Se não lembra, saia e use "Esqueci a senha".',
       },
     ],
     related: ["acesso-esqueci-senha"],

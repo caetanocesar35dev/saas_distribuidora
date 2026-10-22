@@ -7,21 +7,34 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
 
 ### Antes de ter clientes de verdade
 
-1. [ ] **Esconder o custo do atendente na API.** `GET /stores/:storeId/sales` devolve custo e
+1. [x] **Esconder o custo do atendente na API.** `GET /stores/:storeId/sales` devolve custo e
    lucro para qualquer papel. A tela esconde, mas quem abrir o navegador vê. Correção pequena,
-   só no backend.
+   só no backend. **Feito (2026-10-21):** o vazamento era maior (produtos, estoque, comandas e o
+   retorno da venda também). Um interceptor global (`HideCostInterceptor`) tira custo e lucro de
+   toda resposta para o atendente.
 2. [ ] **Deploy:** imagem Docker do frontend, pipeline com `prisma migrate deploy` e HTTPS.
 3. [ ] **E-mail de verdade.** Sem `EMAIL_USER` e `EMAIL_PASS` no `backend/.env`, os e-mails de
    "esqueci a senha" e de convite não são enviados; o link só aparece no log do backend.
 4. [ ] **Registro de erros em produção** (ex.: Sentry), para saber quando algo quebra na loja do
    cliente.
-5. [ ] **LGPD:** termos de uso e política de privacidade no cadastro, porque o sistema guarda
-   nome e telefone de clientes.
+5. [x] **LGPD:** termos de uso e política de privacidade no cadastro, porque o sistema guarda
+   nome e telefone de clientes. **Decidido pelo usuário (2026-10-21):** caixa obrigatória no
+   cadastro, e o backend grava data e versão do aceite em `tb_users` (`termsAcceptedAt`,
+   `termsVersion`). **Feito (2026-10-21):** páginas públicas `/termos` e `/privacidade`.
+   - [ ] **Falta você:** preencher os dados do operador no `frontend/.env.local` (e no ambiente de
+     produção): `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_CNPJ`, `LEGAL_CONTACT_EMAIL` e
+     `LEGAL_FORUM` (modelo em `frontend/.env.example`), e pedir a revisão de um advogado. Os
+     textos (`frontend/src/content/legal.ts`) são um modelo.
 
 ### Para o dia a dia das distribuidoras
 
-7. [ ] **Limite de crédito por cliente no fiado:** aviso ou bloqueio acima de um valor. É o
+7. [x] **Limite de crédito por cliente no fiado:** aviso ou bloqueio acima de um valor. É o
    próximo passo do aviso de fiado em aberto. Precisa de coluna nova no banco (exige aprovação).
+   **Decidido pelo usuário (2026-10-21):** só gerente e dono definem o limite; é um limite por
+   cliente (`tb_customers.creditLimit`, vazio = sem limite), comparado com a **dívida total na
+   empresa** (soma de todas as lojas); acima dele, o **atendente é bloqueado** e gerente/dono
+   veem o aviso e podem confirmar a venda. O backend confere. **Feito (2026-10-21):** campo no
+   cadastro do cliente, cartão "Limite de crédito" no detalhe e aviso no PDV e na comanda.
 8. [ ] **Comprovante imprimível ou por WhatsApp** da venda, do pagamento de fiado e do fechamento
    de caixa (não fiscal).
 9. [ ] **Relatórios com exportação** (CSV/Excel): vendas por período e por produto, produtos mais
@@ -33,6 +46,20 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
 13. [] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido ou algo do tipo.
+### Operação da plataforma
+
+16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
+    empresa (pedido do usuário, 2026-10-21). Ponto de partida: já existe `platformRole =
+    SUPPORT`, mas hoje ele só **consulta** a área `/plataforma` (organizações, planos, usuários e
+    notificações); quem altera é o `SUPERADMIN`. Perguntas a responder:
+    - O suporte precisa ver os dados de dentro de uma distribuidora (vendas, caixa, clientes)
+      para ajudar? Hoje não vê: o acesso a lojas é só por vínculo de dono/gerente/atendente.
+    - Se vir, é somente leitura? Precisa de autorização do dono antes (LGPD: os clientes da
+      distribuidora são dados dela)? Fica registrado quem do suporte acessou o quê e quando?
+    - O suporte pode fazer ações pelo cliente (reenviar convite, destravar conta, ajustar a
+      assinatura) ou isso continua só com o `SUPERADMIN`?
+    - Mudar isso mexe em permissões (`TenantGuard`) e talvez no banco: exige aprovação.
+
 ### Lacunas menores já conhecidas
 
 13. [ ] Cliente excluído não pode ser reativado pela tela; só pela API.
@@ -54,6 +81,8 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Digitar um CNPJ com letras (ex.: `12.ABC.345/01DE-35`): é aceito, e aparece o aviso de que
   não foi encontrado.
 - [ ] Digitar um CNPJ inválido: aparece "CNPJ inválido.".
+- [ ] Tentar criar a conta sem marcar "Li e aceito": deve ser recusado. Abrir os links dos
+  termos e da política (abrem sem login, em `/termos` e `/privacidade`).
 - [ ] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
 - [ ] Deixar a aba parada por mais de 15 minutos e continuar usando: não pode pedir login de novo.
 - [ ] "Esqueci a senha": pegar o link no log do backend e redefinir a senha.
@@ -107,6 +136,11 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Tentar receber mais do que o cliente deve.
 - [ ] Emprestar vasilhame; devolver na mesma loja (funciona) e em outra loja (recusado).
 - [ ] Tentar excluir um cliente que deve: deve ser recusado.
+- [ ] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
+  "Limite de crédito" com o valor disponível.
+- [ ] Vender no fiado passando do limite: o atendente é barrado ("Entendi"); gerente e dono veem
+  o aviso e conseguem vender em "Sim, vender acima do limite".
+- [ ] Como atendente, abrir Editar do cliente: o campo de limite não aparece.
 
 ### 8. Estoque, produtos e vasilhames (gerente ou dono)
 
@@ -119,6 +153,8 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [ ] Atendente (`funcionario@exemplo.com`): não vê Produtos, custo, lucro, sangria, painel da
   empresa nem "Dívida total".
+- [ ] Logado como atendente, abrir no navegador `/api/stores/<id da loja>/sales`: a resposta
+  não pode ter `costPrice`, `totalCost` nem `totalProfit`.
 - [ ] Gerente (`gerente@exemplo.com`): vê produtos e sangria, mas não a empresa.
 - [ ] Digitar na URL uma página proibida para o papel: deve aparecer "sem permissão".
 

@@ -9,6 +9,7 @@ import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { AuditContext } from '../audit/audit-context';
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
+import { TERMS_VERSION } from './terms';
 import { addDays } from '../common/utils/time';
 import { Env } from '../config/env';
 import { MailService } from '../mail/mail.service';
@@ -123,7 +124,14 @@ export class AuthService {
     const user = await this.audit.actAs(userId, () =>
       this.prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
-          data: { id: userId, name: dto.name, email: dto.email, passwordHash },
+          data: {
+            id: userId,
+            name: dto.name,
+            email: dto.email,
+            passwordHash,
+            termsAcceptedAt: new Date(),
+            termsVersion: TERMS_VERSION,
+          },
         });
         const organization = await tx.organization.create({
           data: {

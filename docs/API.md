@@ -21,6 +21,10 @@ Total: **98 rotas**. Todas começam com `/api`.
 - `POST /stores/:storeId/bottle-movements`: envio/recebimento de fornecedor é de funcionário; **`MANUAL_ADJUSTMENT` exige gerente**.
 - `GET /companies/:companyId/customers/:id/balances` e `/payments`: **funcionário só vê as lojas dele e não recebe o `total`**; gerente e dono veem tudo.
 - `POST /stores/:storeId/customers/:customerId/bottle-returns`: a devolução só abate a dívida **da própria loja** (409 se o cliente deve em outra).
+- **Funcionário nunca recebe custo nem lucro**: `costPrice`, `totalCost`, `totalProfit` e `profit` são retirados de toda resposta de loja ou empresa (`HideCostInterceptor`).
+- `POST/PATCH /companies/:companyId/customers`: o campo `creditLimit` **exige gerente** (403 para o funcionário).
+- `POST /stores/:storeId/sales` e `POST /stores/:storeId/command-tabs/:id/close` no fiado: acima do limite de crédito do cliente (soma de todas as lojas), **funcionário recebe 403**; gerente e dono recebem 409, a menos que enviem `allowOverCreditLimit: true`.
+- `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade).
 - Rotas `/platform/*`: `SUPPORT` só lê; `SUPERADMIN` lê e escreve (cada escrita aparece como "Plataforma: SUPERADMIN").
 
 ## audit

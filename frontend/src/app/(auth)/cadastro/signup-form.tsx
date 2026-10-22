@@ -9,6 +9,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/app/form";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { api, errorMessage, publicApi } from "@/lib/api/client";
 import type { AuthResponse, Membership, Plan, SignupBody } from "@/lib/api/types";
@@ -32,6 +33,9 @@ const schema = z
     nomeFantasia: z.string().trim().max(200).optional(),
     storeName: z.string().trim().min(1, "Informe o nome da primeira loja.").max(120),
     planId: z.string().optional(),
+    acceptTerms: z.boolean().refine((v) => v, {
+      message: "Para criar a conta, aceite os termos de uso e a política de privacidade.",
+    }),
   })
   .refine((v) => v.password === v.confirm, {
     path: ["confirm"],
@@ -67,7 +71,10 @@ export function SignupForm() {
     getValues,
     setValue,
     formState: { errors },
-  } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: { cnpj: "" } });
+  } = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { cnpj: "", acceptTerms: false },
+  });
   const cnpjLookup = useCnpjAutofill({
     get: (name) => getValues(name),
     set: (name, value) => setValue(name, value, { shouldDirty: true, shouldValidate: true }),
@@ -103,6 +110,7 @@ export function SignupForm() {
           nomeFantasia: v.nomeFantasia || undefined,
           storeName: v.storeName,
           planId: v.planId || undefined,
+          acceptTerms: v.acceptTerms,
         });
       })}
     >
@@ -128,7 +136,12 @@ export function SignupForm() {
           />
         </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Senha" htmlFor="password" error={errors.password?.message} hint="Mínimo de 8 caracteres.">
+          <FormField
+            label="Senha"
+            htmlFor="password"
+            error={errors.password?.message}
+            hint="Mínimo de 8 caracteres."
+          >
             <Input
               id="password"
               type="password"
@@ -179,9 +192,17 @@ export function SignupForm() {
           />
         </FormField>
         <FormField label="Razão social" htmlFor="razaoSocial" error={errors.razaoSocial?.message}>
-          <Input id="razaoSocial" aria-invalid={!!errors.razaoSocial} {...register("razaoSocial")} />
+          <Input
+            id="razaoSocial"
+            aria-invalid={!!errors.razaoSocial}
+            {...register("razaoSocial")}
+          />
         </FormField>
-        <FormField label="Nome fantasia (opcional)" htmlFor="nomeFantasia" error={errors.nomeFantasia?.message}>
+        <FormField
+          label="Nome fantasia (opcional)"
+          htmlFor="nomeFantasia"
+          error={errors.nomeFantasia?.message}
+        >
           <Input id="nomeFantasia" {...register("nomeFantasia")} />
         </FormField>
         <FormField
@@ -229,7 +250,9 @@ export function SignupForm() {
                         <span className="flex items-baseline justify-between gap-2">
                           <span className="font-medium">{plan.name}</span>
                           <span className="text-sm tabular-nums">
-                            {plan.priceInCents === 0 ? "Grátis" : `${formatCents(plan.priceInCents)}/mês`}
+                            {plan.priceInCents === 0
+                              ? "Grátis"
+                              : `${formatCents(plan.priceInCents)}/mês`}
                           </span>
                         </span>
                         <span className="text-xs text-muted-foreground">{planSummary(plan)}</span>
@@ -245,6 +268,39 @@ export function SignupForm() {
           Os 14 dias de teste valem para qualquer plano. Nenhuma cobrança é feita agora.
         </p>
       </fieldset>
+
+      <div className="space-y-1">
+        <Controller
+          control={control}
+          name="acceptTerms"
+          render={({ field }) => (
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <Checkbox
+                className="mt-0.5"
+                checked={field.value === true}
+                onCheckedChange={(checked) => field.onChange(checked)}
+                aria-invalid={!!errors.acceptTerms}
+              />
+              <span>
+                Li e aceito os{" "}
+                <Link href="/termos" target="_blank" className="text-primary underline">
+                  Termos de uso
+                </Link>{" "}
+                e a{" "}
+                <Link href="/privacidade" target="_blank" className="text-primary underline">
+                  Política de privacidade
+                </Link>
+                .
+              </span>
+            </label>
+          )}
+        />
+        {errors.acceptTerms && (
+          <p role="alert" className="text-xs text-destructive">
+            {errors.acceptTerms.message}
+          </p>
+        )}
+      </div>
 
       {formError && (
         <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">

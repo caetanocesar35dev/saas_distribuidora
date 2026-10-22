@@ -106,12 +106,16 @@ enum NotificationType {
 
 /// Usuário do sistema (login). Não tem papel fixo — o papel é definido por loja via MembershipStore.
 model User {
-  id           String        @id @default(uuid())
-  name         String
-  email        String        @unique
-  passwordHash String
-  platformRole PlatformRole? // null = usuário comum (dono/funcionário de alguma distribuidora)
-  isActive     Boolean       @default(true)
+  id              String        @id @default(uuid())
+  name            String
+  email           String        @unique
+  passwordHash    String
+  platformRole    PlatformRole? // null = usuário comum (dono/funcionário de alguma distribuidora)
+  isActive        Boolean       @default(true)
+  // Aceite dos termos de uso e da política de privacidade (LGPD), gravado no cadastro público.
+  // null = conta criada antes da exigência, por convite ou pelo seed.
+  termsAcceptedAt DateTime?
+  termsVersion    String?
 
   memberships Membership[]
 
@@ -433,10 +437,13 @@ model StoreBottleType {
 
 /// Cliente da distribuidora — cadastro único na Company, pode comprar/dever em qualquer loja.
 model Customer {
-  id        String  @id @default(uuid())
-  companyId String
-  name      String
-  phone     String?
+  id          String  @id @default(uuid())
+  companyId   String
+  name        String
+  phone       String?
+  /// Limite de crédito no fiado, comparado com a dívida somada em todas as lojas da empresa.
+  /// null = sem limite. Só gerente e dono definem; acima dele o atendente não vende no fiado.
+  creditLimit Float?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -856,13 +863,15 @@ model BillingEvent {
 // A coluna "id" (ou a PK composta) aqui é a referência lógica ao registro original.
 
 model UserHistory {
-  historyId    String        @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id           String
-  name         String
-  email        String
-  platformRole PlatformRole?
-  isActive     Boolean
-  createdAt    DateTime
+  historyId       String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id              String
+  name            String
+  email           String
+  platformRole    PlatformRole?
+  isActive        Boolean
+  createdAt       DateTime
+  termsAcceptedAt DateTime?
+  termsVersion    String?
   // passwordHash fica fora do histórico de propósito (segurança)
 
   modifierId       String?
@@ -1078,12 +1087,13 @@ model StoreBottleTypeHistory {
 }
 
 model CustomerHistory {
-  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id        String
-  companyId String
-  name      String
-  phone     String?
-  createdAt DateTime
+  historyId   String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id          String
+  companyId   String
+  name        String
+  phone       String?
+  creditLimit Float?
+  createdAt   DateTime
 
   modifierId       String?
   modifiedEndpoint String?
