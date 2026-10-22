@@ -45,7 +45,7 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     da lista de devedores.
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
-13. [] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido ou algo do tipo.
+13. [ ] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido ou algo do tipo.
 ### Operação da plataforma
 
 16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
