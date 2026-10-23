@@ -42,7 +42,13 @@ export class SalesController {
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateSaleDto,
   ) {
-    return this.sales.create(tenant.storeId, tenant.companyId, user.id, dto);
+    return this.sales.create(
+      tenant.storeId,
+      tenant.companyId,
+      user.id,
+      dto,
+      tenant.role,
+    );
   }
 
   @Get()
@@ -110,7 +116,14 @@ export class CommandTabsController {
     @Param('id') id: string,
     @Body() dto: CloseCommandTabDto,
   ) {
-    return this.tabs.close(tenant.storeId, tenant.companyId, user.id, id, dto);
+    return this.tabs.close(
+      tenant.storeId,
+      tenant.companyId,
+      user.id,
+      id,
+      dto,
+      tenant.role,
+    );
   }
 
   @HttpCode(200)

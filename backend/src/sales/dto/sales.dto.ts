@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -73,6 +74,11 @@ export class CreateSaleDto {
   @ValidateNested({ each: true })
   @Type(() => BottleReturnDto)
   bottleReturns?: BottleReturnDto[];
+
+  /** Gerente ou dono confirma a venda fiada acima do limite de crédito do cliente. */
+  @IsOptional()
+  @IsBoolean()
+  allowOverCreditLimit?: boolean;
 }
 
 export class ListSalesQuery extends PaginationQueryDto {
@@ -157,6 +163,11 @@ export class CloseCommandTabDto {
   @ValidateNested({ each: true })
   @Type(() => BottleReturnDto)
   bottleReturns?: BottleReturnDto[];
+
+  /** Gerente ou dono confirma a venda fiada acima do limite de crédito do cliente. */
+  @IsOptional()
+  @IsBoolean()
+  allowOverCreditLimit?: boolean;
 }
 
 export class ListCommandTabsQuery {

@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import {
   createServiceTest,
   ServiceTestContext,
 } from '../../test/helpers/service-module';
+import { Role } from '@prisma/client';
 import { World } from '../../test/helpers/factory';
 import { SalesService } from './sales.service';
 
@@ -48,13 +50,17 @@ describe('SalesService', () => {
       items: { storeProductId: string; quantity: number }[];
     },
     storeId = w.storeA.id,
+    role: Role = 'OWNER',
   ) =>
     ctx.asRequest(
       () =>
-        sales.create(storeId, w.company.id, w.owner.id, {
-          paymentMethod: 'MONEY',
-          ...dto,
-        }),
+        sales.create(
+          storeId,
+          w.company.id,
+          w.owner.id,
+          { paymentMethod: 'MONEY', ...dto },
+          role,
+        ),
       { userId: w.owner.id, endpoint: 'POST /api/stores/:storeId/sales' },
     );
   const cancel = (id: string, storeId = w.storeA.id) =>
@@ -366,6 +372,64 @@ describe('SalesService', () => {
       expect(await fiado(customer.id)).toBe(60);
       expect(await fiado(customer.id, w.storeB.id)).toBeUndefined();
       expect(await ctx.prisma.cashMovement.count()).toBe(0);
+    });
+
+    it('limite de crédito: soma todas as lojas; atendente é barrado e gerente/dono confirmam', async () => {
+      const customer = await ctx.factory.customer(w.company.id);
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.customer.update({
+          where: { id: customer.id },
+          data: { creditLimit: 50 },
+        }),
+      );
+      await ctx.factory.debt(customer.id, w.storeA.id, 25);
+      await ctx.factory.debt(customer.id, w.storeB.id, 15); // outra loja também conta
+      const fiadoSale = (
+        role: Role,
+        extra: { allowOverCreditLimit?: boolean } = {},
+      ) =>
+        sell(
+          {
+            paymentMethod: 'CREDIT_STORE',
+            customerId: customer.id,
+            items: [{ storeProductId: beer.id, quantity: 1 }], // R$ 10
+            ...extra,
+          },
+          w.storeA.id,
+          role,
+        );
+
+      // 40 + 10 = 50: chega exatamente ao limite, passa
+      await fiadoSale('EMPLOYEE');
+      expect(await fiado(customer.id)).toBe(35);
+
+      // 50 + 10 = 60: atendente barrado, mesmo pedindo para passar
+      await expect(
+        fiadoSale('EMPLOYEE', { allowOverCreditLimit: true }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      // gerente sem confirmar: aviso (409) com os valores
+      await expect(fiadoSale('MANAGER')).rejects.toThrow(
+        /limite de crédito do cliente é R\$ 50,00; ele deve R\$ 50,00 e, com esta venda, passaria a dever R\$ 60,00/,
+      );
+      await expect(fiadoSale('MANAGER')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(await fiado(customer.id)).toBe(35);
+      expect(await ctx.prisma.sale.count()).toBe(1);
+
+      // gerente confirmando: vende
+      await fiadoSale('MANAGER', { allowOverCreditLimit: true });
+      expect(await fiado(customer.id)).toBe(45);
+
+      // venda à vista não olha o limite
+      await sell(
+        {
+          customerId: customer.id,
+          items: [{ storeProductId: beer.id, quantity: 1 }],
+        },
+        w.storeA.id,
+        'EMPLOYEE',
+      );
     });
 
     it('cria o saldo na primeira venda a prazo do cliente', async () => {

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -45,31 +46,57 @@ describe('Serviços de clientes e fiado', () => {
   describe('CustomersService', () => {
     it('cria, busca por nome ou telefone (sem diferenciar maiúsculas) e pagina', async () => {
       await as(() =>
-        customers.create(w.company.id, {
-          name: 'Maria da Silva',
-          phone: '81999990000',
-        }),
+        customers.create(
+          w.company.id,
+          {
+            name: 'Maria da Silva',
+            phone: '81999990000',
+          },
+          'EMPLOYEE',
+        ),
       );
-      await as(() => customers.create(w.company.id, { name: 'José Souza' }));
       await as(() =>
-        customers.create(w.company.id, {
-          name: 'Ana Lima',
-          phone: '81988887777',
-        }),
+        customers.create(w.company.id, { name: 'José Souza' }, 'EMPLOYEE'),
+      );
+      await as(() =>
+        customers.create(
+          w.company.id,
+          {
+            name: 'Ana Lima',
+            phone: '81988887777',
+          },
+          'EMPLOYEE',
+        ),
       );
 
       expect(
-        (await customers.list(w.company.id, page)).data.map((c) => c.name),
+        (await customers.list(w.company.id, page, owner())).data.map(
+          (c) => c.name,
+        ),
       ).toEqual(['Ana Lima', 'José Souza', 'Maria da Silva']);
       expect(
-        (await customers.list(w.company.id, { ...page, search: 'MARIA' })).data,
+        (
+          await customers.list(
+            w.company.id,
+            { ...page, search: 'MARIA' },
+            owner(),
+          )
+        ).data,
       ).toHaveLength(1);
       expect(
         (
-          await customers.list(w.company.id, { ...page, search: '8198888' })
+          await customers.list(
+            w.company.id,
+            { ...page, search: '8198888' },
+            owner(),
+          )
         ).data.map((c) => c.name),
       ).toEqual(['Ana Lima']);
-      const second = await customers.list(w.company.id, { page: 2, limit: 2 });
+      const second = await customers.list(
+        w.company.id,
+        { page: 2, limit: 2 },
+        owner(),
+      );
       expect(second.data).toHaveLength(1);
       expect(second.meta.totalPages).toBe(2);
     });
@@ -81,23 +108,124 @@ describe('Serviços de clientes e fiado', () => {
         customers.get(w.company.id, foreign.id),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
-        as(() => customers.update(w.company.id, foreign.id, { name: 'X' })),
+        as(() =>
+          customers.update(w.company.id, foreign.id, { name: 'X' }, 'OWNER'),
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
       await expect(
         as(() => customers.remove(w.company.id, foreign.id)),
       ).rejects.toBeInstanceOf(NotFoundException);
-      expect((await customers.list(w.company.id, page)).data).toHaveLength(0);
+      expect(
+        (await customers.list(w.company.id, page, owner())).data,
+      ).toHaveLength(0);
+    });
+
+    it('lista com a dívida de cada cliente, filtra quem deve e respeita as lojas do funcionário', async () => {
+      const ana = await ctx.factory.customer(w.company.id, 'Ana');
+      const bia = await ctx.factory.customer(w.company.id, 'Bia');
+      const caio = await ctx.factory.customer(w.company.id, 'Caio');
+      await ctx.factory.debt(ana.id, w.storeA.id, 30.1);
+      await ctx.factory.debt(ana.id, w.storeB.id, 20);
+      await ctx.factory.debt(bia.id, w.storeB.id, 15);
+      await ctx.factory.debt(caio.id, w.storeA.id, 10);
+      await ctx.factory.debt(caio.id, w.storeA.id, -10); // quitou: não aparece
+
+      const all = await customers.list(w.company.id, page, owner());
+      expect(
+        all.data.map((c) => [
+          c.name,
+          [...c.debts].sort((a, b) => b.balance - a.balance),
+        ]),
+      ).toEqual([
+        [
+          'Ana',
+          [
+            { storeId: w.storeA.id, balance: 30.1 },
+            { storeId: w.storeB.id, balance: 20 },
+          ],
+        ],
+        ['Bia', [{ storeId: w.storeB.id, balance: 15 }]],
+        ['Caio', []],
+      ]);
+
+      const devedores = await customers.list(
+        w.company.id,
+        { ...page, withDebt: true },
+        owner(),
+      );
+      expect(devedores.data.map((c) => c.name)).toEqual(['Ana', 'Bia']);
+      expect(devedores.meta.totalItems).toBe(2);
+
+      // funcionário só da loja A: não vê a dívida da loja B nem quem só deve lá
+      const employee = { role: 'EMPLOYEE' as const, storeIds: [w.storeA.id] };
+      const asEmployee = await customers.list(
+        w.company.id,
+        { ...page, withDebt: true },
+        employee,
+      );
+      expect(asEmployee.data.map((c) => [c.name, c.debts])).toEqual([
+        ['Ana', [{ storeId: w.storeA.id, balance: 30.1 }]],
+      ]);
+    });
+
+    it('limite de crédito: só gerente e dono definem; null tira o limite', async () => {
+      await expect(
+        as(() =>
+          customers.create(
+            w.company.id,
+            { name: 'Zé', creditLimit: 100 },
+            'EMPLOYEE',
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+
+      const c = await as(() =>
+        customers.create(
+          w.company.id,
+          { name: 'Zé', creditLimit: 100.555 },
+          'MANAGER',
+        ),
+      );
+      expect(c.creditLimit).toBe(100.56);
+
+      // atendente edita nome e telefone, mas não o limite
+      await as(() =>
+        customers.update(w.company.id, c.id, { name: 'Zé Silva' }, 'EMPLOYEE'),
+      );
+      await expect(
+        as(() =>
+          customers.update(
+            w.company.id,
+            c.id,
+            { creditLimit: 500 },
+            'EMPLOYEE',
+          ),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect((await customers.get(w.company.id, c.id)).creditLimit).toBe(
+        100.56,
+      );
+
+      const cleared = await as(() =>
+        customers.update(w.company.id, c.id, { creditLimit: null }, 'OWNER'),
+      );
+      expect(cleared).toMatchObject({ name: 'Zé Silva', creditLimit: null });
     });
 
     it('atualiza nome e telefone', async () => {
       const c = await as(() =>
-        customers.create(w.company.id, { name: 'Antigo' }),
+        customers.create(w.company.id, { name: 'Antigo' }, 'EMPLOYEE'),
       );
       const updated = await as(() =>
-        customers.update(w.company.id, c.id, {
-          name: 'Novo',
-          phone: '81911112222',
-        }),
+        customers.update(
+          w.company.id,
+          c.id,
+          {
+            name: 'Novo',
+            phone: '81911112222',
+          },
+          'EMPLOYEE',
+        ),
       );
       expect(updated).toMatchObject({ name: 'Novo', phone: '81911112222' });
     });
@@ -105,9 +233,13 @@ describe('Serviços de clientes e fiado', () => {
     it('exclui por soft delete e restaura', async () => {
       const c = await ctx.factory.customer(w.company.id);
       await as(() => customers.remove(w.company.id, c.id));
-      expect((await customers.list(w.company.id, page)).data).toHaveLength(0);
+      expect(
+        (await customers.list(w.company.id, page, owner())).data,
+      ).toHaveLength(0);
       await as(() => customers.restore(w.company.id, c.id));
-      expect((await customers.list(w.company.id, page)).data).toHaveLength(1);
+      expect(
+        (await customers.list(w.company.id, page, owner())).data,
+      ).toHaveLength(1);
       await expect(
         as(() => customers.restore(w.company.id, c.id)),
       ).rejects.toBeInstanceOf(ConflictException);
@@ -138,9 +270,22 @@ describe('Serviços de clientes e fiado', () => {
 
         const b = await customers.balances(w.company.id, c.id, owner());
         expect(b.total).toBe(150);
+        // Dívida lançada sem venda (só o saldo): nenhuma venda fiada para contar.
         expect(b.perStore).toEqual([
-          { storeId: w.storeA.id, storeName: 'Loja A', balance: 100.1 },
-          { storeId: w.storeB.id, storeName: 'Loja B', balance: 49.9 },
+          {
+            storeId: w.storeA.id,
+            storeName: 'Loja A',
+            balance: 100.1,
+            openCreditSales: 0,
+            oldestOpenCreditSaleAt: null,
+          },
+          {
+            storeId: w.storeB.id,
+            storeName: 'Loja B',
+            balance: 49.9,
+            openCreditSales: 0,
+            oldestOpenCreditSaleAt: null,
+          },
         ]);
         expect(b.bottles).toEqual([
           {
@@ -175,12 +320,71 @@ describe('Serviços de clientes e fiado', () => {
         expect(asManager.perStore).toHaveLength(2);
       });
 
+      it('conta as vendas fiadas em aberto: o pagamento quita primeiro as mais antigas', async () => {
+        const c = await ctx.factory.customer(w.company.id);
+        const day = (d: number) => new Date(`2026-10-0${d}T12:00:00Z`);
+        await ctx.factory.creditSale(c.id, w.storeA.id, 30, day(1));
+        await ctx.factory.creditSale(c.id, w.storeA.id, 20, day(2));
+        await ctx.factory.creditSale(c.id, w.storeA.id, 50, day(3));
+        await ctx.factory.creditSale(c.id, w.storeB.id, 10, day(4));
+        const cancelled = await ctx.factory.creditSale(
+          c.id,
+          w.storeA.id,
+          99,
+          day(5),
+        );
+        // venda cancelada: sai da dívida e da contagem
+        await ctx.factory.debt(c.id, w.storeA.id, -99);
+        await ctx.audit.runAsSystem('seed', () =>
+          ctx.prisma.sale.update({
+            where: { id: cancelled.id },
+            data: { status: 'CANCELED' },
+          }),
+        );
+
+        const storeA = async () =>
+          (await customers.balances(w.company.id, c.id, owner())).perStore.find(
+            (s) => s.storeId === w.storeA.id,
+          )!;
+        expect(await storeA()).toMatchObject({
+          balance: 100,
+          openCreditSales: 3,
+          oldestOpenCreditSaleAt: day(1),
+        });
+
+        // pagou R$ 40: a de R$ 30 (mais antiga) está quitada e a de R$ 20 ficou paga em parte
+        await ctx.factory.debt(c.id, w.storeA.id, -40);
+        expect(await storeA()).toMatchObject({
+          balance: 60,
+          openCreditSales: 2,
+          oldestOpenCreditSaleAt: day(2),
+        });
+
+        // pagou mais R$ 10: sobra só a última venda, de R$ 50
+        await ctx.factory.debt(c.id, w.storeA.id, -10);
+        expect(await storeA()).toMatchObject({
+          balance: 50,
+          openCreditSales: 1,
+          oldestOpenCreditSaleAt: day(3),
+        });
+
+        const b = await customers.balances(w.company.id, c.id, owner());
+        expect(b.perStore.find((s) => s.storeId === w.storeB.id)).toMatchObject(
+          { balance: 10, openCreditSales: 1 },
+        );
+      });
+
       it('cliente sem dívida tem total zero; saldo zerado não aparece', async () => {
         const c = await ctx.factory.customer(w.company.id);
         await ctx.factory.debt(c.id, w.storeA.id, 10);
         await ctx.factory.debt(c.id, w.storeA.id, -10);
         const b = await customers.balances(w.company.id, c.id, owner());
-        expect(b).toEqual({ total: 0, perStore: [], bottles: [] });
+        expect(b).toEqual({
+          total: 0,
+          creditLimit: null,
+          perStore: [],
+          bottles: [],
+        });
       });
     });
   });

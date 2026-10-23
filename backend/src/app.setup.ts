@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import type { Express } from 'express';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { Env } from './config/env';
@@ -11,6 +12,14 @@ export function configureApp(
   options: { swagger?: boolean } = {},
 ) {
   const config = app.get(ConfigService<Env, true>);
+
+  // O frontend (Next) chama a API por um servidor intermediário (BFF) e repassa o IP real do
+  // navegador em X-Forwarded-For. Só proxies de loopback/rede privada são confiáveis, então um
+  // cliente da internet não consegue forjar o IP para fugir do rate limit.
+  (app.getHttpAdapter().getInstance() as Express).set(
+    'trust proxy',
+    'loopback, linklocal, uniquelocal',
+  );
 
   app.use(helmet());
   app.enableCors({

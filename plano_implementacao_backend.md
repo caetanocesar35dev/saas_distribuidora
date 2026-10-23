@@ -2,7 +2,7 @@
 
 > ## Status da implementação (atualizado em 2026-10-14)
 >
-> - **Fases 0 a 9 e 11: implementadas e testadas** (377 testes em 26 suítes, no banco
+> - **Fases 0 a 9 e 11: implementadas e testadas** (392 testes em 27 suítes, no banco
 >   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
 >   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
@@ -288,7 +288,10 @@ automáticos, sem nenhum endpoint de negócio ainda.
    driver nativo. Nunca vazar mensagem SQL crua.
 6. **Segurança e infraestrutura HTTP:** `helmet`, CORS por `CORS_ORIGINS`, Swagger em
    `/api/docs` fora de produção, `GET /api/health` (ping no banco, público),
-   `enableShutdownHooks`.
+   `enableShutdownHooks`. `trust proxy` restrito a loopback e redes privadas (`loopback, linklocal,
+   uniquelocal`): o frontend chama a API por um servidor intermediário (BFF do Next) que repassa o IP
+   do navegador em `X-Forwarded-For`; sem isso, todo acesso anônimo (login, cadastro, redefinir
+   senha) dividiria o mesmo limite do rate limit. Adicionado na Fase 0 do frontend (2026-10-16).
 7. **Seed** (`prisma/seed.ts`, via `runAsSystem('seed', ...)`; já referenciado em
    `prisma.config.ts`):
    - Planos (⚠️ nomes, preços e limites: sugerir `Trial`, `Básico` e `Pro`, para o
@@ -360,7 +363,9 @@ access + refresh token com rotação. Não perguntar de novo.
      (gerar o UUID antes e definir no contexto). Preenche `billingDocument` com o CNPJ
      da company e `billingEmail` com o e-mail do usuário (editáveis na Fase 10). **Não
      chama o Asaas aqui:** o cadastro não pode falhar por indisponibilidade do gateway.
-     Retorna o mesmo que o login.
+     Retorna o mesmo que o login. **LGPD (decisão do usuário, 2026-10-21):** exige
+     `acceptTerms: true` (400 sem ele) e grava `User.termsAcceptedAt` e `termsVersion`
+     (`TERMS_VERSION` em `src/auth/terms.ts`).
    - `POST /auth/login` (público): par de tokens + `user`. Usuário inativo ou excluído:
      mesma mensagem de credencial inválida.
    - `POST /auth/refresh` (público): `{ refreshToken }` → par novo de tokens. Token
@@ -589,13 +594,29 @@ altere essas colunas por outro caminho; cada alteração precisa do registro cor
    - `GET /stores/:storeId/bottle-stock`: estoque por tipo.
 3. **`CustomerModule`** (`/companies/:companyId/customers`): CRUD + restore + busca por
    nome/telefone. Excluir é bloqueado se houver saldo devedor (dinheiro ou vasilhame)
-   em qualquer loja.
+   em qualquer loja. A listagem (pedido do usuário, 2026-10-21) traz em cada cliente
+   `debts: [{ storeId, balance }]` (só saldo devedor, só as lojas que quem pede enxerga: o
+   funcionário vê as dele) e aceita `withDebt=true` para listar só quem deve.
+   **Limite de crédito (decisão do usuário, 2026-10-21):** `creditLimit` (null = sem limite)
+   no create/update, só para MANAGER ou mais (403 para o funcionário); vale contra a dívida
+   somada em todas as lojas. A venda fiada (`POST /sales` e fechamento de comanda) chama
+   `assertCreditLimit` na transação: acima do limite, funcionário recebe 403 (mensagem sem
+   valores) e gerente/dono recebem 409, a menos que enviem `allowOverCreditLimit: true`.
+   `balances` também devolve `creditLimit`.
+   **Custo e lucro (2026-10-21):** o `HideCostInterceptor` global tira `costPrice`,
+   `totalCost`, `totalProfit` e `profit` das respostas para o funcionário (vendas, produtos,
+   estoque, comandas).
 4. **`GET /companies/:companyId/customers/:id/balances`:**
    ```json
    { "total": 150.0,
-     "perStore": [{ "storeId": "...", "storeName": "...", "balance": 100.0 }],
+     "perStore": [{ "storeId": "...", "storeName": "...", "balance": 100.0,
+                    "openCreditSales": 3, "oldestOpenCreditSaleAt": "2026-10-01T..." }],
      "bottles": [{ "storeId": "...", "bottleTypeId": "...", "bottleTypeName": "...", "balance": 3 }] }
    ```
+   `openCreditSales` e `oldestOpenCreditSaleAt` (pedido do usuário, 2026-10-21, para o aviso de
+   fiado no PDV): o pagamento não é ligado a uma venda, então contam-se as vendas fiadas mais
+   recentes (`COMPLETED`) cuja soma cobre o saldo, como se o pagamento quitasse primeiro as
+   mais antigas. Sem schema novo.
    `total` calculado na hora (`aggregate`), nunca armazenado. EMPLOYEE só vê as lojas a
    que tem acesso e não vê `total`; MANAGER e OWNER veem tudo (⚠️, vem do comentário
    do schema).

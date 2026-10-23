@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentMethod, Prisma } from '@prisma/client';
+import { PaymentMethod, Prisma, Role } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import {
   addCustomerBottleBalance,
@@ -17,6 +17,7 @@ import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { fromCents, roundMoney, toCents } from '../common/utils/money';
 import { addDays, startOfDayInTz } from '../common/utils/time';
 import { Env } from '../config/env';
+import { assertCreditLimit } from '../customers/credit-limit';
 import { addCustomerDebt } from '../customers/customer-ledger';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,6 +43,10 @@ export interface CreateSaleInput {
   commandTabId?: string;
   /** O estoque já foi baixado antes (itens da comanda): não baixa de novo. */
   skipStock?: boolean;
+  /** Papel de quem vende na loja: decide se pode passar do limite de crédito do fiado. */
+  role: Role;
+  /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
+  allowOverCreditLimit?: boolean;
 }
 
 const SALE_SELECT = {
@@ -98,6 +103,7 @@ export class SalesService {
     companyId: string,
     userId: string,
     dto: CreateSaleDto,
+    role: Role,
   ) {
     // Itens repetidos viram uma linha só.
     const merged = new Map<string, number>();
@@ -121,6 +127,8 @@ export class SalesService {
           quantity,
         })),
         bottleReturns: dto.bottleReturns,
+        role,
+        allowOverCreditLimit: dto.allowOverCreditLimit,
       }),
     );
     return this.get(storeId, saleId);
@@ -149,12 +157,14 @@ export class SalesService {
         'Para vendas a prazo (fiado) é obrigatório informar o cliente.',
       );
     }
+    let creditLimit: number | null = null;
     if (customerId) {
       const customer = await tx.customer.findFirst({
         where: { id: customerId, companyId },
       });
       if (!customer)
         throw new NotFoundException('Cliente não encontrado nesta empresa.');
+      creditLimit = customer.creditLimit;
     }
 
     // ---- produtos e estoque ----------------------------------------------------------------
@@ -249,6 +259,14 @@ export class SalesService {
 
     // ---- caixa ou fiado --------------------------------------------------------------------
     if (input.paymentMethod === 'CREDIT_STORE') {
+      await assertCreditLimit(tx, {
+        customerId: customerId!,
+        companyId,
+        creditLimit,
+        amount: total,
+        role: input.role,
+        allowOverLimit: input.allowOverCreditLimit,
+      });
       if (total > 0) await addCustomerDebt(tx, customerId!, storeId, total);
     } else if (total > 0) {
       await tx.cashMovement.create({

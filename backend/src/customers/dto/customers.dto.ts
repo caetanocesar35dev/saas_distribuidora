@@ -3,6 +3,7 @@ import { PaymentMethod } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
+  IsBoolean,
   IsArray,
   IsEnum,
   IsNotEmpty,
@@ -33,6 +34,16 @@ export class CreateCustomerDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  /**
+   * Limite de crédito no fiado (soma de todas as lojas). `null` tira o limite. Só gerente e dono
+   * podem enviar este campo (o service recusa com 403 para o atendente).
+   */
+  @IsOptional()
+  @IsNumber(MONEY)
+  @Min(0)
+  @Max(10_000_000)
+  creditLimit?: number | null;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}
@@ -43,6 +54,14 @@ export class ListCustomersQuery extends PaginationQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  /** Só clientes com dívida de fiado nas lojas que quem pede enxerga. */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  withDebt?: boolean;
 }
 
 export class PaymentAllocationDto {

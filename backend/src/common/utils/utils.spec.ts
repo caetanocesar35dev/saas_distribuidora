@@ -1,3 +1,4 @@
+import { buildCnpj, isValidCnpj, normalizeCnpj } from './document';
 import { ean13CheckDigit, generateEan13, isValidEan13 } from './ean13';
 import { fromCents, roundMoney, toCents } from './money';
 import {
@@ -6,6 +7,33 @@ import {
   startOfDayInTz,
   startOfMonthInTz,
 } from './time';
+
+describe('CNPJ (numérico e alfanumérico)', () => {
+  it('aceita o CNPJ numérico com ou sem máscara', () => {
+    expect(isValidCnpj('11.222.333/0001-81')).toBe(true);
+    expect(isValidCnpj('11222333000181')).toBe(true);
+    expect(isValidCnpj('11222333000182')).toBe(false);
+    expect(isValidCnpj('11111111111111')).toBe(false);
+  });
+
+  it('aceita o CNPJ alfanumérico (exemplo oficial da Receita)', () => {
+    expect(isValidCnpj('12.ABC.345/01DE-35')).toBe(true);
+    expect(isValidCnpj('12abc34501de35')).toBe(true);
+    expect(isValidCnpj('12ABC34501DE36')).toBe(false);
+    expect(normalizeCnpj('12.abc.345/01de-35')).toBe('12ABC34501DE35');
+  });
+
+  it('recusa letra nos dígitos verificadores e caracteres estranhos', () => {
+    expect(isValidCnpj('12ABC34501DEAB')).toBe(false);
+    expect(isValidCnpj('12ABC34501D@35')).toBe(false);
+    expect(isValidCnpj('AAAAAAAAAAAAAA')).toBe(false);
+  });
+
+  it('gera CNPJ válido a partir da base, inclusive alfanumérica', () => {
+    expect(buildCnpj('12ABC34501DE')).toBe('12ABC34501DE35');
+    expect(isValidCnpj(buildCnpj('112223330001'))).toBe(true);
+  });
+});
 
 describe('money', () => {
   it('arredonda para 2 casas sem erro de ponto flutuante', () => {

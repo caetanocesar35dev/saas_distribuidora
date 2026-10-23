@@ -1,10 +1,20 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/account.dto';
+
+/** O CNPJ da loja é opcional; quando vem, é conferido e gravado sem máscara, em maiúsculas. */
+function withValidCnpj<T extends { cnpj?: string }>(dto: T): T {
+  if (dto.cnpj === undefined) return dto;
+  const cnpj = normalizeCnpj(dto.cnpj);
+  if (!isValidCnpj(cnpj)) throw new BadRequestException('CNPJ inválido.');
+  return { ...dto, cnpj };
+}
 
 const STORE_SELECT = {
   id: true,
@@ -47,7 +57,8 @@ export class StoresService {
    * Cria a loja respeitando o limite do plano e dá OWNER nela a todos os donos da empresa
    * (quem já é OWNER em alguma loja).
    */
-  async create(companyId: string, dto: CreateStoreDto) {
+  async create(companyId: string, input: CreateStoreDto) {
+    const dto = withValidCnpj(input);
     const company = await this.prisma.company.findFirst({
       where: { id: companyId },
       select: {
@@ -95,7 +106,8 @@ export class StoresService {
     });
   }
 
-  async update(companyId: string, id: string, dto: UpdateStoreDto) {
+  async update(companyId: string, id: string, input: UpdateStoreDto) {
+    const dto = withValidCnpj(input);
     await this.get(companyId, id);
     return this.prisma.store.update({
       where: { id },

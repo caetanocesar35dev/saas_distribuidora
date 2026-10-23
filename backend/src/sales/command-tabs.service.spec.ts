@@ -58,10 +58,14 @@ describe('CommandTabsService', () => {
   ) =>
     as(
       () =>
-        tabs.close(w.storeA.id, w.company.id, w.owner.id, tabId, {
-          paymentMethod: 'MONEY',
-          ...over,
-        }),
+        tabs.close(
+          w.storeA.id,
+          w.company.id,
+          w.owner.id,
+          tabId,
+          { paymentMethod: 'MONEY', ...over },
+          'OWNER',
+        ),
       'POST /api/stores/:storeId/command-tabs/:id/close',
     );
   const stockOf = async (id: string) =>

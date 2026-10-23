@@ -141,9 +141,9 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 |---|---|---|
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
 | `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
-| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum). **Não tem papel fixo**: o papel é por loja |
-| `tb_companies` | A distribuidora (tenant) | `cnpj` (único), `razaoSocial`, `nomeFantasia`, `organizationId` |
-| `tb_stores` | Loja física | `companyId`, `name`, `cnpj`, `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
+| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
+| `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
+| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
@@ -192,7 +192,7 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja |
+| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja. `creditLimit` (opcional): limite de crédito do fiado, comparado com a dívida somada em todas as lojas; só gerente e dono definem; acima dele o atendente não vende no fiado e gerente/dono confirmam |
 | `tb_customer_store_balances` | Dívida em dinheiro (fiado) | Único por (`customerId`, `storeId`); `balance`. O total do cliente é a **soma das linhas**, calculada na hora |
 | `tb_customer_store_bottle_balances` | Vasilhames que o cliente deve | Único por (`customerId`, `storeId`, `bottleTypeId`); `balance` (inteiro) |
 | `tb_customer_payments` | Pagamento recebido | `storeId` = loja onde o dinheiro foi **fisicamente recebido**; `amount`, `paymentMethod` |
@@ -379,6 +379,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261008000000_billing_asaas` | Troca os campos do Stripe em `tb_organizations` pelos `billing*` (e no histórico), cria os enums `BillingProvider`/`BillingMethod`, a `tb_billing_events` com seu histórico e os 2 triggers dela |
 | `20261008000001_subscription_access` | Adiciona `trialEndsAt` e `pastDueSince` em `tb_organizations` (e no histórico) |
 | `20261013000000_refresh_tokens` | Cria `tb_refresh_tokens` (refresh token com rotação), `th_refresh_token_history` (sem `tokenHash`) e os 2 triggers |
+| `20261021000000_credit_limit_and_terms` | Adiciona `creditLimit` em `tb_customers` e `termsAcceptedAt`/`termsVersion` em `tb_users` (e nos históricos) |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

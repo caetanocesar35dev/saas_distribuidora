@@ -37,12 +37,15 @@ export class CustomersController {
 
   @Get()
   list(@Tenant() tenant: CompanyTenant, @Query() query: ListCustomersQuery) {
-    return this.customers.list(tenant.companyId, query);
+    return this.customers.list(tenant.companyId, query, {
+      role: tenant.role,
+      storeIds: tenant.storeIds,
+    });
   }
 
   @Post()
   create(@Tenant() tenant: CompanyTenant, @Body() dto: CreateCustomerDto) {
-    return this.customers.create(tenant.companyId, dto);
+    return this.customers.create(tenant.companyId, dto, tenant.role);
   }
 
   @Get(':id')
@@ -56,7 +59,7 @@ export class CustomersController {
     @Param('id') id: string,
     @Body() dto: UpdateCustomerDto,
   ) {
-    return this.customers.update(tenant.companyId, id, dto);
+    return this.customers.update(tenant.companyId, id, dto, tenant.role);
   }
 
   @CompanyRole(Role.MANAGER)

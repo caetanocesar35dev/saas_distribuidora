@@ -8,7 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { AuditContext } from '../audit/audit-context';
-import { isValidCnpj, onlyDigits } from '../common/utils/document';
+import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
+import { TERMS_VERSION } from './terms';
 import { addDays } from '../common/utils/time';
 import { Env } from '../config/env';
 import { MailService } from '../mail/mail.service';
@@ -84,7 +85,7 @@ export class AuthService {
    * primeira loja e o vínculo de OWNER. O gateway de pagamento não é chamado aqui.
    */
   async signup(dto: SignupDto, meta: SessionMeta = {}): Promise<AuthResult> {
-    const cnpj = onlyDigits(dto.cnpj);
+    const cnpj = normalizeCnpj(dto.cnpj);
     if (!isValidCnpj(cnpj)) throw new BadRequestException('CNPJ inválido.');
 
     await this.audit.withDeleted(async () => {
@@ -123,7 +124,14 @@ export class AuthService {
     const user = await this.audit.actAs(userId, () =>
       this.prisma.$transaction(async (tx) => {
         const created = await tx.user.create({
-          data: { id: userId, name: dto.name, email: dto.email, passwordHash },
+          data: {
+            id: userId,
+            name: dto.name,
+            email: dto.email,
+            passwordHash,
+            termsAcceptedAt: new Date(),
+            termsVersion: TERMS_VERSION,
+          },
         });
         const organization = await tx.organization.create({
           data: {

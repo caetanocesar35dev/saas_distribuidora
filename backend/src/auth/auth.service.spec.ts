@@ -35,6 +35,7 @@ describe('AuthService', () => {
     razaoSocial: 'Maria Distribuidora LTDA',
     nomeFantasia: 'Maria Bebidas',
     storeName: 'Matriz',
+    acceptTerms: true,
     ...over,
   });
 
@@ -113,6 +114,18 @@ describe('AuthService', () => {
       });
       expect(orgCheap.plan.name).toBe('Trial');
       expect(orgPicked.planId).toBe(pro.id);
+    });
+
+    it('aceita CNPJ alfanumérico e grava sem máscara, em maiúsculas', async () => {
+      const result = await signup({ cnpj: '12.abc.345/01de-35' });
+      const company = await ctx.prisma.company.findFirstOrThrow({
+        where: { organization: { ownerUserId: result.user.id } },
+      });
+      expect(company.cnpj).toBe('12ABC34501DE35');
+      // A mesma empresa digitada com outra máscara ou caixa é repetida.
+      await expect(
+        signup({ email: 'outra@dist.com', cnpj: '12ABC34501DE35' }),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
 
     it('rejeita e-mail e CNPJ repetidos', async () => {

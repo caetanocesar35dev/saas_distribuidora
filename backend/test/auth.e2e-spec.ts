@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '../src/auth/terms';
 import { buildCnpj } from '../src/common/utils/document';
 import { createTestApp, TestApp } from './helpers/app';
 
@@ -21,6 +22,7 @@ describe('Autenticação e conta (e2e)', () => {
     razaoSocial: 'Maria Distribuidora LTDA',
     nomeFantasia: 'Maria Bebidas',
     storeName: 'Matriz',
+    acceptTerms: true,
     ...over,
   });
 
@@ -40,6 +42,30 @@ describe('Autenticação e conta (e2e)', () => {
     await t.http.get('/api/me').expect(401);
     await t.http.get('/api/me/memberships').expect(401);
     await t.http.get('/api/me').set('Authorization', 'Bearer lixo').expect(401);
+  });
+
+  it('cadastro exige aceitar os termos (LGPD) e grava a data e a versão do aceite', async () => {
+    const { acceptTerms: _omit, ...withoutTerms } = signupBody();
+    void _omit;
+    const missing = await t.http
+      .post('/api/auth/signup')
+      .send(withoutTerms)
+      .expect(400);
+    expect(JSON.stringify(missing.body)).toContain('termos de uso');
+    await t.http
+      .post('/api/auth/signup')
+      .send(signupBody({ acceptTerms: false }))
+      .expect(400);
+
+    const before = Date.now();
+    await t.http.post('/api/auth/signup').send(signupBody()).expect(201);
+    const user = await t.prisma.user.findUniqueOrThrow({
+      where: { email: 'maria@dist.com' },
+    });
+    expect(user.termsVersion).toBe(TERMS_VERSION);
+    expect(user.termsAcceptedAt!.getTime()).toBeGreaterThanOrEqual(
+      before - 1000,
+    );
   });
 
   it('fluxo completo: cadastro -> /me -> memberships -> refresh -> logout', async () => {
