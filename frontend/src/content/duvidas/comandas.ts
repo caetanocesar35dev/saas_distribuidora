@@ -28,7 +28,7 @@ export const comandas: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra a comanda em Menu › Comandas.",
-      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade.",
+      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade. Para lançar um fardo inteiro (ex.: 12 unidades), toque em + fardo, no rodapé do cartão do produto (ao lado de + 1 un.).",
       "O estoque baixa assim que o item é lançado, e o preço fica o que valia naquele momento, mesmo que mude depois.",
       "Para tirar um item, clique na lixeira ao lado dele. O estoque volta.",
     ],

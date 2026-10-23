@@ -220,12 +220,18 @@ export class CashRegisterService {
     from: Date,
     until?: Date,
   ): Promise<PaymentSummaryLine[]> {
+    const period = { gte: from, ...(until ? { lte: until } : {}) };
     const rows = await db.sale.groupBy({
       by: ['paymentMethod'],
       where: {
         storeId,
         status: 'COMPLETED',
-        createdAt: { gte: from, ...(until ? { lte: until } : {}) },
+        // Venda antiga lançada depois conta no caixa em que foi lançada (o dinheiro entrou nele),
+        // não no dia em que aconteceu.
+        OR: [
+          { registeredAt: null, createdAt: period },
+          { registeredAt: period },
+        ],
       },
       _sum: { total: true },
       _count: { _all: true },

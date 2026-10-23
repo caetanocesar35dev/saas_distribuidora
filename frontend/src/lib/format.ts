@@ -26,6 +26,21 @@ export function formatCents(cents: number): string {
 const intFormat = new Intl.NumberFormat("pt-BR");
 export const formatInt = (value: number) => intFormat.format(value);
 
+/**
+ * Quantidade de um item de venda ou comanda (venda em lote): "2 fardos de 12 + 3 un." ou "5 un.".
+ * `units` é o total em unidades; `packs` × `packSize` são os fardos contidos nele.
+ */
+export function formatItemQuantity(
+  units: number,
+  packs: number | null | undefined,
+  packSize: number | null | undefined,
+): string {
+  if (!packs || !packSize) return `${formatInt(units)} un.`;
+  const loose = units - packs * packSize;
+  const fardos = `${formatInt(packs)} ${packs === 1 ? "fardo" : "fardos"} de ${formatInt(packSize)}`;
+  return loose > 0 ? `${fardos} + ${formatInt(loose)} un.` : fardos;
+}
+
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: TIME_ZONE,
   day: "2-digit",
@@ -47,8 +62,7 @@ const timeFormat = new Intl.DateTimeFormat("pt-BR", {
 });
 
 export const formatDate = (iso: string | Date) => dateFormat.format(new Date(iso));
-export const formatDateTime = (iso: string | Date) =>
-  dateTimeFormat.format(new Date(iso));
+export const formatDateTime = (iso: string | Date) => dateTimeFormat.format(new Date(iso));
 export const formatTime = (iso: string | Date) => timeFormat.format(new Date(iso));
 
 /** "AAAA-MM-DD" (dia do calendário) para exibição, sem passar por fuso. */
@@ -98,7 +112,10 @@ export function formatCnpj(value: string | null | undefined): string {
 
 /** Máscara 00.000.000/0000-00 enquanto digita (aceita letras nos 12 primeiros). */
 export function maskCnpj(value: string): string {
-  const d = value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 14);
+  const d = value
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .slice(0, 14);
   const separators: Record<number, string> = { 2: ".", 5: ".", 8: "/", 12: "-" };
   let out = "";
   for (let i = 0; i < d.length; i++) out += (i > 0 && separators[i] ? separators[i] : "") + d[i];
@@ -153,13 +170,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   CREDIT_STORE: "Fiado",
 };
 
-export const PAYMENT_METHODS: PaymentMethod[] = [
-  "MONEY",
-  "PIX",
-  "DEBIT",
-  "CREDIT",
-  "CREDIT_STORE",
-];
+export const PAYMENT_METHODS: PaymentMethod[] = ["MONEY", "PIX", "DEBIT", "CREDIT", "CREDIT_STORE"];
 
 export const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dono",

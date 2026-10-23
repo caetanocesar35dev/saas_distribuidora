@@ -2,7 +2,7 @@
 
 > ## Status da implementação (atualizado em 2026-10-14)
 >
-> - **Fases 0 a 9 e 11: implementadas e testadas** (392 testes em 27 suítes, no banco
+> - **Fases 0 a 9 e 11: implementadas e testadas** (404 testes em 27 suítes, no banco
 >   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
 >   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
@@ -686,6 +686,17 @@ de R$100; uma alocação inválida não altera nada (rollback).
      somados (só `COMPLETED`).
    - `GET /:id`: com itens (nome do produto via `StoreProduct` → `Product`), vendedor,
      cliente e vasilhames.
+   - `POST /late` (MANAGER; decisão do usuário, 2026-10-23): **venda antiga lançada depois**
+     (internet caiu). Mesmo corpo do `POST`, mais `soldAt` (ISO; não pode ser no futuro, sem
+     limite para trás). Mesma transação da venda normal, com `createdAt = soldAt` e
+     `registeredAt = agora`; à vista, o `CashMovement` entra no caixa aberto agora
+     ("Venda #... lançada depois (de DD/MM/AAAA HH:mm)") e o resumo do caixa conta a venda pelo
+     `registeredAt`.
+   - **Venda em lote (decisão do usuário, 2026-10-23):** cada item aceita `packs` (fardos) além
+     de `quantity` (unidades avulsas, agora `>= 0`); `toUnits` (`src/sales/packs.ts`) converte
+     com o `packQuantity` do produto (400 se o produto não tem fardo ou se o total é zero). O
+     preço do fardo é o da unidade × unidades. `SaleItem`/`CommandItem` gravam `quantity`
+     (total em unidades), `packs` e `packSize`. Vale para venda, venda antiga e item de comanda.
    - `POST /:id/cancel` (MANAGER): uma transação com caixa aberto obrigatório.
      - `status = CANCELED`.
      - Estoque devolvido (incremento).

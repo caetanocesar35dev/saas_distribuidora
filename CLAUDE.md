@@ -29,14 +29,14 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 392
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 404
   testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 78
-  testes unitários e 34 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 82
+  testes unitários e 37 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
@@ -111,6 +111,21 @@ os campos é a extensão do Prisma).
   comanda), acima do limite o atendente é barrado (403) e gerente/dono só passam com
   `allowOverCreditLimit: true` (sem isso, 409). A conferência é `assertCreditLimit`
   (`src/customers/credit-limit.ts`), dentro da transação da venda.
+
+**Venda antiga lançada depois (decidido pelo usuário)**
+- `POST /stores/:storeId/sales/late` (só MANAGER ou mais): venda que aconteceu sem o sistema
+  (internet caiu). `createdAt` = quando aconteceu (sem limite para trás, nunca no futuro);
+  `registeredAt` = quando foi lançada (`null` nas vendas normais). Estoque baixa agora; à vista,
+  o dinheiro entra no **caixa aberto agora** e o resumo do caixa conta a venda pelo
+  `registeredAt`; fiado e limite de crédito valem igual. Tela: item "Lançar venda antiga" do menu, abaixo de Histórico de vendas (`/loja/[storeId]/lancar-venda-antiga`, decidido pelo usuário)
+  (o PDV em modo `late`).
+
+**Venda em lote (decidido pelo usuário)**
+- Itens de venda e de comanda aceitam `packs` (fardos) além de `quantity` (unidades avulsas); o
+  backend converte com o `packQuantity` do produto (`toUnits` em `src/sales/packs.ts`). Preço do
+  fardo = preço da unidade × unidades do fardo (sem preço próprio). Estoque, preço e vasilhames
+  continuam em unidades; o item grava `quantity` (total), `packs` e `packSize`. Na tela, o botão
+  "+ fardo (N)" no rodapé do cartão do produto na busca e os contadores Fardos/Unidades do carrinho.
 
 **LGPD (decidido pelo usuário)**
 - O cadastro público exige `acceptTerms: true` e grava `User.termsAcceptedAt` e `termsVersion`.

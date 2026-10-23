@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { EmptyState, ErrorState, LoadingRows, Money, PageHeader, StatCard } from "@/components/app/common";
+import {
+  EmptyState,
+  ErrorState,
+  LoadingRows,
+  Money,
+  PageHeader,
+  StatCard,
+} from "@/components/app/common";
 import { RequireRole } from "@/components/app/guards";
 import { SelectField } from "@/components/app/inputs";
 import { Pagination } from "@/components/app/pagination";
@@ -62,7 +69,7 @@ export function SalesView() {
   return (
     <div>
       <PageHeader
-        title="Vendas"
+        title="Histórico de vendas"
         description="Histórico de vendas desta loja. Por padrão, as de hoje."
         help="vendas-historico"
       />
@@ -128,13 +135,20 @@ export function SalesView() {
               value={<Money value={sales.data.meta.totalRevenue} />}
             />
             <RequireRole min="MANAGER">
-              <StatCard label="Lucro" value={<Money value={sales.data.meta.totalProfit} />} tone="success" />
+              <StatCard
+                label="Lucro"
+                value={<Money value={sales.data.meta.totalProfit} />}
+                tone="success"
+              />
             </RequireRole>
             <StatCard label="Vendas encontradas" value={formatInt(sales.data.meta.totalItems)} />
           </div>
 
           {sales.data.data.length === 0 ? (
-            <EmptyState title="Nenhuma venda encontrada" description="Mude o período ou os filtros." />
+            <EmptyState
+              title="Nenhuma venda encontrada"
+              description="Mude o período ou os filtros."
+            />
           ) : (
             <>
               <div className="overflow-x-auto rounded-xl border bg-card">
@@ -161,7 +175,18 @@ export function SalesView() {
                             #{sale.id.slice(0, 8)}
                           </Link>
                         </TableCell>
-                        <TableCell className="whitespace-nowrap">{formatDateTime(sale.createdAt)}</TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDateTime(sale.createdAt)}
+                          {sale.registeredAt && (
+                            <Badge
+                              variant="outline"
+                              className="ml-1.5"
+                              title={`Lançada em ${formatDateTime(sale.registeredAt)}`}
+                            >
+                              lançada depois
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell>{sale.customer?.name ?? "—"}</TableCell>
                         <TableCell>{sale.user.name}</TableCell>
                         <TableCell>{PAYMENT_METHOD_LABEL[sale.paymentMethod]}</TableCell>

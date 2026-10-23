@@ -12,7 +12,7 @@ export const gestao: Article[] = [
     steps: [
       "Para a loja: abra Menu › Início. Gerentes e donos veem o painel logo abaixo dos atalhos.",
       "Para a empresa toda: o dono abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
-      "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Vendas.",
+      "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Histórico de vendas.",
       "O gráfico mostra faturamento e lucro de cada um dos últimos 7 dias.",
     ],
     problems: [

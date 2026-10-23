@@ -397,7 +397,12 @@ export interface CashMovementBody {
 export interface SaleItem {
   id: string;
   storeProductId: string;
+  /** Total em unidades (já com os fardos). */
   quantity: number;
+  /** Venda em lote: quantos fardos estão em `quantity`. */
+  packs: number;
+  /** Unidades por fardo na hora da venda (null = vendido só por unidade). */
+  packSize: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   storeProduct: { product: { code: string; name: string } };
@@ -420,7 +425,10 @@ export interface Sale {
   discount: number;
   paymentMethod: PaymentMethod;
   status: SaleStatus;
+  /** Quando a venda aconteceu. */
   createdAt: string;
+  /** Venda antiga lançada depois: quando foi lançada. null = lançada na hora. */
+  registeredAt: string | null;
   userId: string;
   user: { id: string; name: string };
   customerId: string | null;
@@ -445,10 +453,17 @@ export interface CreateSaleBody {
   paymentMethod: PaymentMethod;
   customerId?: string;
   discount?: number;
-  items: { storeProductId: string; quantity: number }[];
+  /** `quantity` = unidades avulsas; `packs` = fardos (o backend converte em unidades). */
+  items: { storeProductId: string; quantity: number; packs?: number }[];
   bottleReturns?: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
+}
+
+/** Venda antiga lançada depois (só gerente e dono): o mesmo corpo, mais quando ela aconteceu. */
+export interface CreateLateSaleBody extends CreateSaleBody {
+  /** Data e hora da venda (ISO). Não pode ser no futuro. */
+  soldAt: string;
 }
 
 export interface SalesQuery extends PageQuery {
@@ -464,7 +479,10 @@ export interface SalesQuery extends PageQuery {
 export interface CommandItem {
   id: string;
   storeProductId: string;
+  /** Total em unidades (já com os fardos). */
   quantity: number;
+  packs: number;
+  packSize: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   addedAt: string;

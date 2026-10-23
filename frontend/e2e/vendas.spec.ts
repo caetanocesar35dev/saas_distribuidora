@@ -186,4 +186,109 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await page.getByRole("tab", { name: "Caixas anteriores" }).click();
     await expect(page.getByRole("tabpanel")).toBeVisible();
   });
+
+  test("venda em lote: fardo + unidade no PDV e fardo na comanda", async ({ page }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // Água Mineral: R$ 2,50 a unidade, fardo de 12
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Água");
+    await page.getByRole("button", { name: /Adicionar 1 fardo de 12 de Água Mineral/ }).click();
+    const carrinho = page.getByRole("complementary", { name: "Carrinho" });
+    await expect(carrinho.getByLabel("Fardos de Água Mineral 500ml", { exact: true })).toHaveValue(
+      "1",
+    );
+    await expect(
+      carrinho.getByLabel("Quantidade de Água Mineral 500ml", { exact: true }),
+    ).toHaveValue("0");
+    await carrinho
+      .getByRole("button", { name: "Aumentar Quantidade de Água Mineral 500ml" })
+      .click();
+    await expect(carrinho).toContainText("13 un.");
+    await expect(carrinho).toContainText(/32,50/); // 13 × R$ 2,50
+
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    const checkout = page.getByRole("dialog");
+    await checkout.getByRole("button", { name: "PIX", exact: true }).click();
+    await checkout.getByRole("button", { name: "Concluir", exact: true }).click();
+    await expect(page.getByText("Venda concluída")).toBeVisible();
+    await page.getByRole("link", { name: "Ver venda" }).click();
+    await page.waitForURL(/\/vendas\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("1 fardo de 12 + 1 un.")).toBeVisible();
+
+    // comanda: "+ fardo" lança 12 unidades de uma vez
+    await goToStore(page, storeId, "/comandas");
+    await page.getByRole("button", { name: "Nova comanda" }).click();
+    await page.getByLabel("Nome da comanda").fill("Mesa fardo");
+    await page.getByRole("button", { name: "Abrir comanda" }).click();
+    await page.waitForURL(/\/comandas\//);
+    await page.getByPlaceholder(/Passe o leitor/).fill("Água");
+    await page.getByRole("button", { name: /Adicionar 1 fardo de 12 de Água Mineral/ }).click();
+    await expect(page.getByText(/1 fardo de 12 · 12 ×/)).toBeVisible();
+    await page.getByRole("button", { name: "Cancelar comanda" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Cancelar comanda" }).click();
+    await page.waitForURL(/\/comandas$/);
+
+    expect(errors).toEqual([]);
+  });
+
+  test("venda antiga: lançada com a data em que aconteceu e marcada como lançada depois", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // ontem às 10:00 (hora local, como o campo datetime-local)
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const day = `${yesterday.getFullYear()}-${pad(yesterday.getMonth() + 1)}-${pad(yesterday.getDate())}`;
+
+    // fica no menu, logo abaixo de Histórico de vendas
+    await goToStore(page, storeId, "/vendas");
+    const menu = await page.locator("aside").innerText();
+    expect(menu).toMatch(/Histórico de vendas\s+Lançar venda antiga/);
+    await page.locator("aside").getByRole("link", { name: "Lançar venda antiga" }).click();
+    await page.waitForURL(/\/lancar-venda-antiga$/);
+    await expect(page.getByRole("heading", { name: "Lançar venda antiga" })).toBeVisible();
+
+    await page.getByPlaceholder(/Passe o leitor/).fill("Água");
+    await page.locator("ul button", { hasText: "Água Mineral" }).first().click();
+    const lancar = page.getByRole("button", { name: /Lançar venda/ });
+    await expect(lancar, "sem a data não lança").toBeDisabled();
+
+    // data no futuro é recusada na tela
+    const tomorrow = new Date(Date.now() + 2 * 86_400_000);
+    await page
+      .getByLabel("Data e hora em que a venda aconteceu")
+      .fill(
+        `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T10:00`,
+      );
+    await expect(page.getByText("A data da venda não pode ser no futuro.").first()).toBeVisible();
+    await expect(lancar).toBeDisabled();
+
+    await page.getByLabel("Data e hora em que a venda aconteceu").fill(`${day}T10:00`);
+    await lancar.click();
+    const checkout = page.getByRole("dialog");
+    await checkout.getByRole("button", { name: "PIX", exact: true }).click();
+    await checkout.getByRole("button", { name: "Concluir", exact: true }).click();
+    await expect(page.getByText("Venda antiga lançada")).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText(`${pad(yesterday.getDate())}/`);
+
+    // aparece no dia em que aconteceu, com a marca
+    await page.getByRole("link", { name: "Ver venda" }).click();
+    await page.waitForURL(/\/vendas\/[0-9a-f-]{36}$/);
+    await expect(page.getByText(/Venda antiga, lançada depois em/)).toBeVisible();
+
+    await goToStore(page, storeId, "/vendas");
+    const filtros = page.locator("label", { hasText: "De" }).locator("input");
+    await filtros.fill(day);
+    await page.locator("label", { hasText: "até" }).locator("input").fill(day);
+    await expect(page.getByText("lançada depois").first()).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
 });

@@ -7,6 +7,7 @@ import {
   formatCents,
   formatCnpj,
   formatDayString,
+  formatItemQuantity,
   formatMoney,
   formatPhone,
   fromDatetimeLocal,
@@ -59,6 +60,15 @@ describe("dinheiro", () => {
     expect(roundMoney(0.1 + 0.2)).toBe(0.3);
     expect(roundMoney(1.005)).toBe(1.01);
     expect(roundMoney(2.5 * 3)).toBe(7.5);
+  });
+});
+
+describe("quantidade do item (venda em lote)", () => {
+  it("mostra fardos e unidades avulsas", () => {
+    expect(formatItemQuantity(5, 0, null)).toBe("5 un.");
+    expect(formatItemQuantity(24, 2, 12)).toBe("2 fardos de 12");
+    expect(formatItemQuantity(15, 1, 12)).toBe("1 fardo de 12 + 3 un.");
+    expect(formatItemQuantity(1200, 0, undefined)).toBe("1.200 un.");
   });
 });
 

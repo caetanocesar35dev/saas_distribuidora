@@ -573,7 +573,12 @@ model Sale {
   discount      Float         @default(0)
   paymentMethod PaymentMethod
   status        SaleStatus    @default(COMPLETED)
+  /// Data e hora em que a venda aconteceu (é a que conta em relatórios e painéis).
   createdAt     DateTime      @default(now())
+  /// Venda antiga lançada depois (ex.: internet caiu): quando foi lançada. null = venda normal,
+  /// lançada na hora. No caixa, a venda antiga conta neste momento (o dinheiro entra no caixa
+  /// aberto quando é lançada).
+  registeredAt  DateTime?
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
@@ -605,6 +610,10 @@ model SaleItem {
   saleId         String
   storeProductId String
   quantity       Int
+  /// Venda em lote: quantos fardos estão em `quantity` (que é sempre o total em unidades) e
+  /// quantas unidades tinha o fardo na hora. 0 / null = vendido só por unidade.
+  packs          Int    @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float  @default(0)
 
@@ -695,6 +704,9 @@ model CommandItem {
   commandTabId   String
   storeProductId String
   quantity       Int
+  /// Venda em lote (igual a SaleItem): fardos contidos em `quantity` e unidades por fardo.
+  packs          Int      @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float    @default(0)
   addedAt        DateTime @default(now())
@@ -1186,6 +1198,7 @@ model SaleHistory {
   paymentMethod PaymentMethod
   status        SaleStatus
   createdAt     DateTime
+  registeredAt  DateTime?
   userId        String?
   customerId    String?
   commandTabId  String?
@@ -1206,6 +1219,8 @@ model SaleItemHistory {
   saleId         String
   storeProductId String
   quantity       Int
+  packs          Int    @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float
 
@@ -1283,6 +1298,8 @@ model CommandItemHistory {
   commandTabId   String
   storeProductId String
   quantity       Int
+  packs          Int      @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float
   addedAt        DateTime

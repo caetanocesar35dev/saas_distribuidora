@@ -45,7 +45,31 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     da lista de devedores.
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
-13. [ ] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido ou algo do tipo.
+13. [x] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido anteriormente ou algo do tipo.
+    **Decidido pelo usuário (2026-10-23):** só **gerente e dono** lançam; a venda à vista entra
+    no **caixa aberto agora** (fiado só mexe na dívida); coluna nova `tb_sales.registeredAt`
+    (quando foi lançada; a data da venda continua em `createdAt`); **sem limite** de dias para
+    trás (só não pode data futura). **Feito (2026-10-23):** item "Lançar venda antiga" do menu, abaixo de Histórico de vendas (o PDV com
+    o campo de data e hora); a venda fica marcada "lançada depois" na lista e no detalhe.
+14. [x] **Vender em lote (fardo, caixa, engradado)** (pedido do usuário, 2026-10-23). Hoje o PDV
+    (e a comanda e a venda antiga) só vende por **unidade**: para vender dois fardos de cerveja,
+    o operador precisa fazer a conta e digitar 24 unidades. Ponto de partida: o produto já tem
+    `packQuantity` (unidades por fardo, ex.: 12), mas ele não é usado na venda. A pensar:
+    - Na tela: botão ou seletor "unidade / fardo" no item do carrinho, convertendo para unidades
+      (2 fardos × 12 = 24), mostrando "2 fardos (24 un.)".
+    - Preço do fardo: o mesmo da unidade × quantidade ou um **preço próprio do fardo** (desconto
+      no atacado)? Preço próprio exige coluna nova por loja (aprovação de schema).
+    - Vasilhame: hoje sai 1 vasilhame por unidade vendida com vasilhame; conferir se no fardo a
+      regra continua (ex.: fardo de long neck não tem vasilhame, engradado de litrão tem 12).
+    - Estoque continua em unidades; o comprovante e o histórico mostram fardos e unidades.
+    **Decidido pelo usuário (2026-10-23):** preço do fardo = **preço da unidade × unidades do
+    fardo** (sem preço próprio; desconto de atacado pelo campo Desconto); a venda **guarda os
+    fardos** no item (colunas novas em `tb_sale_items` e `tb_command_items`), para o detalhe e
+    o histórico mostrarem "2 fardos (24 un.)". Estoque continua em unidades. **Feito (2026-10-23):**
+    botão "+ fardo" na busca de produtos (PDV, comanda e venda antiga), contadores Fardos e
+    Unidades no carrinho, e o detalhe da venda e a comanda mostram "1 fardo de 12 + 3 un.". O
+    botão só aparece em produto com "Unidades por fardo" maior que 1.
+
 ### Operação da plataforma
 
 16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
@@ -101,6 +125,10 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [ ] Vender buscando o produto pelo nome e pelo leitor de código de barras, se houver um.
 - [ ] Usar os atalhos F2 (buscar) e F9 (finalizar).
+- [ ] Vender em lote: tocar em "+ fardo" no rodapé do cartão de um produto com fardo cadastrado, juntar
+  unidades avulsas no carrinho (ex.: 2 fardos + 3 un.) e conferir o subtotal e, no detalhe da
+  venda, "2 fardos de 12 + 3 un.". O estoque baixa em unidades. Na comanda, "+ fardo" lança o
+  fardo inteiro.
 - [ ] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
 - [ ] Vender produto com vasilhame: na troca 1 por 1 não pede cliente; se o cliente sai devendo,
   exige cliente.
@@ -126,6 +154,10 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Filtrar por período e forma de pagamento e abrir o detalhe.
 - [ ] Cancelar uma venda em dinheiro (sai do caixa) e uma fiada (sai da dívida).
 - [ ] Ver o histórico de alterações da venda.
+- [ ] Como gerente ou dono, no menu "Lançar venda antiga" (abaixo de Histórico de vendas), lançar uma venda de ontem: ela
+  aparece no filtro de ontem com a marca "lançada depois", o estoque baixa e o dinheiro entra no
+  caixa aberto agora (veja o resumo do caixa). Uma data no futuro é recusada.
+- [ ] Como atendente: o botão "Lançar venda antiga" não aparece e a URL mostra "sem permissão".
 
 ### 7. Clientes e fiado
 

@@ -47,7 +47,7 @@ describe('SalesService', () => {
 
   const sell = (
     dto: Partial<Parameters<SalesService['create']>[3]> & {
-      items: { storeProductId: string; quantity: number }[];
+      items: { storeProductId: string; quantity: number; packs?: number }[];
     },
     storeId = w.storeA.id,
     role: Role = 'OWNER',
@@ -356,6 +356,161 @@ describe('SalesService', () => {
       await expect(
         sell({ items: [{ storeProductId: beer.id, quantity: 1 }] }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('venda em lote (fardos)', () => {
+    let fardo: { id: string };
+    beforeEach(async () => {
+      // Fardo de 12 litrões: unidade R$ 5, cada unidade leva 1 vasilhame
+      fardo = await ctx.factory.storeProduct(w.storeA.id, w.company.id, {
+        name: 'Litrão',
+        price: 5,
+        costPrice: 3,
+        stock: 100,
+        packQuantity: 12,
+        bottleTypeId: litrao.id,
+      });
+    });
+
+    it('2 fardos + 3 unidades = 27 unidades: preço, estoque, vasilhames e o item guarda os fardos', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: fardo.id, quantity: 3, packs: 2 }],
+        bottleReturns: [{ bottleTypeId: litrao.id, quantity: 27 }],
+      });
+      expect(sale.total).toBe(135); // 27 × R$ 5 (preço do fardo = unidade × 12)
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 27, packs: 2, packSize: 12 }),
+      ]);
+      const stock = await ctx.prisma.storeProduct.findUniqueOrThrow({
+        where: { id: fardo.id },
+      });
+      expect(stock.stock).toBe(73);
+      const borrowed = await ctx.prisma.bottleMovement.findFirstOrThrow({
+        where: { saleId: sale.id, type: 'CUSTOMER_BORROW' },
+      });
+      expect(borrowed.quantity).toBe(-27);
+    });
+
+    it('junta linhas repetidas do mesmo produto somando fardos e unidades', async () => {
+      const sale = await sell({
+        items: [
+          { storeProductId: fardo.id, quantity: 2, packs: 1 },
+          { storeProductId: fardo.id, quantity: 0, packs: 1 },
+        ],
+        bottleReturns: [{ bottleTypeId: litrao.id, quantity: 26 }],
+      });
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 26, packs: 2, packSize: 12 }),
+      ]);
+    });
+
+    it('venda só por unidade continua igual (sem fardos)', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: beer.id, quantity: 2 }],
+      });
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 2, packs: 0, packSize: null }),
+      ]);
+    });
+
+    it('recusa fardo de produto sem tamanho de fardo e quantidade zerada', async () => {
+      await expect(
+        sell({ items: [{ storeProductId: beer.id, quantity: 0, packs: 1 }] }),
+      ).rejects.toThrow(/não é vendido em fardo/);
+      await expect(
+        sell({ items: [{ storeProductId: fardo.id, quantity: 0, packs: 0 }] }),
+      ).rejects.toThrow(/deve ser maior que zero/);
+    });
+
+    it('estoque insuficiente conta os fardos em unidades', async () => {
+      await expect(
+        sell({ items: [{ storeProductId: fardo.id, quantity: 0, packs: 9 }] }),
+      ).rejects.toThrow(/Disponível: 100, solicitado: 108/);
+    });
+  });
+
+  describe('venda antiga lançada depois', () => {
+    const late = (
+      soldAt: string,
+      dto: Partial<Parameters<SalesService['createLate']>[3]> = {},
+    ) =>
+      ctx.asRequest(
+        () =>
+          sales.createLate(
+            w.storeA.id,
+            w.company.id,
+            w.owner.id,
+            {
+              paymentMethod: 'MONEY',
+              items: [{ storeProductId: beer.id, quantity: 2 }],
+              soldAt,
+              ...dto,
+            },
+            'MANAGER',
+          ),
+        {
+          userId: w.owner.id,
+          endpoint: 'POST /api/stores/:storeId/sales/late',
+        },
+      );
+
+    it('fica com a data em que aconteceu, marca quando foi lançada e o dinheiro entra no caixa aberto agora', async () => {
+      const before = Date.now();
+      const sale = await late('2026-03-10T15:30:00.000Z');
+      expect(sale.createdAt.toISOString()).toBe('2026-03-10T15:30:00.000Z');
+      expect(sale.registeredAt!.getTime()).toBeGreaterThanOrEqual(
+        before - 1000,
+      );
+      expect(sale.total).toBe(20);
+
+      const stock = await ctx.prisma.storeProduct.findUniqueOrThrow({
+        where: { id: beer.id },
+      });
+      expect(stock.stock).toBe(98);
+
+      const movement = await ctx.prisma.cashMovement.findFirstOrThrow({
+        where: { type: 'SALE' },
+      });
+      expect(movement.amount).toBe(20);
+      expect(movement.description).toMatch(
+        /^Venda #\w+ lançada depois \(de 10\/03\/2026 12:30\)$/,
+      );
+
+      // aparece no dia em que aconteceu
+      const day = await sales.list(w.storeA.id, {
+        page: 1,
+        limit: 20,
+        startDate: '2026-03-10',
+        endDate: '2026-03-10',
+      });
+      expect(day.data.map((s) => s.id)).toEqual([sale.id]);
+    });
+
+    it('venda normal não tem registeredAt', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(sale.registeredAt).toBeNull();
+    });
+
+    it('recusa data no futuro; sem limite para trás', async () => {
+      const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
+      await expect(late(tomorrow)).rejects.toThrow(
+        'A data da venda não pode ser no futuro.',
+      );
+      const old = await late('2020-01-01T12:00:00.000Z');
+      expect(old.createdAt.getUTCFullYear()).toBe(2020);
+    });
+
+    it('no fiado soma na dívida e não mexe no caixa', async () => {
+      const customer = await ctx.factory.customer(w.company.id);
+      await late('2026-03-10T15:30:00.000Z', {
+        paymentMethod: 'CREDIT_STORE',
+        customerId: customer.id,
+      });
+      expect(await fiado(customer.id)).toBe(20);
+      expect(await ctx.prisma.cashMovement.count()).toBe(0);
     });
   });
 

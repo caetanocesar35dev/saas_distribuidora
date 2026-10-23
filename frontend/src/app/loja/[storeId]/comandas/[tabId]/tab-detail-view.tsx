@@ -10,7 +10,11 @@ import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { Money, PageHeader, QueryBoundary } from "@/components/app/common";
 import { ActionButton } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
-import { CheckoutDialog, type BottleLine, type CheckoutPayload } from "@/components/app/pos/checkout-dialog";
+import {
+  CheckoutDialog,
+  type BottleLine,
+  type CheckoutPayload,
+} from "@/components/app/pos/checkout-dialog";
 import { ProductSearch } from "@/components/app/pos/product-search";
 import { Badge } from "@/components/ui/badge";
 import { errorMessage, storeApi } from "@/lib/api/client";
@@ -22,7 +26,7 @@ import {
   useRemoveTabItem,
 } from "@/lib/api/hooks/sales";
 import type { CommandTab, StoreProduct } from "@/lib/api/types";
-import { formatDateTime, formatInt, roundMoney } from "@/lib/format";
+import { formatDateTime, formatInt, formatItemQuantity, roundMoney } from "@/lib/format";
 import { useAccess, useStore } from "@/lib/session/context";
 
 /** Os itens da comanda não trazem o vasilhame do produto: busca os produtos para saber. */
@@ -72,6 +76,11 @@ function TabBody({ tab }: { tab: CommandTab }) {
     add.mutate({ storeProductId: item.id, quantity: 1 });
   }
 
+  /** Venda em lote: lança 1 fardo (o backend converte em unidades). */
+  function pickPack(item: StoreProduct) {
+    add.mutate({ storeProductId: item.id, quantity: 0, packs: 1 });
+  }
+
   function submit(payload: CheckoutPayload) {
     setCheckoutError(null);
     close.mutate(
@@ -97,7 +106,12 @@ function TabBody({ tab }: { tab: CommandTab }) {
       {open ? (
         <section aria-label="Adicionar itens">
           <h2 className="mb-2 font-medium">Adicionar item</h2>
-          <ProductSearch storeId={storeId} onPick={pick} disabled={readOnly || add.isPending} />
+          <ProductSearch
+            storeId={storeId}
+            onPick={pick}
+            onPickPack={pickPack}
+            disabled={readOnly || add.isPending}
+          />
         </section>
       ) : (
         <p className="rounded-xl border bg-card p-5 text-sm text-muted-foreground">
@@ -108,7 +122,11 @@ function TabBody({ tab }: { tab: CommandTab }) {
       <aside className="h-fit rounded-xl border bg-card p-4 lg:sticky lg:top-20">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="font-semibold">{tab.name}</h2>
-          {open ? <Badge variant="secondary">Aberta</Badge> : <Badge variant="outline">Fechada</Badge>}
+          {open ? (
+            <Badge variant="secondary">Aberta</Badge>
+          ) : (
+            <Badge variant="outline">Fechada</Badge>
+          )}
         </div>
         {tab.customer && (
           <p className="mb-2 text-sm text-muted-foreground">Cliente: {tab.customer.name}</p>
@@ -123,10 +141,15 @@ function TabBody({ tab }: { tab: CommandTab }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{item.storeProduct.product.name}</p>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatInt(item.quantity)} × <Money value={item.price} /> · {formatDateTime(item.addedAt)}
+                    {formatItemQuantity(item.quantity, item.packs, item.packSize)} ·{" "}
+                    {formatInt(item.quantity)} × <Money value={item.price} /> ·{" "}
+                    {formatDateTime(item.addedAt)}
                   </p>
                 </div>
-                <Money value={roundMoney(item.price * item.quantity)} className="text-sm font-semibold" />
+                <Money
+                  value={roundMoney(item.price * item.quantity)}
+                  className="text-sm font-semibold"
+                />
                 {open && (
                   <ActionButton
                     variant="ghost"
@@ -165,7 +188,11 @@ function TabBody({ tab }: { tab: CommandTab }) {
               >
                 <ReceiptTextIcon /> Fechar comanda
               </ActionButton>
-              <ActionButton variant="outline" className="w-full" onClick={() => setCancelling(true)}>
+              <ActionButton
+                variant="outline"
+                className="w-full"
+                onClick={() => setCancelling(true)}
+              >
                 <BanIcon /> Cancelar comanda
               </ActionButton>
             </div>

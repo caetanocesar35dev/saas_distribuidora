@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **98 rotas**. Todas começam com `/api`.
+Total: **99 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -194,6 +194,7 @@ Total: **98 rotas**. Todas começam com `/api`.
 | POST | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales/:id` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/sales/:id/cancel` | Loja: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/stores/:storeId/sales/late` | Loja: MANAGER ou mais | Bloqueada (402) |
 
 ## stores
 

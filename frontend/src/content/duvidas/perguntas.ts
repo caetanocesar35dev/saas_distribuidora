@@ -61,7 +61,7 @@ export const perguntas: Article[] = [
     category: "perguntas",
     title: "Cancelei uma venda no fiado que já tinha sido paga em parte e deu erro",
     purpose: "Entender por que não dá para cancelar venda no fiado que o cliente já pagou em parte.",
-    where: "Menu › Vendas › a venda",
+    where: "Menu › Histórico de vendas › a venda",
     minRole: "MANAGER",
     audience: ["MANAGER"],
     steps: [
