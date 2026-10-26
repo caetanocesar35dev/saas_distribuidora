@@ -36,6 +36,7 @@ describe('AuthService', () => {
     nomeFantasia: 'Maria Bebidas',
     storeName: 'Matriz',
     acceptTerms: true,
+    phone: '81999990000',
     ...over,
   });
 

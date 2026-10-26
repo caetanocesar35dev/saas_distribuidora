@@ -1,5 +1,6 @@
 "use client";
 
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { moneyToInput, parseMoney } from "@/lib/format";
+import { cleanPersonName, moneyToInput, parseMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // ---- Valor em reais --------------------------------------------------------------------------
@@ -178,5 +179,78 @@ export function SelectField<V extends string>({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+// ---- Nome de pessoa --------------------------------------------------------------------------
+
+/**
+ * Campo de nome de pessoa: números e símbolos não entram (digitados ou colados). Serve também com
+ * `{...register("name")}` do React Hook Form (o valor limpo é o que ele lê).
+ */
+export function PersonNameInput({ onChange, ...props }: React.ComponentProps<typeof Input>) {
+  return (
+    <Input
+      autoComplete="name"
+      maxLength={120}
+      {...props}
+      onChange={(e) => {
+        const cleaned = cleanPersonName(e.target.value);
+        if (cleaned !== e.target.value) e.target.value = cleaned;
+        onChange?.(e);
+      }}
+    />
+  );
+}
+
+// ---- Senha -----------------------------------------------------------------------------------
+
+/**
+ * Campo de senha com o botão de olho para mostrar ou esconder o que foi digitado. Serve também com
+ * `{...register("password")}` do React Hook Form. Começa escondido, e o botão não entra na ordem do
+ * Tab (para o Enter e o Tab do formulário seguirem normais).
+ */
+export function PasswordInput({
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input type={visible ? "text" : "password"} className={cn("pr-9", className)} {...props} />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Esconder a senha" : "Mostrar a senha"}
+        aria-pressed={visible}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {visible ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+      </button>
+    </div>
+  );
+}
+
+// ---- Campo com máscara -----------------------------------------------------------------------
+
+/**
+ * Campo que aplica uma máscara enquanto a pessoa digita ou cola (telefone, CEP, UF...). Serve com
+ * `{...register("campo")}` do React Hook Form: o valor que ele lê já vem formatado.
+ */
+export function MaskedInput({
+  mask,
+  onChange,
+  ...props
+}: React.ComponentProps<typeof Input> & { mask: (value: string) => string }) {
+  return (
+    <Input
+      {...props}
+      onChange={(e) => {
+        const masked = mask(e.target.value);
+        if (masked !== e.target.value) e.target.value = masked;
+        onChange?.(e);
+      }}
+    />
   );
 }

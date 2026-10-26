@@ -68,8 +68,13 @@ test("cadastro de conta nova, administração da empresa e conta pessoal", async
 
   // ---- cadastro (CNPJ inválido é barrado na tela e nem é consultado)
   await page.goto("/cadastro");
+  // o campo de nome não aceita números nem símbolos (digitados ou colados): só as letras ficam
+  await page.getByLabel("Seu nome").fill("Dono 123 Novo@#");
+  await expect(page.getByLabel("Seu nome")).toHaveValue("Dono  Novo");
   await page.getByLabel("Seu nome").fill("Dono Novo");
   await page.getByLabel("E-mail").fill(email);
+  await page.getByLabel("Celular (WhatsApp)").fill("81999990000");
+  await expect(page.getByLabel("Celular (WhatsApp)")).toHaveValue("(81) 99999-0000");
   await page.getByLabel("Senha", { exact: true }).fill("senha1234");
   await page.getByLabel("Repita a senha").fill("senha1234");
   await page.getByLabel("CNPJ").fill("11.111.111/1111-11");
@@ -127,8 +132,8 @@ test("cadastro de conta nova, administração da empresa e conta pessoal", async
   // ---- conta pessoal
   await page.goto("/conta");
   await page.getByLabel("Nome", { exact: true }).fill("Dono Novo Editado");
-  await page.getByRole("button", { name: "Salvar nome" }).click();
-  await expect(page.getByText("Nome atualizado.")).toBeVisible();
+  await page.getByRole("button", { name: "Salvar dados" }).click();
+  await expect(page.getByText("Dados atualizados.")).toBeVisible();
 
   await page.getByLabel("Senha atual").fill("senha1234");
   await page.getByLabel("Nova senha", { exact: true }).fill("outrasenha99");

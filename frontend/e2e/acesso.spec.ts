@@ -12,6 +12,18 @@ test.describe("login e sair", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  test("o botão de olho mostra e esconde a senha digitada", async ({ page }) => {
+    await page.goto("/login");
+    const senha = page.locator("#password");
+    await senha.fill("minha-senha");
+    await expect(senha).toHaveAttribute("type", "password");
+    await page.getByRole("button", { name: "Mostrar a senha" }).click();
+    await expect(senha).toHaveAttribute("type", "text");
+    await expect(senha).toHaveValue("minha-senha");
+    await page.getByRole("button", { name: "Esconder a senha" }).click();
+    await expect(senha).toHaveAttribute("type", "password");
+  });
+
   test("os campos são validados antes de enviar", async ({ page }) => {
     await page.goto("/login");
     await page.click("button[type=submit]");

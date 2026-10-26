@@ -45,11 +45,15 @@ export function ProductSearch({
     limit: 18,
   });
 
-  /** Depois de escolher um produto, limpa a busca e volta o foco para o próximo (leitor ou digitação). */
-  function pick(item: StoreProduct, asPack = false) {
+  /**
+   * Escolhe o produto e volta o foco para a busca. Pelo leitor ou Enter (`clear`), limpa a busca
+   * para o próximo código; por clique, mantém o filtro, para adicionar mais unidades ou fardos do
+   * mesmo produto sem pesquisar de novo (pedido do usuário).
+   */
+  function pick(item: StoreProduct, asPack = false, clear = false) {
     if (asPack && onPickPack) onPickPack(item);
     else onPick(item);
-    setText("");
+    if (clear) setText("");
     ref.current?.focus();
   }
 
@@ -61,13 +65,13 @@ export function ProductSearch({
       const item = await storeApi(storeId).get<StoreProduct>(
         `/store-products/by-code/${encodeURIComponent(code)}`,
       );
-      pick(item);
+      pick(item, false, true);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         // Não é um código: se a busca por nome só tem um resultado, usa esse.
         const only = results.data?.data;
         if (only && only.length === 1 && term === code) {
-          pick(only[0]);
+          pick(only[0], false, true);
         } else {
           toast.error(`Nenhum produto ativo com "${code}" nesta loja.`);
         }
@@ -161,7 +165,7 @@ export function ProductSearch({
                     </button>
                     <button
                       type="button"
-                      disabled={disabled || item.stock < packSize}
+                      disabled={disabled || out}
                       onClick={() => pick(item, true)}
                       aria-label={`Adicionar 1 fardo de ${packSize} de ${item.product.name}`}
                       className="whitespace-nowrap px-2 py-2 text-primary transition-colors hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground"

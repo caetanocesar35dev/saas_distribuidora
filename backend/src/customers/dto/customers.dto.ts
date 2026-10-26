@@ -12,6 +12,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  Matches,
   MaxLength,
   Min,
   ValidateNested,
@@ -44,6 +45,28 @@ export class CreateCustomerDto {
   @Min(0)
   @Max(10_000_000)
   creditLimit?: number | null;
+
+  // ---- Endereço (opcional; mesmo formato do endereço da loja) -----------------------------
+  // Texto vazio apaga o campo (o service grava null).
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(9) zipCode?: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(200) street?: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(20) number?: string;
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  complement?: string;
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  neighborhood?: string;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(100) city?: string;
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Matches(/^([A-Za-z]{2})?$/, { message: 'O estado deve ter 2 letras (UF).' })
+  state?: string;
 }
 
 export class UpdateCustomerDto extends PartialType(CreateCustomerDto) {}

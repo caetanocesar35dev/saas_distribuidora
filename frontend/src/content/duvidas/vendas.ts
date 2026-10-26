@@ -12,7 +12,7 @@ export const vendas: Article[] = [
     steps: [
       "Confira se o caixa está aberto (Menu › Caixa). Sem caixa aberto o PDV não vende.",
       "Abra Menu › Vender (PDV). O cursor já fica na busca (tecla F2 volta para ela).",
-      "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho.",
+      "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho. Ao tocar, a busca continua filtrada, para você adicionar mais do mesmo produto; pelo leitor, ela limpa sozinha para o próximo código.",
       "Para vender em lote (fardo, caixa, engradado), toque em + fardo, no rodapé do cartão do produto (ao lado de + 1 un.): entra 1 fardo de uma vez (ex.: 12 unidades). No carrinho, ajuste Fardos e Unidades separados (ex.: 2 fardos + 3 unidades). O preço do fardo é o da unidade vezes as unidades do fardo; para dar desconto de atacado, use o campo Desconto no pagamento.",
       "Clique em Finalizar venda (ou tecla F9).",
       "Escolha a forma de pagamento. Se quiser, digite um desconto. No dinheiro, digite o valor recebido para ver o troco.",
@@ -24,7 +24,7 @@ export const vendas: Article[] = [
         fix: "Abra o caixa em Menu › Caixa.",
       },
       {
-        message: "Estoque insuficiente para o produto ...",
+        message: "Estoque insuficiente",
         fix: "A quantidade pedida é maior que o estoque. O carrinho é mantido: diminua a quantidade ou peça ao gerente para dar entrada da mercadoria.",
       },
       {

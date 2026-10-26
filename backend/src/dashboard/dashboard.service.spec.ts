@@ -25,6 +25,54 @@ describe('DashboardService', () => {
   });
   afterAll(() => ctx.close());
 
+  describe('primeiros passos (onboarding)', () => {
+    it('loja nova: nada feito; cada item marca sozinho quando a tarefa é feita', async () => {
+      const store = await ctx.factory.store(w.company.id, 'Loja Nova');
+      const check = () => dashboard.onboarding(store.id, w.company.id);
+      // o "world" já tem gerente/atendente? conta só os vínculos da empresa
+      const members = await ctx.prisma.membership.count({
+        where: { companyId: w.company.id },
+      });
+      expect(await check()).toEqual({
+        address: false,
+        products: false,
+        cashOpened: false,
+        team: members > 1,
+      });
+
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.store.update({
+          where: { id: store.id },
+          data: { street: 'Rua A', city: 'Recife' },
+        }),
+      );
+      await ctx.factory.storeProduct(store.id, w.company.id);
+      await ctx.factory.openCash(store.id, 0);
+      await ctx.factory.member(w.company.id, [
+        { storeId: store.id, role: 'EMPLOYEE' },
+      ]);
+      expect(await check()).toEqual({
+        address: true,
+        products: true,
+        cashOpened: true,
+        team: true,
+      });
+    });
+
+    it('só a rua não basta para o endereço: precisa da cidade', async () => {
+      const store = await ctx.factory.store(w.company.id, 'Loja Rua');
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.store.update({
+          where: { id: store.id },
+          data: { street: 'Rua A' },
+        }),
+      );
+      expect((await dashboard.onboarding(store.id, w.company.id)).address).toBe(
+        false,
+      );
+    });
+  });
+
   /** Cria uma venda (com um item) numa data específica, direto no banco. */
   async function sale(opts: {
     storeId: string;

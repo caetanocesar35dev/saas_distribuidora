@@ -34,7 +34,9 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     expect(errors).toEqual([]);
   });
 
-  test("produto novo em uma loja, código repetido mostra o erro e a edição abre", async ({ page }) => {
+  test("produto novo em uma loja, código repetido mostra o erro e a edição abre", async ({
+    page,
+  }) => {
     const storeId = await openStore(page, "Loja Centro");
     const nome = `Produto E2E ${Date.now() % 100000}`;
 
@@ -91,7 +93,10 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByText("Cliente cadastrado.")).toBeVisible();
 
     await page.getByPlaceholder("Buscar por nome ou telefone").fill(nome);
-    await page.getByRole("row", { name: new RegExp(nome) }).getByRole("link", { name: "Abrir" }).click();
+    await page
+      .getByRole("row", { name: new RegExp(nome) })
+      .getByRole("link", { name: "Abrir" })
+      .click();
     await page.waitForURL(/\/clientes\//);
 
     await page.getByRole("button", { name: "Emprestar vasilhame" }).click();
@@ -111,6 +116,74 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByText("Devolução registrada.")).toBeVisible();
   });
 
+  test("cliente com endereço opcional: o CEP preenche e a edição pode apagar", async ({ page }) => {
+    const errors = trackPageErrors(page);
+    // A ViaCEP é simulada: o teste não depende da internet.
+    const asked: string[] = [];
+    await page.route("https://viacep.com.br/ws/**", (route) => {
+      asked.push(route.request().url());
+      return route.fulfill({
+        json: {
+          logradouro: "Rua da Aurora",
+          bairro: "Boa Vista",
+          localidade: "Recife",
+          uf: "PE",
+        },
+      });
+    });
+    const storeId = await openStore(page, "Loja Centro");
+    const nome = `Cliente Endereço ${Date.now() % 100000}`;
+    await goToStore(page, storeId, "/clientes");
+
+    // sem endereço: continua funcionando (é opcional)
+    await page.getByRole("button", { name: "Novo cliente" }).click();
+    await page.getByLabel("Nome", { exact: true }).fill(`Sem ${nome}`);
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Cliente cadastrado.")).toBeVisible();
+
+    // com endereço: o CEP completo traz rua, bairro, cidade e UF; número e complemento são digitados
+    await page.getByRole("button", { name: "Novo cliente" }).click();
+    await page.getByLabel("Nome", { exact: true }).fill(nome);
+    await page.getByLabel("Rua").fill("Rua que a pessoa já digitou");
+    await page.getByLabel("CEP").fill("50030230");
+    await expect(page.getByLabel("CEP")).toHaveValue("50030-230");
+    await expect(page.getByLabel("Cidade")).toHaveValue("Recife");
+    await expect(page.getByLabel("UF")).toHaveValue("PE");
+    await expect(page.getByLabel("Bairro")).toHaveValue("Boa Vista");
+    // o que a pessoa digitou antes não é trocado
+    await expect(page.getByLabel("Rua")).toHaveValue("Rua que a pessoa já digitou");
+    expect(asked).toEqual(["https://viacep.com.br/ws/50030230/json/"]);
+    await page.getByLabel("Número").fill("100");
+    await page.getByLabel("Complemento").fill("Sala 3");
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Cliente cadastrado.")).toBeVisible();
+
+    // o detalhe mostra o endereço
+    await page.getByPlaceholder("Buscar por nome ou telefone").fill(nome);
+    await page
+      .getByRole("row", { name: new RegExp(`^${nome}`) })
+      .getByRole("link", { name: "Abrir" })
+      .click();
+    await page.waitForURL(/\/clientes\//);
+    await expect(
+      page.getByText(
+        "Rua que a pessoa já digitou, 100 - Sala 3 · Boa Vista · Recife/PE · CEP 50030-230",
+      ),
+    ).toBeVisible();
+
+    // editar: texto vazio apaga o complemento e o endereço some do cabeçalho quando tudo é apagado
+    await page.getByRole("button", { name: "Editar" }).click();
+    await expect(page.getByLabel("Complemento")).toHaveValue("Sala 3");
+    for (const label of ["CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "UF"]) {
+      await page.getByLabel(label, { exact: true }).fill("");
+    }
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Cliente atualizado.")).toBeVisible();
+    await expect(page.getByText(/CEP 50030-230/)).toHaveCount(0);
+
+    expect(errors).toEqual([]);
+  });
+
   test("excluir um cliente sem dívida volta para a lista e ele some", async ({ page }) => {
     const storeId = await openStore(page, "Loja Centro");
     const nome = `Cliente Excluir ${Date.now() % 100000}`;
@@ -121,7 +194,10 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByText("Cliente cadastrado.")).toBeVisible();
 
     await page.getByPlaceholder("Buscar por nome ou telefone").fill(nome);
-    await page.getByRole("row", { name: new RegExp(nome) }).getByRole("link", { name: "Abrir" }).click();
+    await page
+      .getByRole("row", { name: new RegExp(nome) })
+      .getByRole("link", { name: "Abrir" })
+      .click();
     await page.waitForURL(/\/clientes\//);
 
     await page.getByRole("button", { name: "Excluir" }).click();
@@ -142,7 +218,10 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await page.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByText("Cliente cadastrado.")).toBeVisible();
     await page.getByPlaceholder("Buscar por nome ou telefone").fill(nome);
-    await page.getByRole("row", { name: new RegExp(nome) }).getByRole("link", { name: "Abrir" }).click();
+    await page
+      .getByRole("row", { name: new RegExp(nome) })
+      .getByRole("link", { name: "Abrir" })
+      .click();
     await page.waitForURL(/\/clientes\/([0-9a-f-]+)/);
     const customerUrl = new URL(page.url());
     const customerId = customerUrl.pathname.split("/").pop();
@@ -156,7 +235,10 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByText("Empréstimo registrado.")).toBeVisible();
 
     // na outra loja a dívida aparece como "em outra loja" e a devolução não é oferecida
-    await page.getByRole("button", { name: /Loja Centro/ }).first().click();
+    await page
+      .getByRole("button", { name: /Loja Centro/ })
+      .first()
+      .click();
     await page.getByRole("menuitem", { name: /Loja Norte/ }).click();
     await page.waitForURL(/\/loja\/[0-9a-f-]+$/); // a página inicial da outra loja
     const norteId = page.url().match(/\/loja\/([0-9a-f-]+)/)?.[1];

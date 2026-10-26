@@ -30,6 +30,7 @@ import {
   formatDateTime,
   formatInt,
   formatMoney,
+  formatAddress,
   formatPhone,
   PAYMENT_METHOD_LABEL,
   roundMoney,
@@ -391,7 +392,12 @@ export function CustomerDetailView({ customerId }: { customerId: string }) {
           <>
             <PageHeader
               title={data.name}
-              description={formatPhone(data.phone) || "Sem telefone cadastrado"}
+              description={[
+                formatPhone(data.phone) || "Sem telefone cadastrado",
+                formatAddress(data),
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               help="clientes-fiado"
               actions={
                 <HistoryButton

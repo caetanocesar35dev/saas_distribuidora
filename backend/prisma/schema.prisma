@@ -112,6 +112,9 @@ model User {
   passwordHash    String
   platformRole    PlatformRole? // null = usuário comum (dono/funcionário de alguma distribuidora)
   isActive        Boolean       @default(true)
+  /// Celular (WhatsApp) da pessoa, só dígitos com DDD (ex.: 81999990000). Obrigatório no cadastro
+  /// público; null em contas antigas, por convite ou do seed.
+  phone           String?
   // Aceite dos termos de uso e da política de privacidade (LGPD), gravado no cadastro público.
   // null = conta criada antes da exigência, por convite ou pelo seed.
   termsAcceptedAt DateTime?
@@ -444,6 +447,15 @@ model Customer {
   /// Limite de crédito no fiado, comparado com a dívida somada em todas as lojas da empresa.
   /// null = sem limite. Só gerente e dono definem; acima dele o atendente não vende no fiado.
   creditLimit Float?
+
+  /// Endereço (opcional), no mesmo formato do endereço da loja.
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -881,6 +893,7 @@ model UserHistory {
   email           String
   platformRole    PlatformRole?
   isActive        Boolean
+  phone           String?
   createdAt       DateTime
   termsAcceptedAt DateTime?
   termsVersion    String?
@@ -1099,13 +1112,20 @@ model StoreBottleTypeHistory {
 }
 
 model CustomerHistory {
-  historyId   String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id          String
-  companyId   String
-  name        String
-  phone       String?
-  creditLimit Float?
-  createdAt   DateTime
+  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  companyId    String
+  name         String
+  phone        String?
+  creditLimit  Float?
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  createdAt    DateTime
 
   modifierId       String?
   modifiedEndpoint String?

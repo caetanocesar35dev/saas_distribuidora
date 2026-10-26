@@ -34,7 +34,7 @@ export const comandas: Article[] = [
     ],
     problems: [
       {
-        message: "Estoque insuficiente para o produto ...",
+        message: "Estoque insuficiente",
         fix: "Não há quantidade suficiente. Peça ao gerente para dar entrada da mercadoria.",
       },
       {

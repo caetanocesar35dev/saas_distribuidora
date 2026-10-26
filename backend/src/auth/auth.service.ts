@@ -129,6 +129,7 @@ export class AuthService {
             name: dto.name,
             email: dto.email,
             passwordHash,
+            phone: dto.phone,
             termsAcceptedAt: new Date(),
             termsVersion: TERMS_VERSION,
           },
@@ -152,8 +153,22 @@ export class AuthService {
             organizationId: organization.id,
           },
         });
+        // Endereço e telefone da primeira loja: o que a consulta pública do CNPJ trouxe na tela
+        // (opcional; campos vazios ficam nulos). O dono confere depois em Lojas.
+        const address = dto.storeAddress ?? {};
         const store = await tx.store.create({
-          data: { companyId: company.id, name: dto.storeName },
+          data: {
+            companyId: company.id,
+            name: dto.storeName,
+            phone: address.phone || undefined,
+            zipCode: address.zipCode || undefined,
+            street: address.street || undefined,
+            number: address.number || undefined,
+            complement: address.complement || undefined,
+            neighborhood: address.neighborhood || undefined,
+            city: address.city || undefined,
+            state: address.state ? address.state.toUpperCase() : undefined,
+          },
         });
         const membership = await tx.membership.create({
           data: { userId, companyId: company.id },

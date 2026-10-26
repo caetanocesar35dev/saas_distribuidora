@@ -24,12 +24,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MaskedInput } from "@/components/app/inputs";
 import { Input } from "@/components/ui/input";
 import { useCnpjAutofill } from "@/hooks/use-cnpj-autofill";
 import { useDeleteStore, useSaveStore, useStores } from "@/lib/api/hooks/admin";
 import type { Store, StoreBody } from "@/lib/api/types";
 import type { CnpjData } from "@/lib/cnpj-lookup";
-import { isValidCnpj, maskCnpj, normalizeCnpj } from "@/lib/format";
+import { maskCep } from "@/lib/cep-lookup";
+import {
+  isValidCnpj,
+  isValidPhone,
+  maskCnpj,
+  maskPhone,
+  maskUf,
+  normalizeCnpj,
+} from "@/lib/format";
 import { useCompany } from "@/lib/session/context";
 
 const schema = z.object({
@@ -38,17 +47,36 @@ const schema = z.object({
     .string()
     .trim()
     .refine((v) => v === "" || isValidCnpj(v), "CNPJ inválido."),
-  phone: z.string().trim().max(20),
-  zipCode: z.string().trim().max(9),
-  street: z.string().trim().max(200),
-  number: z.string().trim().max(20),
-  complement: z.string().trim().max(100),
-  neighborhood: z.string().trim().max(100),
-  city: z.string().trim().max(100),
+  phone: z
+    .string()
+    .trim()
+    .refine(
+      (v) => v === "" || isValidPhone(v),
+      "Telefone inválido: use DDD + número (fixo ou celular).",
+    ),
+  // Endereço obrigatório, menos o complemento (decisão do usuário; o backend confere igual).
+  zipCode: z
+    .string()
+    .trim()
+    .min(1, "Informe o CEP.")
+    .refine((v) => /^\d{5}-\d{3}$/.test(v), "CEP inválido: use 8 números (00000-000)."),
+  street: z.string().trim().min(1, "Informe a rua.").max(200, "Use no máximo 200 caracteres."),
+  number: z
+    .string()
+    .trim()
+    .min(1, "Informe o número (ou S/N).")
+    .max(20, "Use no máximo 20 caracteres."),
+  complement: z.string().trim().max(100, "Use no máximo 100 caracteres."),
+  neighborhood: z
+    .string()
+    .trim()
+    .min(1, "Informe o bairro.")
+    .max(100, "Use no máximo 100 caracteres."),
+  city: z.string().trim().min(1, "Informe a cidade.").max(100, "Use no máximo 100 caracteres."),
   state: z
     .string()
     .trim()
-    .refine((v) => v === "" || v.length === 2, "Use a sigla com 2 letras (ex.: SP)."),
+    .refine((v) => /^[A-Z]{2}$/.test(v), "Informe a UF com 2 letras (ex.: SP)."),
 });
 type Values = z.infer<typeof schema>;
 
@@ -69,14 +97,14 @@ function toValues(store: Store): Values {
   return {
     name: store.name,
     cnpj: store.cnpj ? maskCnpj(store.cnpj) : "",
-    phone: store.phone ?? "",
-    zipCode: store.zipCode ?? "",
+    phone: store.phone ? maskPhone(store.phone) : "",
+    zipCode: store.zipCode ? maskCep(store.zipCode) : "",
     street: store.street ?? "",
     number: store.number ?? "",
     complement: store.complement ?? "",
     neighborhood: store.neighborhood ?? "",
     city: store.city ?? "",
-    state: store.state ?? "",
+    state: store.state ? maskUf(store.state) : "",
   };
 }
 
@@ -112,7 +140,7 @@ const storeFieldsFromCnpj = (data: CnpjData) => ({
 });
 
 const STORE_CNPJ_HINTS = {
-  idle: "Opcional; pode ter letras e números. Ao completar, buscamos o endereço e o telefone.",
+  idle: "Se o CNPJ da loja for o mesmo da empresa, deixe em branco. Se ela tem CNPJ próprio (filial), digite: pode ter letras e números, e buscamos o endereço e o telefone.",
   found: "Endereço e telefone preenchidos com a consulta pública do CNPJ. Confira antes de salvar.",
   "not-found": "CNPJ não encontrado na consulta pública. Preencha o endereço abaixo.",
   unavailable: "Não foi possível consultar o CNPJ agora. Preencha o endereço abaixo.",
@@ -226,15 +254,32 @@ function StoreForm({
       </FormField>
       <div className="grid gap-3 sm:grid-cols-2">
         <FormField label="Nome da loja" htmlFor="name" error={errors.name?.message}>
-          <Input id="name" aria-invalid={!!errors.name} {...register("name")} />
+          <Input id="name" maxLength={120} aria-invalid={!!errors.name} {...register("name")} />
         </FormField>
-        <FormField label="Telefone" htmlFor="phone" error={errors.phone?.message}>
-          <Input id="phone" inputMode="tel" {...register("phone")} />
+        <FormField label="Telefone (opcional)" htmlFor="phone" error={errors.phone?.message}>
+          <MaskedInput
+            id="phone"
+            type="tel"
+            inputMode="tel"
+            placeholder="(81) 3333-4444"
+            maxLength={15}
+            mask={maskPhone}
+            aria-invalid={!!errors.phone}
+            {...register("phone")}
+          />
         </FormField>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <FormField label="CEP" htmlFor="zipCode" error={errors.zipCode?.message}>
-          <Input id="zipCode" inputMode="numeric" {...register("zipCode")} />
+          <MaskedInput
+            id="zipCode"
+            inputMode="numeric"
+            placeholder="00000-000"
+            maxLength={9}
+            mask={maskCep}
+            aria-invalid={!!errors.zipCode}
+            {...register("zipCode")}
+          />
         </FormField>
         <FormField
           label="Rua"
@@ -242,31 +287,38 @@ function StoreForm({
           className="sm:col-span-2"
           error={errors.street?.message}
         >
-          <Input id="street" {...register("street")} />
+          <Input id="street" maxLength={200} {...register("street")} />
         </FormField>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <FormField label="Número" htmlFor="number" error={errors.number?.message}>
-          <Input id="number" {...register("number")} />
+          <Input id="number" maxLength={20} {...register("number")} />
         </FormField>
         <FormField
-          label="Complemento"
+          label="Complemento (opcional)"
           htmlFor="complement"
           className="sm:col-span-2"
           error={errors.complement?.message}
         >
-          <Input id="complement" {...register("complement")} />
+          <Input id="complement" maxLength={100} {...register("complement")} />
         </FormField>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <FormField label="Bairro" htmlFor="neighborhood" error={errors.neighborhood?.message}>
-          <Input id="neighborhood" {...register("neighborhood")} />
+          <Input id="neighborhood" maxLength={100} {...register("neighborhood")} />
         </FormField>
         <FormField label="Cidade" htmlFor="city" error={errors.city?.message}>
-          <Input id="city" {...register("city")} />
+          <Input id="city" maxLength={100} {...register("city")} />
         </FormField>
         <FormField label="UF" htmlFor="state" error={errors.state?.message}>
-          <Input id="state" maxLength={2} className="uppercase" {...register("state")} />
+          <MaskedInput
+            id="state"
+            maxLength={2}
+            placeholder="PE"
+            mask={maskUf}
+            aria-invalid={!!errors.state}
+            {...register("state")}
+          />
         </FormField>
       </div>
       <DialogFooter>

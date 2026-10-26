@@ -27,6 +27,41 @@ const intFormat = new Intl.NumberFormat("pt-BR");
 export const formatInt = (value: number) => intFormat.format(value);
 
 /**
+ * Nome de pessoa (usuário, convidado): só letras (com acento, de qualquer idioma), espaço,
+ * apóstrofo, hífen e ponto, começando por letra. Números e símbolos não entram. É a mesma regra do
+ * backend. Nome de loja, empresa e produto PODE ter número: não use esta regra neles.
+ */
+export const PERSON_NAME_REGEX = /^[\p{L}\p{M}][\p{L}\p{M} '’.-]*$/u;
+export const PERSON_NAME_MESSAGE = "O nome deve ter só letras (sem números ou símbolos).";
+
+export const isValidPersonName = (value: string) => PERSON_NAME_REGEX.test(value.trim());
+
+/** Tira o que não pode estar num nome de pessoa (números e símbolos), para o campo digitado ou colado. */
+export const cleanPersonName = (value: string) => value.replace(/[^\p{L}\p{M} '’.-]/gu, "");
+
+/**
+ * Endereço em uma linha: "Rua A, 10 - Sala 3 · Centro · Recife/PE · CEP 50030-230". Campos
+ * vazios são pulados; sem nada, devolve "".
+ */
+export function formatAddress(a: {
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}): string {
+  const street = [a.street && (a.number ? `${a.street}, ${a.number}` : a.street), a.complement]
+    .filter(Boolean)
+    .join(" - ");
+  const city = a.city ? (a.state ? `${a.city}/${a.state}` : a.city) : (a.state ?? "");
+  return [street, a.neighborhood, city, a.zipCode && `CEP ${a.zipCode}`]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
  * Quantidade de um item de venda ou comanda (venda em lote): "2 fardos de 12 + 3 un." ou "5 un.".
  * `units` é o total em unidades; `packs` × `packSize` são os fardos contidos nele.
  */
@@ -121,6 +156,40 @@ export function maskCnpj(value: string): string {
   for (let i = 0; i < d.length; i++) out += (i > 0 && separators[i] ? separators[i] : "") + d[i];
   return out;
 }
+
+/**
+ * Máscara de telefone (fixo ou celular) enquanto digita: (81) 3333-4444 ou (81) 99999-0000. Até
+ * 10 dígitos formata como fixo; com 11, como celular.
+ */
+export function maskPhone(value: string): string {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Telefone fixo (10 dígitos) ou celular (11, começando por 9 depois do DDD). */
+export const isValidPhone = (value: string) =>
+  /^[1-9]{2}(?:[2-8]\d{7}|9\d{8})$/.test(onlyDigits(value));
+
+/** Sigla de estado enquanto digita: só letras, maiúsculas, até 2. */
+export const maskUf = (value: string) =>
+  value
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase()
+    .slice(0, 2);
+
+/** Máscara de celular enquanto digita: (81) 99999-0000. */
+export function maskMobile(value: string): string {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Celular brasileiro: DDD + 9 dígitos começando por 9 (mesma regra do backend). */
+export const isValidMobile = (value: string) => /^[1-9]{2}9\d{8}$/.test(onlyDigits(value));
 
 export function formatPhone(value: string | null | undefined): string {
   const d = onlyDigits(value ?? "");

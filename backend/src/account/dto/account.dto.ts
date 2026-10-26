@@ -1,5 +1,15 @@
 import { PartialType } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
+import {
+  PERSON_NAME_MESSAGE,
+  PERSON_NAME_REGEX,
+} from '../../common/utils/person-name';
+import {
+  PHONE_MESSAGE,
+  PHONE_REGEX,
+  ZIP_MESSAGE,
+  ZIP_REGEX,
+} from '../../common/utils/address';
 import { Role } from '@prisma/client';
 import {
   ArrayMinSize,
@@ -11,6 +21,7 @@ import {
   IsString,
   IsUUID,
   Length,
+  Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -71,17 +82,55 @@ export class CreateStoreDto {
   name: string;
 
   @IsOptional() @IsString() @MaxLength(18) cnpj?: string;
-  @IsOptional() @IsString() @MaxLength(20) phone?: string;
-  @IsOptional() @IsString() @MaxLength(9) zipCode?: string;
-  @IsOptional() @IsString() @MaxLength(200) street?: string;
-  @IsOptional() @IsString() @MaxLength(20) number?: string;
-  @IsOptional() @IsString() @MaxLength(100) complement?: string;
-  @IsOptional() @IsString() @MaxLength(100) neighborhood?: string;
-  @IsOptional() @IsString() @MaxLength(100) city?: string;
   @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(20)
+  @Matches(PHONE_REGEX, { message: PHONE_MESSAGE })
+  phone?: string;
+  // Endereço obrigatório ao criar a loja, menos o complemento (decisão do usuário). Na edição
+  // (`UpdateStoreDto`) os campos podem faltar, mas não podem vir vazios.
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Informe o CEP.' })
+  @MaxLength(9)
+  @Matches(ZIP_REGEX, { message: ZIP_MESSAGE })
+  zipCode: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Informe a rua.' })
+  @MaxLength(200)
+  street: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Informe o número (ou S/N).' })
+  @MaxLength(20)
+  number: string;
+
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(100)
+  complement?: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Informe o bairro.' })
+  @MaxLength(100)
+  neighborhood: string;
+
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'Informe a cidade.' })
+  @MaxLength(100)
+  city: string;
+
+  @Transform(trim)
   @IsString()
   @Length(2, 2, { message: 'O estado deve ter 2 letras (UF).' })
-  state?: string;
+  state: string;
 }
 
 export class UpdateStoreDto extends PartialType(CreateStoreDto) {}
@@ -105,6 +154,7 @@ export class InviteMemberDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
+  @Matches(PERSON_NAME_REGEX, { message: PERSON_NAME_MESSAGE })
   name: string;
 
   @IsArray()

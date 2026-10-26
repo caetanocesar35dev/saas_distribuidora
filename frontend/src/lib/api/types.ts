@@ -20,10 +20,7 @@ export type BottleMovementType =
   | "SUPPLIER_SEND"
   | "SUPPLIER_RECEIVE"
   | "MANUAL_ADJUSTMENT";
-export type ManualBottleMovementType =
-  | "SUPPLIER_SEND"
-  | "SUPPLIER_RECEIVE"
-  | "MANUAL_ADJUSTMENT";
+export type ManualBottleMovementType = "SUPPLIER_SEND" | "SUPPLIER_RECEIVE" | "MANUAL_ADJUSTMENT";
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
 export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT";
 export type AccessMode = "FULL" | "GRACE" | "READ_ONLY";
@@ -62,6 +59,8 @@ export interface SessionUser {
 }
 
 export interface Profile extends SessionUser {
+  /** Celular (WhatsApp), só dígitos; null em contas antigas ou por convite. */
+  phone: string | null;
   createdAt: string;
 }
 
@@ -86,6 +85,19 @@ export interface SignupBody {
   planId?: string;
   /** Aceite dos termos de uso e da política de privacidade (obrigatório). */
   acceptTerms: boolean;
+  /** Celular (WhatsApp) do dono, obrigatório; só dígitos com DDD. */
+  phone: string;
+  /** Endereço e telefone da primeira loja: o que a consulta pública do CNPJ trouxe (opcional). */
+  storeAddress?: {
+    phone?: string;
+    zipCode?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  };
 }
 
 export interface ChangePasswordBody {
@@ -518,6 +530,14 @@ export interface Customer {
   phone: string | null;
   /** Limite de crédito do fiado (soma de todas as lojas); null = sem limite. */
   creditLimit: number | null;
+  /** Endereço (opcional), no mesmo formato do endereço da loja. */
+  zipCode: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
   createdAt: string;
 }
 
@@ -531,6 +551,14 @@ export interface CustomerBody {
   phone?: string;
   /** Só gerente e dono podem enviar. null tira o limite. */
   creditLimit?: number | null;
+  /** Endereço opcional; texto vazio apaga o campo, ausente não mexe. */
+  zipCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface CustomerBalances {
@@ -579,6 +607,14 @@ export interface PeriodStats {
   revenue: number;
   profit: number;
   count: number;
+}
+
+/** "Primeiros passos" do Início (só o dono): true = já feito. */
+export interface Onboarding {
+  address: boolean;
+  products: boolean;
+  cashOpened: boolean;
+  team: boolean;
 }
 
 export interface Dashboard {
@@ -634,19 +670,10 @@ export interface AuditHistory {
 }
 
 export type StoreAuditEntity =
-  | "store-products"
-  | "sales"
-  | "command-tabs"
-  | "cash-registers"
-  | "bottle-movements";
+  "store-products" | "sales" | "command-tabs" | "cash-registers" | "bottle-movements";
 
 export type CompanyAuditEntity =
-  | "products"
-  | "customers"
-  | "bottle-types"
-  | "stores"
-  | "memberships"
-  | "membership-stores";
+  "products" | "customers" | "bottle-types" | "stores" | "memberships" | "membership-stores";
 
 // ---- Notificações ----------------------------------------------------------------------------
 

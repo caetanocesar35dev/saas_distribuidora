@@ -12,7 +12,7 @@ import {
   RequireCompanyOwnerPage,
 } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
-import { SelectField, type Option } from "@/components/app/inputs";
+import { PersonNameInput, SelectField, type Option } from "@/components/app/inputs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,7 +33,7 @@ import {
   useSetMemberRole,
 } from "@/lib/api/hooks/admin";
 import type { Member, Role } from "@/lib/api/types";
-import { ROLE_LABEL } from "@/lib/format";
+import { isValidPersonName, ROLE_LABEL } from "@/lib/format";
 import { useCompany } from "@/lib/session/context";
 import { useMe } from "@/lib/session/queries";
 
@@ -74,7 +74,7 @@ function InviteDialog({
   }
 
   const chosen = Object.entries(selected);
-  const valid = name.trim() !== "" && /\S+@\S+\.\S+/.test(email) && chosen.length > 0;
+  const valid = isValidPersonName(name) && /\S+@\S+\.\S+/.test(email) && chosen.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
@@ -110,7 +110,7 @@ function InviteDialog({
           }}
         >
           <FormField label="Nome" htmlFor="invite-name">
-            <Input
+            <PersonNameInput
               id="invite-name"
               autoFocus
               value={name}
@@ -131,7 +131,10 @@ function InviteDialog({
             {stores.map((store) => {
               const role = selected[store.storeId];
               return (
-                <div key={store.storeId} className="flex items-center gap-3 rounded-lg border p-2.5">
+                <div
+                  key={store.storeId}
+                  className="flex items-center gap-3 rounded-lg border p-2.5"
+                >
                   <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm">
                     <Checkbox
                       checked={role !== undefined}
@@ -279,7 +282,10 @@ function MemberCard({
               onClick={() =>
                 setRole.mutate(
                   { membershipId: member.membershipId, storeId: s.storeId, role: "EMPLOYEE" },
-                  { onSuccess: () => toast.success(`Acesso a ${s.storeName} liberado como atendente.`) },
+                  {
+                    onSuccess: () =>
+                      toast.success(`Acesso a ${s.storeName} liberado como atendente.`),
+                  },
                 )
               }
             >

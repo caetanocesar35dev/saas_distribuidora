@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/app/form";
+import { PasswordInput } from "@/components/app/inputs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api, errorMessage, publicApi } from "@/lib/api/client";
@@ -44,7 +45,9 @@ export function LoginForm() {
         queryKey: sessionKeys.memberships,
         queryFn: () => api.get<Membership[]>("/me/memberships"),
       });
-      router.replace(safeNextPath(params.get("next")) ?? resolveHome(memberships, user.platformRole));
+      router.replace(
+        safeNextPath(params.get("next")) ?? resolveHome(memberships, user.platformRole),
+      );
     },
     onError: (error) => setFormError(errorMessage(error)),
   });
@@ -60,9 +63,7 @@ export function LoginForm() {
     >
       <div>
         <h1 className="text-xl font-semibold">Entrar</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Use o e-mail e a senha da sua conta.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">Use o e-mail e a senha da sua conta.</p>
       </div>
 
       <FormField label="E-mail" htmlFor="email" error={errors.email?.message}>
@@ -77,9 +78,8 @@ export function LoginForm() {
       </FormField>
 
       <FormField label="Senha" htmlFor="password" error={errors.password?.message}>
-        <Input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="current-password"
           aria-invalid={!!errors.password}
           {...register("password")}

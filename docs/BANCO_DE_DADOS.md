@@ -141,9 +141,9 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 |---|---|---|
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
 | `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
-| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
+| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `phone` (celular/WhatsApp, só dígitos; obrigatório no cadastro público, null em contas por convite ou do seed), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
-| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
+| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha |
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
@@ -192,7 +192,7 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja. `creditLimit` (opcional): limite de crédito do fiado, comparado com a dívida somada em todas as lojas; só gerente e dono definem; acima dele o atendente não vende no fiado e gerente/dono confirmam |
+| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja. `creditLimit` (opcional): limite de crédito do fiado, comparado com a dívida somada em todas as lojas; só gerente e dono definem; acima dele o atendente não vende no fiado e gerente/dono confirmam. Endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`), no mesmo formato do endereço da loja |
 | `tb_customer_store_balances` | Dívida em dinheiro (fiado) | Único por (`customerId`, `storeId`); `balance`. O total do cliente é a **soma das linhas**, calculada na hora |
 | `tb_customer_store_bottle_balances` | Vasilhames que o cliente deve | Único por (`customerId`, `storeId`, `bottleTypeId`); `balance` (inteiro) |
 | `tb_customer_payments` | Pagamento recebido | `storeId` = loja onde o dinheiro foi **fisicamente recebido**; `amount`, `paymentMethod` |
@@ -382,6 +382,8 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261021000000_credit_limit_and_terms` | Adiciona `creditLimit` em `tb_customers` e `termsAcceptedAt`/`termsVersion` em `tb_users` (e nos históricos) |
 | `20261023000000_sale_registered_at` | Adiciona `registeredAt` em `tb_sales` (e no histórico): venda antiga lançada depois |
 | `20261023010000_sale_packs` | Adiciona `packs` e `packSize` em `tb_sale_items` e `tb_command_items` (e nos históricos): venda em lote |
+| `20261026000000_customer_address` | Adiciona o endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) em `tb_customers` (e no histórico) |
+| `20261026010000_user_phone` | Adiciona `phone` (celular/WhatsApp) em `tb_users` (e no histórico) |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

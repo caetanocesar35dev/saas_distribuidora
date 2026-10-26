@@ -2,7 +2,7 @@
 
 > ## Status da implementação (atualizado em 2026-10-14)
 >
-> - **Fases 0 a 9 e 11: implementadas e testadas** (404 testes em 27 suítes, no banco
+> - **Fases 0 a 9 e 11: implementadas e testadas** (408 testes em 27 suítes, no banco
 >   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
 >   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
@@ -603,6 +603,11 @@ altere essas colunas por outro caminho; cada alteração precisa do registro cor
    `assertCreditLimit` na transação: acima do limite, funcionário recebe 403 (mensagem sem
    valores) e gerente/dono recebem 409, a menos que enviem `allowOverCreditLimit: true`.
    `balances` também devolve `creditLimit`.
+   **Endereço (decisão do usuário, 2026-10-26):** o cliente tem endereço opcional em campos
+   separados (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`), no
+   mesmo formato da loja, aceito no create/update por qualquer papel e devolvido em todas as
+   respostas de cliente. Campo ausente não mexe; texto vazio apaga (null); `state` em
+   maiúsculas e com 2 letras (400 se não for).
    **Custo e lucro (2026-10-21):** o `HideCostInterceptor` global tira `costPrice`,
    `totalCost`, `totalProfit` e `profit` das respostas para o funcionário (vendas, produtos,
    estoque, comandas).

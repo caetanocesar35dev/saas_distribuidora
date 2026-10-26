@@ -73,11 +73,20 @@ function TabBody({ tab }: { tab: CommandTab }) {
   const open = tab.status === "OPEN";
 
   function pick(item: StoreProduct) {
+    if (item.stock < 1) {
+      toast.error("Estoque insuficiente");
+      return;
+    }
     add.mutate({ storeProductId: item.id, quantity: 1 });
   }
 
   /** Venda em lote: lança 1 fardo (o backend converte em unidades). */
   function pickPack(item: StoreProduct) {
+    // O estoque baixa ao lançar o item, então o da busca já é o disponível.
+    if (item.stock < item.product.packQuantity) {
+      toast.error("Estoque insuficiente");
+      return;
+    }
     add.mutate({ storeProductId: item.id, quantity: 0, packs: 1 });
   }
 

@@ -70,6 +70,16 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     Unidades no carrinho, e o detalhe da venda e a comanda mostram "1 fardo de 12 + 3 un.". O
     botão só aparece em produto com "Unidades por fardo" maior que 1.
 
+15. [x] **Cadastro mais completo sem formulário maior** (pedido do usuário, 2026-10-26).
+    **Decidido pelo usuário:** (1) pedir o **celular (WhatsApp) do dono** no cadastro,
+    obrigatório, com coluna nova `tb_users.phone` (aprovada); (2) **não** perguntar endereço da
+    loja: preencher a primeira loja com o endereço e o telefone que a consulta pública do CNPJ já
+    devolve; (3) **sem** caixa "usar o mesmo CNPJ" (loja sem CNPJ já usa o da empresa); (4)
+    "Primeiros passos" no Início para o dono: confirmar o endereço da loja, cadastrar produtos,
+    abrir o caixa e convidar a equipe. **Feito (2026-10-26):** celular no cadastro e em Minha
+    conta; primeira loja com o endereço da consulta do CNPJ (mostrado no cadastro); quadro
+    "Primeiros passos" no Início do dono (rota `GET /stores/:storeId/onboarding`), com Esconder.
+
 ### Operação da plataforma
 
 16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
@@ -88,9 +98,7 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
 
 13. [ ] Cliente excluído não pode ser reativado pela tela; só pela API.
 14. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
-15. [ ] O PDV depende de internet; se a conexão cair, não vende.
 
-**Ordem sugerida:** 1, 2 e 4 primeiro; depois 7 e 8.
 
 ## Testes manuais
 
@@ -100,42 +108,54 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ### 1. Cadastro e acesso
 
-- [ ] Criar conta em `/cadastro` com o CNPJ `05.648.257/0001-78`: razão social e nome fantasia
+- [x] Criar conta em `/cadastro` com o CNPJ `05.648.257/0001-78`: razão social e nome fantasia
   devem ser preenchidos sozinhos.
-- [ ] Digitar um CNPJ com letras (ex.: `12.ABC.345/01DE-35`): é aceito, e aparece o aviso de que
+- [x] Digitar um CNPJ com letras (ex.: `12.ABC.345/01DE-35`): é aceito, e aparece o aviso de que
   não foi encontrado.
-- [ ] Digitar um CNPJ inválido: aparece "CNPJ inválido.".
-- [ ] Tentar criar a conta sem marcar "Li e aceito": deve ser recusado. Abrir os links dos
+- [x] Digitar um CNPJ inválido: aparece "CNPJ inválido.".
+- [x] O celular é obrigatório no cadastro (com máscara e DDD). Depois de cadastrar com um CNPJ real,
+  conferir em Lojas que a primeira loja veio com endereço e telefone, e no Início o quadro
+  "Primeiros passos" (cada item marca sozinho; Esconder some com ele).
+- [x] Digitar números ou símbolos no campo "Seu nome" (cadastro, Minha conta e convite de equipe):
+  eles não entram no campo; colar "Maria 123" deixa só "Maria". Acentos, apóstrofo e hífen
+  (ex.: João D'Ávila-Neto) passam.
+- [x] Tentar criar a conta sem marcar "Li e aceito": deve ser recusado. Abrir os links dos
   termos e da política (abrem sem login, em `/termos` e `/privacidade`).
-- [ ] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
+- [x] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
+- [x] Nos campos de senha (login, cadastro, redefinição e Minha conta), o olho mostra e esconde o
+  que foi digitado.
 - [ ] Deixar a aba parada por mais de 15 minutos e continuar usando: não pode pedir login de novo.
 - [ ] "Esqueci a senha": pegar o link no log do backend e redefinir a senha.
 - [ ] Errar a senha 6 vezes seguidas: aparece a mensagem de muitas tentativas.
 
 ### 2. Dono (`dono@exemplo.com`)
 
-- [ ] Trocar de loja e de empresa pelo topo da tela.
-- [ ] Criar uma loja informando um CNPJ real: endereço e telefone devem ser preenchidos.
+- [x] Trocar de loja e de empresa pelo topo da tela.
+- [x] Criar uma loja informando um CNPJ real: endereço e telefone devem ser preenchidos.
+- [x] Em Nova loja, tentar salvar sem endereço: CEP, rua, número, bairro, cidade e UF são
+  obrigatórios (complemento, telefone e CNPJ não).
+- [x] Em Nova loja, conferir as máscaras (telefone, CEP, UF) e os limites: telefone sem DDD ou CEP
+  com menos de 8 números é recusado; números na UF não entram.
 - [ ] Convidar um funcionário (o link aparece no log do backend), mudar o papel dele por loja e
   revogar o acesso.
-- [ ] Editar os dados da empresa; o CNPJ deve estar bloqueado.
-- [ ] Ver o painel da empresa e o gráfico de 7 dias.
+- [x] Editar os dados da empresa; o CNPJ deve estar bloqueado.
+- [x] Ver o painel da empresa e o gráfico de 7 dias.
 
 ### 3. PDV
 
-- [ ] Vender buscando o produto pelo nome e pelo leitor de código de barras, se houver um.
-- [ ] Usar os atalhos F2 (buscar) e F9 (finalizar).
-- [ ] Vender em lote: tocar em "+ fardo" no rodapé do cartão de um produto com fardo cadastrado, juntar
+- [x] Vender buscando o produto pelo nome e pelo leitor de código de barras, se houver um.
+- [x] Usar os atalhos F2 (buscar) e F9 (finalizar).
+- [x] Vender em lote: tocar em "+ fardo" no rodapé do cartão de um produto com fardo cadastrado, juntar
   unidades avulsas no carrinho (ex.: 2 fardos + 3 un.) e conferir o subtotal e, no detalhe da
   venda, "2 fardos de 12 + 3 un.". O estoque baixa em unidades. Na comanda, "+ fardo" lança o
   fardo inteiro.
-- [ ] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
+- [x] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
 - [ ] Vender produto com vasilhame: na troca 1 por 1 não pede cliente; se o cliente sai devendo,
   exige cliente.
-- [ ] Fiado para um cliente sem dívida: vende direto, sem aviso.
-- [ ] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
+- [x] Fiado para um cliente sem dívida: vende direto, sem aviso.
+- [x] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
   mais antiga. "Não, voltar" não vende; "Sim, vender no fiado" vende.
-- [ ] Tentar vender com estoque insuficiente e com o caixa fechado.
+- [x] Tentar vender com estoque insuficiente e com o caixa fechado.
 
 ### 4. Caixa
 
@@ -163,6 +183,9 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [ ] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
 - [ ] Marcar o filtro "Só quem deve no fiado".
+- [ ] Cadastrar um cliente com endereço: digitar um CEP real (ex.: 50030-230) e ver rua, bairro,
+  cidade e UF preencherem sozinhos; completar número e complemento; conferir o endereço no
+  detalhe do cliente. Cadastrar outro sem endereço (é opcional) e testar um CEP inexistente.
 - [ ] Receber um pagamento automático e um manual (escolhendo por loja).
 - [ ] Pagar na Loja B a dívida da Loja A.
 - [ ] Tentar receber mais do que o cliente deve.

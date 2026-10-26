@@ -22,6 +22,18 @@ export interface DashboardStore {
   name: string;
 }
 
+/** "Primeiros passos" do Início: true = já feito. */
+export interface Onboarding {
+  /** A loja tem rua e cidade. */
+  address: boolean;
+  /** Há produto à venda na loja. */
+  products: boolean;
+  /** O caixa da loja já foi aberto alguma vez. */
+  cashOpened: boolean;
+  /** A empresa tem mais alguém além do dono. */
+  team: boolean;
+}
+
 export interface Dashboard {
   today: PeriodStats;
   week: PeriodStats;
@@ -66,6 +78,28 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
   ) {}
+
+  /**
+   * "Primeiros passos" do Início (para o dono): o que já foi feito nesta loja. Cada item é
+   * conferido no banco a cada chamada, então marca sozinho quando a pessoa faz a tarefa.
+   */
+  async onboarding(storeId: string, companyId: string): Promise<Onboarding> {
+    const [store, products, cashRegisters, members] = await Promise.all([
+      this.prisma.store.findFirst({
+        where: { id: storeId },
+        select: { street: true, city: true },
+      }),
+      this.prisma.storeProduct.count({ where: { storeId } }),
+      this.prisma.cashRegister.count({ where: { storeId } }),
+      this.prisma.membership.count({ where: { companyId } }),
+    ]);
+    return {
+      address: !!(store?.street && store.city),
+      products: products > 0,
+      cashOpened: cashRegisters > 0,
+      team: members > 1,
+    };
+  }
 
   async forStore(storeId: string, now = new Date()): Promise<Dashboard> {
     const store = await this.prisma.store.findFirst({

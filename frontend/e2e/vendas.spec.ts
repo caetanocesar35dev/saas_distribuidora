@@ -30,6 +30,8 @@ test.describe("PDV, fiado, comandas e caixa", () => {
 
     // ---- venda no fiado com cliente cadastrado na hora
     const nome = `Cliente E2E ${Date.now() % 100000}`;
+    // o clique mantém o filtro da busca (aqui ainda era "Litr"): busca a Água
+    await page.getByPlaceholder(/Passe o leitor/).fill("Água");
     await page.locator("ul button", { hasText: "Água Mineral" }).first().click();
     await page.getByRole("button", { name: /Finalizar venda/ }).click();
     const fiado = page.getByRole("dialog");
@@ -119,6 +121,7 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await page.getByLabel("Nome da comanda").fill("Mesa E2E");
     await page.getByRole("button", { name: "Abrir comanda" }).click();
     await page.waitForURL(/\/comandas\//);
+    await page.getByPlaceholder(/Passe o leitor/).fill("Refri");
     await page.locator("ul button", { hasText: "Refrigerante" }).first().click();
     await expect(page.getByText("Refrigerante 2L").nth(1)).toBeVisible();
     await page.getByRole("button", { name: "Fechar comanda" }).click();
@@ -156,6 +159,7 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await page.getByLabel("Nome da comanda").fill("Mesa cancelada");
     await page.getByRole("button", { name: "Abrir comanda" }).click();
     await page.waitForURL(/\/comandas\//);
+    await page.getByPlaceholder(/Passe o leitor/).fill("Refri");
     await page.locator("ul button", { hasText: "Refrigerante" }).first().click();
     await expect(page.getByText("Refrigerante 2L").nth(1)).toBeVisible();
     expect(await stockOf()).toBe(before - 1);

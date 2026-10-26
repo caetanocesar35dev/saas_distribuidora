@@ -417,6 +417,14 @@ de barras (foco no campo de busca, atalhos de teclado).
    só com "Entendi"; gerente e dono veem o limite e o valor final e confirmam em "Sim, vender
    acima do limite" (envia `allowOverCreditLimit: true`). O atendente só enxerga as lojas dele,
    então a tela barra quando dá para saber; o resto o backend barra (403).
+7. ✅ **Endereço do cliente (pedido do usuário, 2026-10-26).** O cadastro e a edição de cliente
+   ganharam o bloco "Endereço (opcional)" (CEP, rua, número, complemento, bairro, cidade e UF),
+   no mesmo formato do endereço da loja. **Decidido pelo usuário:** campos separados e
+   preenchimento pelo CEP via ViaCEP, consultada do navegador (`src/lib/cep-lookup.ts`,
+   `src/hooks/use-cep-autofill.ts`; nunca troca o que a pessoa digitou, e falha ou CEP
+   inexistente só avisa). Ao editar, texto vazio apaga o campo. O endereço aparece no cabeçalho
+   do detalhe do cliente. O cadastro rápido do PDV continua só com nome e telefone.
+
 
 **Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
 automático e manual, e os saldos se atualizam.
@@ -587,12 +595,12 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 `tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
 Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend):
 
-- **82 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
+- **90 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
   consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,
   histórico de alterações, cliente da API, renovação de sessão em fila (um teste quebra de
   propósito a fila para provar que ele a pega), BFF (origem, renovação, cookies) e a integridade
   da Central de Dúvidas.
-- **37 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
+- **38 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
   venda com troca de vasilhame 1 por 1 (e bloqueio quando sai devendo sem cliente); fiado com
   cliente novo e recebimento (valor acima da dívida recusado na tela); comanda lançada, fechada e
   cancelada (estoque devolvido); cancelamento de venda; histórico; entrada e ajuste de estoque;

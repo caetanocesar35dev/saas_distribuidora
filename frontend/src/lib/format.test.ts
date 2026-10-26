@@ -7,13 +7,19 @@ import {
   formatCents,
   formatCnpj,
   formatDayString,
+  cleanPersonName,
+  formatAddress,
   formatItemQuantity,
   formatMoney,
   formatPhone,
   fromDatetimeLocal,
   hasMinRole,
   isValidCnpj,
+  isValidPersonName,
+  isValidPhone,
   maskCnpj,
+  maskPhone,
+  maskUf,
   normalizeCnpj,
   moneyToInput,
   parseMoney,
@@ -60,6 +66,65 @@ describe("dinheiro", () => {
     expect(roundMoney(0.1 + 0.2)).toBe(0.3);
     expect(roundMoney(1.005)).toBe(1.01);
     expect(roundMoney(2.5 * 3)).toBe(7.5);
+  });
+});
+
+describe("telefone e UF da loja", () => {
+  it("máscara de telefone fixo e celular enquanto digita", () => {
+    expect(maskPhone("8")).toBe("(8");
+    expect(maskPhone("8133")).toBe("(81) 33");
+    expect(maskPhone("8133334444")).toBe("(81) 3333-4444");
+    expect(maskPhone("81999990000")).toBe("(81) 99999-0000");
+    expect(maskPhone("(81) 99999-0000 ramal 2")).toBe("(81) 99999-0000");
+  });
+
+  it("valida fixo (10 dígitos) e celular (11, com 9 depois do DDD)", () => {
+    expect(isValidPhone("(81) 3333-4444")).toBe(true);
+    expect(isValidPhone("81999990000")).toBe(true);
+    expect(isValidPhone("(81) 3333-444")).toBe(false);
+    expect(isValidPhone("81899990000")).toBe(false);
+    expect(isValidPhone("01999990000")).toBe(false);
+  });
+
+  it("UF: só 2 letras, maiúsculas", () => {
+    expect(maskUf("pe")).toBe("PE");
+    expect(maskUf("p3e9x")).toBe("PE");
+  });
+});
+
+describe("nome de pessoa", () => {
+  it("aceita letras, acentos, apóstrofo, hífen e ponto; recusa números e símbolos", () => {
+    for (const ok of ["Maria", "João D'Ávila-Neto", "Ana Maria Jr.", "Zoë Müller", " Maria "]) {
+      expect(isValidPersonName(ok), ok).toBe(true);
+    }
+    for (const bad of ["", "   ", "Maria 2", "123", "Maria@Silva", "-Maria", "Maria_"]) {
+      expect(isValidPersonName(bad), bad).toBe(false);
+    }
+  });
+
+  it("limpa números e símbolos do que foi digitado ou colado", () => {
+    expect(cleanPersonName("Maria 123 Silva")).toBe("Maria  Silva");
+    expect(cleanPersonName("João D'Ávila-Neto Jr.")).toBe("João D'Ávila-Neto Jr.");
+    expect(cleanPersonName("a1b2@c#")).toBe("abc");
+  });
+});
+
+describe("endereço em uma linha", () => {
+  it("pula campos vazios", () => {
+    expect(formatAddress({})).toBe("");
+    expect(
+      formatAddress({
+        street: "Rua A",
+        number: "10",
+        complement: "Sala 3",
+        neighborhood: "Centro",
+        city: "Recife",
+        state: "PE",
+        zipCode: "50030-230",
+      }),
+    ).toBe("Rua A, 10 - Sala 3 · Centro · Recife/PE · CEP 50030-230");
+    expect(formatAddress({ street: "Rua B", city: "Olinda" })).toBe("Rua B · Olinda");
+    expect(formatAddress({ zipCode: "50030-230", state: "PE" })).toBe("PE · CEP 50030-230");
   });
 });
 

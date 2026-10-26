@@ -8,11 +8,11 @@ caixa, comandas, vasilhames e fiado (com abatimento entre lojas). Cada cliente d
 > **Estado atual:** o banco de dados e o **backend** já estão no modelo SaaS (multi-tenant,
 > auditoria completa, soft delete): autenticação, empresas, lojas, equipe, catálogo, estoque,
 > vasilhames, clientes/fiado, caixa, vendas, comandas, painéis, histórico de alterações,
-> plataforma e notificações estão prontos, com 404 testes automatizados. O **frontend** foi
+> plataforma e notificações estão prontos, com 408 testes automatizados. O **frontend** foi
 > refeito em Next.js e cobre todo o uso diário (PDV, caixa, comandas, vendas, estoque,
 > vasilhames, clientes/fiado, painéis, equipe, assinatura e a Central de Dúvidas); veja o
 > relatório no [plano do frontend](plano_implementacao_frontend.md). Há também a área da
-> plataforma (`/plataforma`) e testes automatizados (82 unitários e 37 de ponta a ponta). Falta
+> plataforma (`/plataforma`) e testes automatizados (90 unitários e 38 de ponta a ponta). Falta
 > a **cobrança com o Asaas** (por enquanto o status da assinatura é ajustado pela plataforma).
 
 ## Documentação

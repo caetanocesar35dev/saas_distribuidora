@@ -7,9 +7,9 @@ import { useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/app/form";
+import { PasswordInput } from "@/components/app/inputs";
 import { LinkButton } from "@/components/app/link-button";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { publicApi } from "@/lib/api/client";
 import type { MessageResponse } from "@/lib/api/types";
 
@@ -89,9 +89,8 @@ export function ResetPasswordForm() {
         </p>
       </div>
       <FormField label="Nova senha" htmlFor="newPassword" error={errors.newPassword?.message}>
-        <Input
+        <PasswordInput
           id="newPassword"
-          type="password"
           autoComplete="new-password"
           autoFocus
           aria-invalid={!!errors.newPassword}
@@ -99,9 +98,8 @@ export function ResetPasswordForm() {
         />
       </FormField>
       <FormField label="Repita a nova senha" htmlFor="confirm" error={errors.confirm?.message}>
-        <Input
+        <PasswordInput
           id="confirm"
-          type="password"
           autoComplete="new-password"
           aria-invalid={!!errors.confirm}
           {...register("confirm")}

@@ -24,6 +24,13 @@ export class DashboardController {
     return this.dashboard.forStore(tenant.storeId);
   }
 
+  /** "Primeiros passos" do Início: o que o dono já fez na loja (decisão do usuário). */
+  @StoreRole(Role.OWNER)
+  @Get('stores/:storeId/onboarding')
+  onboarding(@Tenant() tenant: StoreTenant) {
+    return this.dashboard.onboarding(tenant.storeId, tenant.companyId);
+  }
+
   @CompanyOwner()
   @Get('companies/:companyId/dashboard')
   company(@Tenant() tenant: CompanyTenant) {

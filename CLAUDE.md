@@ -29,14 +29,14 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 404
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 408
   testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 82
-  testes unitários e 37 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 90
+  testes unitários e 38 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
@@ -126,6 +126,28 @@ os campos é a extensão do Prisma).
   fardo = preço da unidade × unidades do fardo (sem preço próprio). Estoque, preço e vasilhames
   continuam em unidades; o item grava `quantity` (total), `packs` e `packSize`. Na tela, o botão
   "+ fardo (N)" no rodapé do cartão do produto na busca e os contadores Fardos/Unidades do carrinho.
+
+**Endereço do cliente (decidido pelo usuário)**
+- `Customer` tem endereço opcional em campos separados (`zipCode`, `street`, `number`,
+  `complement`, `neighborhood`, `city`, `state`), como a loja. No create/update, campo ausente não
+  mexe e texto vazio apaga. Na tela, o CEP completo busca rua, bairro, cidade e UF na **ViaCEP**
+  pelo navegador (`src/lib/cep-lookup.ts`), só como sugestão; nunca troca o que foi digitado.
+
+**Nome de pessoa (decidido pelo usuário)**
+- O nome de **pessoa** (cadastro da conta, "Minha conta" e convite de equipe) só aceita letras
+  (com acento), espaço, apóstrofo, hífen e ponto: **sem números**. Regra única em
+  `backend/src/common/utils/person-name.ts` (DTOs `SignupDto`, `UpdateProfileDto`,
+  `InviteMemberDto`) e `frontend/src/lib/format.ts` (`PersonNameInput` descarta o que não vale ao
+  digitar ou colar). Nome de loja, empresa, produto e cliente **pode** ter número.
+
+**Cadastro e primeiros passos (decidido pelo usuário)**
+- O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,
+  `src/common/utils/phone.ts`); editável em Minha conta. O endereço da primeira loja **não** é
+  perguntado: vai em `storeAddress` com o que a consulta do CNPJ trouxe. No Início, o dono vê
+  "Primeiros passos" (`GET /stores/:storeId/onboarding`: endereço, produtos, caixa, equipe).
+- **Endereço da loja é obrigatório** ao criar e editar (CEP, rua, número, bairro, cidade e UF;
+  complemento, telefone e CNPJ opcionais), no `CreateStoreDto` e na tela. A primeira loja do
+  cadastro é a exceção: pode ficar sem endereço se a consulta do CNPJ falhar.
 
 **LGPD (decidido pelo usuário)**
 - O cadastro público exige `acceptTerms: true` e grava `User.termsAcceptedAt` e `termsVersion`.

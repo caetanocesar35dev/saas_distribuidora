@@ -123,7 +123,12 @@ function Stepper({
   max: number;
   onChange: (value: number) => void;
 }) {
-  const set = (n: number) => onChange(Math.max(min, Math.min(n, Math.max(max, min))));
+  // Passar do estoque (pelo "+" ou digitando) avisa "Estoque insuficiente" e fica no máximo.
+  const set = (n: number) => {
+    const top = Math.max(max, min);
+    if (n > top) toast.error("Estoque insuficiente");
+    onChange(Math.max(min, Math.min(n, top)));
+  };
   return (
     <div className="flex items-center gap-1">
       <Button
@@ -149,7 +154,6 @@ function Stepper({
         variant="outline"
         size="icon"
         aria-label={`Aumentar ${name}`}
-        disabled={value >= max}
         onClick={() => set(value + 1)}
       >
         <PlusIcon />
@@ -191,12 +195,9 @@ export function PosView({ late = false }: { late?: boolean }) {
       const line = cart.find((l) => l.item.id === item.id);
       const inCart = line ? lineUnits(line) : 0;
       const adding = asPack ? packSizeOf(item) : 1;
-      if (item.stock <= 0) {
-        toast.error(`${item.product.name} está sem estoque.`);
-        return;
-      }
+      // Mensagem curta (pedido do usuário); o estoque disponível aparece no cartão do produto.
       if (inCart + adding > item.stock) {
-        toast.error(`Só há ${formatInt(item.stock)} de ${item.product.name} em estoque.`);
+        toast.error("Estoque insuficiente");
         return;
       }
       dispatch({ type: asPack ? "addPack" : "add", item });

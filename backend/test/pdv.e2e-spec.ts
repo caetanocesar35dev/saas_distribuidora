@@ -131,6 +131,38 @@ describe('PDV: caixa, vendas, comandas e fiado pela API (e2e)', () => {
       .expect(200);
   });
 
+  it('cliente com endereço opcional pela API: valida a UF e devolve o endereço', async () => {
+    const s = await scenario();
+    const url = `/api/companies/${s.w.company.id}/customers`;
+    await t.http
+      .post(url)
+      .set(s.employee)
+      .send({ name: 'Zé', state: 'Pernambuco' })
+      .expect(400);
+    const ok = await t.http
+      .post(url)
+      .set(s.employee)
+      .send({
+        name: 'Zé',
+        street: 'Rua A',
+        number: '10',
+        city: 'Recife',
+        state: 'pe',
+      })
+      .expect(201);
+    expect(ok.body).toMatchObject({
+      street: 'Rua A',
+      city: 'Recife',
+      state: 'PE',
+    });
+    const sem = await t.http
+      .post(url)
+      .set(s.employee)
+      .send({ name: 'Ana' })
+      .expect(201);
+    expect(sem.body.street).toBeNull();
+  });
+
   it('venda antiga: só gerente/dono lançam e ela conta no caixa aberto agora', async () => {
     const s = await scenario();
     await t.http

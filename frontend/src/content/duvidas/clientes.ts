@@ -11,10 +11,12 @@ export const clientes: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra Menu › Clientes e fiado e clique em Novo cliente.",
-      "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado. Salve.",
+      "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado.",
+      "Se quiser, preencha o Endereço (opcional): digite o CEP e o sistema busca rua, bairro, cidade e UF sozinho; você completa o número e o complemento. O que você já digitou não é trocado. Se o CEP não for encontrado ou a consulta estiver fora do ar, preencha à mão. Salve.",
       "Para achar alguém, use a busca por nome ou telefone. A lista já mostra quanto cada cliente deve no fiado.",
       "Para mudar os dados, abra o cliente e clique em Editar.",
-      "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente.",
+      "O endereço aparece embaixo do nome na tela do cliente. Para apagar, abra Editar e limpe os campos.",
+      "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente (cadastro rápido, só nome e telefone; o endereço você completa depois em Editar).",
     ],
     problems: [
       {
@@ -25,9 +27,30 @@ export const clientes: Article[] = [
         message: "O cliente deve vasilhames e não pode ser excluído.",
         fix: "Registre as devoluções de vasilhame antes de excluir.",
       },
+      {
+        message: "CEP não encontrado. Preencha o endereço abaixo.",
+        fix: "O CEP não existe na consulta pública. Confira os números ou preencha rua, bairro, cidade e UF à mão: o endereço é opcional.",
+      },
+      {
+        message: "Não foi possível consultar o CEP agora.",
+        fix: "A consulta está fora do ar ou sem internet. Preencha o endereço à mão ou tente de novo daqui a pouco.",
+      },
+      {
+        message: "O estado deve ter 2 letras (UF).",
+        fix: "Digite a sigla do estado com 2 letras, por exemplo PE, ou deixe o campo vazio.",
+      },
     ],
     related: ["clientes-fiado", "clientes-limite", "faq-excluir-engano"],
-    keywords: ["novo cliente", "cadastro", "telefone"],
+    keywords: [
+      "novo cliente",
+      "cadastro",
+      "telefone",
+      "endereço",
+      "cep",
+      "rua",
+      "bairro",
+      "cidade",
+    ],
   },
   {
     id: "clientes-fiado",
