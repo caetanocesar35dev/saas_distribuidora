@@ -10,7 +10,7 @@ export const vendas: Article[] = [
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto (Menu › Caixa). Sem caixa aberto o PDV não vende.",
+      "Não precisa abrir o caixa antes: se ele estiver fechado, a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       "Abra Menu › Vender (PDV). O cursor já fica na busca (tecla F2 volta para ela).",
       "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho. Ao tocar, a busca continua filtrada, para você adicionar mais do mesmo produto; pelo leitor, ela limpa sozinha para o próximo código.",
       "Para vender em lote (fardo, caixa, engradado), toque em + fardo, no rodapé do cartão do produto (ao lado de + 1 un.): entra 1 fardo de uma vez (ex.: 12 unidades). No carrinho, ajuste Fardos e Unidades separados (ex.: 2 fardos + 3 unidades). O preço do fardo é o da unidade vezes as unidades do fardo; para dar desconto de atacado, use o campo Desconto no pagamento.",
@@ -21,7 +21,7 @@ export const vendas: Article[] = [
     problems: [
       {
         message: "O caixa está fechado",
-        fix: "Abra o caixa em Menu › Caixa.",
+        fix: "Não precisa fazer nada: a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       },
       {
         message: "Estoque insuficiente",
@@ -155,7 +155,7 @@ export const vendas: Article[] = [
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER", "EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto: o dinheiro da venda antiga entra no caixa aberto agora.",
+      "O dinheiro da venda antiga entra no caixa aberto agora (se estiver fechado, ele abre sozinho).",
       "No menu, clique em Lançar venda antiga, logo abaixo de Histórico de vendas. O item só aparece para gerente e dono.",
       "Informe a data e a hora em que a venda aconteceu. Pode ser qualquer data passada, mas não no futuro.",
       "Monte o carrinho como no PDV, clique em Lançar venda e escolha a forma de pagamento, o desconto e o cliente (fiado ou vasilhames), como numa venda normal.",
@@ -198,14 +198,14 @@ export const vendas: Article[] = [
     minRole: "MANAGER",
     audience: ["MANAGER"],
     steps: [
-      "Confira se o caixa está aberto: o estorno é lançado nele.",
+      "O estorno é lançado no caixa aberto (se estiver fechado, ele abre sozinho).",
       "Abra Menu › Histórico de vendas, clique no número da venda e depois em Cancelar venda.",
       "Confirme. O estoque volta, o dinheiro é estornado no caixa (ou na dívida, se foi fiado) e os vasilhames são desfeitos.",
     ],
     problems: [
       {
         message: "Para cancelar uma venda, o caixa precisa estar aberto para registrar o estorno.",
-        fix: "Abra o caixa em Menu › Caixa e tente de novo.",
+        fix: "Raro: o caixa fechou sozinho (horário de fechamento automático) bem no meio da operação. Tente de novo: o caixa abre sozinho.",
       },
       {
         message: "Não é possível cancelar: o cliente já pagou parte desta venda a prazo.",

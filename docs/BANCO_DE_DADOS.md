@@ -143,7 +143,7 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
 | `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `phone` (celular/WhatsApp, só dígitos; obrigatório no cadastro público, null em contas por convite ou do seed), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
-| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha |
+| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha. `cashAutoCloseTime`: horário em que o caixa esquecido aberto fecha sozinho (padrão `00:00`, o dono muda) |
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
@@ -208,7 +208,7 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 | `tb_sale_items` | Itens da venda | `quantity`, `price` e `costPrice` **copiados no momento da venda** (preço histórico). Sem `createdAt`. **Venda em lote:** `quantity` é sempre o total em unidades; `packs` (fardos contidos nela, 0 = só unidades) e `packSize` (unidades por fardo na hora da venda) |
 | `tb_command_tabs` | Comanda (conta aberta) | `name`, `status` (`OPEN`/`CLOSED`), `customerId` opcional |
 | `tb_command_items` | Consumo da comanda | Mesmo padrão do item de venda (inclusive `packs`/`packSize`), com `addedAt` |
-| `tb_cash_registers` | Sessão de caixa | `openedAt`, `closedAt`, `initialBalance`, `finalBalance`, `status` (`OPEN`/`CLOSED`) |
+| `tb_cash_registers` | Sessão de caixa | `openedAt`, `closedAt`, `initialBalance`, `finalBalance`, `status` (`OPEN`/`CLOSED`), `autoClosed` (fechado sozinho pelo job `cash-auto-close` no horário da loja). **Abre sozinho** na primeira operação com dinheiro, com `initialBalance` = `finalBalance` do último fechamento (decisão do usuário) |
 | `tb_cash_movements` | Entradas e saídas do caixa | `type`: `IN`, `OUT`, `SALE`; `amount`, `description` |
 
 ### 3.6 Avisos
@@ -384,6 +384,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261023010000_sale_packs` | Adiciona `packs` e `packSize` em `tb_sale_items` e `tb_command_items` (e nos históricos): venda em lote |
 | `20261026000000_customer_address` | Adiciona o endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) em `tb_customers` (e no histórico) |
 | `20261026010000_user_phone` | Adiciona `phone` (celular/WhatsApp) em `tb_users` (e no histórico) |
+| `20261026020000_cash_auto_close` | Adiciona `cashAutoCloseTime` (HH:mm, padrão 00:00) em `tb_stores` e `autoClosed` em `tb_cash_registers` (e nos históricos): caixa que abre e fecha sozinho |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

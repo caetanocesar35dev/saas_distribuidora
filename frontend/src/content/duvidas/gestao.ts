@@ -91,6 +91,7 @@ export const gestao: Article[] = [
       "Se o CNPJ da loja for o mesmo da empresa, deixe o campo em branco: a loja usa o CNPJ da empresa. Se ela tiver CNPJ próprio (filial), digite-o primeiro: ao completar, o sistema busca os dados públicos e preenche endereço, telefone e, se estiver vazio, o nome da loja com o nome fantasia. O que você já digitou não é trocado; confira antes de salvar.",
       "Se a busca não encontrar o CNPJ ou estiver fora do ar, preencha o endereço você mesmo.",
       "Para mudar endereço ou telefone, clique em Editar.",
+      "Em Fechamento automático do caixa, escolha o horário em que o caixa esquecido aberto fecha sozinho todo dia (padrão: meia-noite). Use um horário depois do fim do expediente, por exemplo 02:00 para quem fecha de madrugada.",
       "Para excluir, clique em Excluir e confirme.",
     ],
     problems: [

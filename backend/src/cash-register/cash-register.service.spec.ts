@@ -135,10 +135,12 @@ describe('CashRegisterService', () => {
       expect((await cash.current(w.storeA.id))!.currentBalance).toBe(20);
     });
 
-    it('exige caixa aberto para movimentar', async () => {
-      await expect(
-        as(() => cash.addMovement(w.storeA.id, { type: 'IN', amount: 10 })),
-      ).rejects.toBeInstanceOf(ConflictException);
+    it('sem caixa aberto, a entrada abre um sozinha (troco inicial = último fechamento)', async () => {
+      await as(() => cash.addMovement(w.storeA.id, { type: 'IN', amount: 10 }));
+      expect(await cash.current(w.storeA.id)).toMatchObject({
+        initialBalance: 0,
+        currentBalance: 10,
+      });
     });
 
     it('cada loja tem o seu saldo', async () => {

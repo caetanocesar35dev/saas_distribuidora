@@ -13,7 +13,7 @@ export const produtos: Article[] = [
       "Abra Menu › Estoque.",
       "Use a busca para achar o produto pelo nome ou pelo código de barras (pode passar o leitor).",
       "Use o filtro ao lado da busca para ver só os produtos à venda ou só os pausados.",
-      "A coluna Estoque mostra quantas unidades existem nesta loja. \"Sem estoque\" quer dizer zero.",
+      'A coluna Estoque mostra quantas unidades existem nesta loja. "Sem estoque" quer dizer zero.',
       "Gerentes e donos também veem o custo e os botões para dar entrada, ajustar e mudar preço.",
     ],
     problems: [
@@ -38,7 +38,7 @@ export const produtos: Article[] = [
       "Abra Menu › Produtos e clique em Novo produto.",
       "Digite o nome. O código de barras é opcional: deixe vazio e o sistema cria um sozinho, ou passe o leitor no campo.",
       "Informe quantas unidades vêm no fardo e, se o produto sai com vasilhame, escolha o tipo.",
-      "Em \"Em quais lojas este produto é vendido?\", marque as lojas e digite o preço de venda de cada uma. O custo é opcional e pode ser diferente por loja.",
+      'Em "Em quais lojas este produto é vendido?", marque as lojas e digite o preço de venda de cada uma. O custo é opcional e pode ser diferente por loja.',
       "Clique em Cadastrar produto. O estoque começa em zero: registre a chegada da mercadoria em Menu › Estoque › Entrada.",
     ],
     problems: [
@@ -48,7 +48,7 @@ export const produtos: Article[] = [
       },
       {
         message: "O código ... pertence a um produto excluído",
-        fix: "Em vez de cadastrar de novo, use o botão \"Reativar o produto excluído\" que aparece abaixo da mensagem.",
+        fix: 'Em vez de cadastrar de novo, use o botão "Reativar o produto excluído" que aparece abaixo da mensagem.',
       },
     ],
     related: ["produtos-preco-loja", "produtos-colocar-tirar", "produtos-excluir-reativar"],
@@ -139,7 +139,7 @@ export const produtos: Article[] = [
     steps: [
       "Conte o produto na prateleira.",
       "Abra Menu › Estoque, clique no ⋮ do produto e escolha Ajuste de inventário.",
-      "Digite a quantidade contada (o total que existe de verdade) e o motivo, por exemplo \"quebra\" ou \"contagem do inventário\".",
+      'Digite a quantidade contada (o total que existe de verdade) e o motivo, por exemplo "quebra" ou "contagem do inventário".',
       "Salve. O estoque passa a ser exatamente o número que você digitou.",
     ],
     problems: [
@@ -179,13 +179,13 @@ export const produtos: Article[] = [
     steps: [
       "Para excluir: abra Menu › Produtos e clique na lixeira ao lado do produto. Ele some do catálogo e de todas as lojas.",
       "Para reativar por engano: cadastre o produto de novo com o mesmo código de barras (Menu › Produtos › Novo produto).",
-      "O sistema avisa que o código pertence a um produto excluído e mostra o botão \"Reativar o produto excluído\". Clique nele.",
+      'O sistema avisa que o código pertence a um produto excluído e mostra o botão "Reativar o produto excluído". Clique nele.',
       "Depois confira o preço e o estoque de cada loja em Menu › Estoque.",
     ],
     problems: [
       {
         message: "O código ... pertence a um produto excluído",
-        fix: "Clique em \"Reativar o produto excluído\" em vez de tentar cadastrar outro.",
+        fix: 'Clique em "Reativar o produto excluído" em vez de tentar cadastrar outro.',
       },
     ],
     related: ["produtos-cadastrar"],

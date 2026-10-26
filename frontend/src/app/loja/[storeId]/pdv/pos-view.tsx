@@ -36,18 +36,16 @@ import { lateSaleDateError } from "@/lib/late-sale";
 import { useAccess, useStore } from "@/lib/session/context";
 import { cartBottles, cartReducer, cartSubtotal, lineUnits, packSizeOf } from "./cart";
 
-function CashClosedNotice({ storeId }: { storeId: string }) {
+/**
+ * Sem caixa aberto, o PDV não bloqueia mais (decisão do usuário): a primeira venda abre o caixa
+ * sozinha, com o troco inicial igual ao saldo do último fechamento. Só avisa.
+ */
+function CashAutoOpenNote() {
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center gap-3 rounded-xl border bg-card p-8 text-center">
-      <ShoppingCartIcon className="size-8 text-muted-foreground" />
-      <h2 className="text-lg font-semibold">O caixa está fechado</h2>
-      <p className="text-sm text-muted-foreground">
-        Para vender (inclusive no fiado) é preciso ter o caixa aberto nesta loja.
-      </p>
-      <LinkButton href={`/loja/${storeId}/caixa`} size="lg">
-        Abrir o caixa
-      </LinkButton>
-    </div>
+    <p className="mb-4 flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+      <ShoppingCartIcon className="size-4 shrink-0" />O caixa está fechado: ele abre sozinho na
+      primeira venda, com o saldo do último fechamento.
+    </p>
   );
 }
 
@@ -187,7 +185,7 @@ export function PosView({ late = false }: { late?: boolean }) {
   const subtotal = cartSubtotal(cart);
   const bottles = useMemo(() => cartBottles(cart), [cart]);
   const cashOpen = !!cash.data;
-  const blocked = readOnly || !cashOpen;
+  const blocked = readOnly;
 
   /** Adiciona 1 unidade ou 1 fardo (venda em lote), conferindo o estoque em unidades. */
   const addToCart = useCallback(
@@ -272,7 +270,7 @@ export function PosView({ late = false }: { late?: boolean }) {
         />
       )}
 
-      {late && cashOpen && (
+      {late && (
         <div className="mb-4 max-w-sm">
           <FormField
             label="Data e hora em que a venda aconteceu"
@@ -294,127 +292,128 @@ export function PosView({ late = false }: { late?: boolean }) {
 
       {cash.isPending ? (
         <Skeleton className="h-64 w-full" />
-      ) : !cashOpen ? (
-        <CashClosedNotice storeId={storeId} />
       ) : (
-        <div className="grid gap-5 lg:grid-cols-[1fr_24rem]">
-          <section aria-label="Produtos">
-            <ProductSearch
-              storeId={storeId}
-              onPick={addItem}
-              onPickPack={addPack}
-              inputRef={searchRef}
-              disabled={readOnly}
-            />
-          </section>
+        <>
+          {!cashOpen && <CashAutoOpenNote />}
+          <div className="grid gap-5 lg:grid-cols-[1fr_24rem]">
+            <section aria-label="Produtos">
+              <ProductSearch
+                storeId={storeId}
+                onPick={addItem}
+                onPickPack={addPack}
+                inputRef={searchRef}
+                disabled={readOnly}
+              />
+            </section>
 
-          <aside
-            aria-label="Carrinho"
-            className="h-fit rounded-xl border bg-card p-4 lg:sticky lg:top-20"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-semibold">Carrinho</h2>
-              {cart.length > 0 && (
-                <Button variant="ghost" size="xs" onClick={() => dispatch({ type: "clear" })}>
-                  Limpar
-                </Button>
-              )}
-            </div>
+            <aside
+              aria-label="Carrinho"
+              className="h-fit rounded-xl border bg-card p-4 lg:sticky lg:top-20"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="font-semibold">Carrinho</h2>
+                {cart.length > 0 && (
+                  <Button variant="ghost" size="xs" onClick={() => dispatch({ type: "clear" })}>
+                    Limpar
+                  </Button>
+                )}
+              </div>
 
-            {cart.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                Nenhum item ainda. Passe o leitor ou toque num produto.
-              </p>
-            ) : (
-              <ul className="divide-y">
-                {cart.map((line) => (
-                  <li key={line.item.id} className="py-2.5">
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium">{line.item.product.name}</p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          <Money value={line.item.price} /> cada
-                          {line.item.product.bottleType &&
-                            ` · ${line.item.product.bottleType.name}`}
-                        </p>
+              {cart.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  Nenhum item ainda. Passe o leitor ou toque num produto.
+                </p>
+              ) : (
+                <ul className="divide-y">
+                  {cart.map((line) => (
+                    <li key={line.item.id} className="py-2.5">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{line.item.product.name}</p>
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            <Money value={line.item.price} /> cada
+                            {line.item.product.bottleType &&
+                              ` · ${line.item.product.bottleType.name}`}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Remover ${line.item.product.name}`}
+                          onClick={() => dispatch({ type: "remove", id: line.item.id })}
+                        >
+                          <Trash2Icon />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={`Remover ${line.item.product.name}`}
-                        onClick={() => dispatch({ type: "remove", id: line.item.id })}
-                      >
-                        <Trash2Icon />
-                      </Button>
-                    </div>
-                    <div className="mt-1.5 flex items-end justify-between gap-2">
-                      <div className="space-y-1">
-                        {packSizeOf(line.item) > 1 && (
+                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                        <div className="space-y-1">
+                          {packSizeOf(line.item) > 1 && (
+                            <Stepper
+                              label={`Fardos de ${packSizeOf(line.item)}`}
+                              name={`Fardos de ${line.item.product.name}`}
+                              value={line.packs ?? 0}
+                              min={0}
+                              max={Math.floor(
+                                (line.item.stock - line.quantity) / packSizeOf(line.item),
+                              )}
+                              onChange={(packs) =>
+                                dispatch({ type: "setPacks", id: line.item.id, packs })
+                              }
+                            />
+                          )}
                           <Stepper
-                            label={`Fardos de ${packSizeOf(line.item)}`}
-                            name={`Fardos de ${line.item.product.name}`}
-                            value={line.packs ?? 0}
-                            min={0}
-                            max={Math.floor(
-                              (line.item.stock - line.quantity) / packSizeOf(line.item),
-                            )}
-                            onChange={(packs) =>
-                              dispatch({ type: "setPacks", id: line.item.id, packs })
+                            label={packSizeOf(line.item) > 1 ? "Unidades" : undefined}
+                            name={`Quantidade de ${line.item.product.name}`}
+                            value={line.quantity}
+                            min={(line.packs ?? 0) > 0 ? 0 : 1}
+                            max={line.item.stock - (line.packs ?? 0) * packSizeOf(line.item)}
+                            onChange={(quantity) =>
+                              dispatch({ type: "set", id: line.item.id, quantity })
                             }
                           />
-                        )}
-                        <Stepper
-                          label={packSizeOf(line.item) > 1 ? "Unidades" : undefined}
-                          name={`Quantidade de ${line.item.product.name}`}
-                          value={line.quantity}
-                          min={(line.packs ?? 0) > 0 ? 0 : 1}
-                          max={line.item.stock - (line.packs ?? 0) * packSizeOf(line.item)}
-                          onChange={(quantity) =>
-                            dispatch({ type: "set", id: line.item.id, quantity })
-                          }
-                        />
+                        </div>
+                        <div className="text-right">
+                          {(line.packs ?? 0) > 0 && (
+                            <p className="text-xs text-muted-foreground tabular-nums">
+                              {formatInt(lineUnits(line))} un.
+                            </p>
+                          )}
+                          <Money
+                            value={roundMoney(line.item.price * lineUnits(line))}
+                            className="font-semibold"
+                          />
+                        </div>
                       </div>
-                      <div className="text-right">
-                        {(line.packs ?? 0) > 0 && (
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            {formatInt(lineUnits(line))} un.
-                          </p>
-                        )}
-                        <Money
-                          value={roundMoney(line.item.price * lineUnits(line))}
-                          className="font-semibold"
-                        />
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
-            <div className="mt-3 border-t pt-3">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm text-muted-foreground">Subtotal</span>
-                <Money value={subtotal} className="text-2xl font-semibold" />
+              <div className="mt-3 border-t pt-3">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm text-muted-foreground">Subtotal</span>
+                  <Money value={subtotal} className="text-2xl font-semibold" />
+                </div>
+                <ActionButton
+                  size="lg"
+                  className="mt-3 h-12 w-full text-base"
+                  disabled={cart.length === 0 || !!soldAtError}
+                  onClick={openCheckout}
+                >
+                  {late ? "Lançar venda (F9)" : "Finalizar venda (F9)"}
+                </ActionButton>
+                {late && soldAtError && cart.length > 0 && (
+                  <p className="mt-2 text-xs text-destructive">{soldAtError}</p>
+                )}
+                {readOnly && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Sistema somente para consulta: não é possível vender agora.
+                  </p>
+                )}
               </div>
-              <ActionButton
-                size="lg"
-                className="mt-3 h-12 w-full text-base"
-                disabled={cart.length === 0 || !!soldAtError}
-                onClick={openCheckout}
-              >
-                {late ? "Lançar venda (F9)" : "Finalizar venda (F9)"}
-              </ActionButton>
-              {late && soldAtError && cart.length > 0 && (
-                <p className="mt-2 text-xs text-destructive">{soldAtError}</p>
-              )}
-              {readOnly && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Sistema somente para consulta: não é possível vender agora.
-                </p>
-              )}
-            </div>
-          </aside>
-        </div>
+            </aside>
+          </div>
+        </>
       )}
 
       {checkout && (

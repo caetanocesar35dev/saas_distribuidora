@@ -80,6 +80,21 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     conta; primeira loja com o endereço da consulta do CNPJ (mostrado no cadastro); quadro
     "Primeiros passos" no Início do dono (rota `GET /stores/:storeId/onboarding`), com Esconder.
 
+16. [x] **Caixa sem depender de abrir e fechar à mão** (pedido do usuário, 2026-10-26: ele abriu
+    um caixa em 16/10 e só fechou em 26/10, por esquecimento). **Decidido pelo usuário:**
+    1. **Abertura automática:** a primeira operação com dinheiro (venda, fechamento de comanda,
+       recebimento de fiado, entrada/sangria, cancelamento) abre o caixa sozinha, com o troco
+       inicial igual ao saldo do último fechamento. O PDV não bloqueia mais por "caixa fechado".
+    2. **Fechamento automático diário:** o caixa esquecido aberto fecha sozinho no horário da
+       loja, **padrão meia-noite**, que o **dono pode mudar** (coluna nova
+       `tb_stores.cashAutoCloseTime`). O caixa fica marcado "fechado automaticamente" (coluna nova
+       `tb_cash_registers.autoClosed`).
+    3. Conferência depois (valor contado e diferença): **fica para depois**.
+    4. Opção de loja sem controle de caixa: o usuário acha que **não será necessária** com 1 e 2.
+    **Feito (2026-10-26): 1 e 2.** `ensureOpenCash` antes de cada operação com dinheiro, job
+    `cash-auto-close` a cada 5 minutos, horário em Lojas › Editar e marca "automático" em Caixas
+    anteriores. O item 3 (conferência) continua pendente.
+
 ### Operação da plataforma
 
 16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
@@ -161,13 +176,13 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [ ] Abrir o caixa, lançar entrada e sangria, e fechar conferindo o resumo por forma de
   pagamento.
-- [ ] Ver o histórico de caixas.
+- [x] Ver o histórico de caixas.
 
 ### 5. Comandas
 
-- [ ] Abrir, lançar itens (o estoque baixa na hora), remover item e fechar no fiado (o aviso deve
+- [x] Abrir, lançar itens (o estoque baixa na hora), remover item e fechar no fiado (o aviso deve
   aparecer).
-- [ ] Cancelar uma comanda: o estoque volta.
+- [x] Cancelar uma comanda: o estoque volta.
 
 ### 6. Vendas
 

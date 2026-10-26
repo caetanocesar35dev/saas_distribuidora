@@ -271,6 +271,10 @@ model Store {
   city         String?
   state        String?
 
+  /// Horário (HH:mm, fuso da aplicação) em que o caixa esquecido aberto fecha sozinho. O dono muda
+  /// em Lojas (decisão do usuário; padrão meia-noite).
+  cashAutoCloseTime String @default("00:00")
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   memberships            MembershipStore[]
@@ -651,6 +655,8 @@ model CashRegister {
   initialBalance Float      @default(0)
   finalBalance   Float?
   status         CashStatus @default(OPEN)
+  /// Fechado pelo sistema no horário da loja (o caixa tinha ficado aberto), e não por uma pessoa.
+  autoClosed     Boolean    @default(false)
 
   store     Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
   movements CashMovement[]
@@ -993,20 +999,21 @@ model PlanHistory {
 }
 
 model StoreHistory {
-  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id           String
-  companyId    String
-  name         String
-  cnpj         String?
-  phone        String?
-  zipCode      String?
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?
-  createdAt    DateTime
+  historyId         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                String
+  companyId         String
+  name              String
+  cnpj              String?
+  phone             String?
+  zipCode           String?
+  street            String?
+  number            String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  cashAutoCloseTime String   @default("00:00")
+  createdAt         DateTime
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1263,6 +1270,7 @@ model CashRegisterHistory {
   initialBalance Float
   finalBalance   Float?
   status         CashStatus
+  autoClosed     Boolean    @default(false)
 
   modifierId       String?
   modifiedEndpoint String?

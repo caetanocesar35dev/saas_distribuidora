@@ -48,8 +48,9 @@ function OpenCashCard({ storeId }: { storeId: string }) {
         <h2 className="text-lg font-semibold">O caixa está fechado</h2>
       </div>
       <p className="text-sm text-muted-foreground">
-        Conte o dinheiro que está na gaveta e informe como saldo inicial. Sem o caixa aberto não é
-        possível vender.
+        Não precisa abrir à mão: a primeira venda abre o caixa sozinha, com o saldo do último
+        fechamento. Abra aqui só se quiser informar outro saldo inicial (o dinheiro contado na
+        gaveta). Se o caixa ficar aberto, ele fecha sozinho no horário da loja (padrão meia-noite).
       </p>
       <FormField label="Saldo inicial (dinheiro na gaveta)" htmlFor="initial">
         <MoneyInput id="initial" value={initial} onChange={setInitial} autoFocus />

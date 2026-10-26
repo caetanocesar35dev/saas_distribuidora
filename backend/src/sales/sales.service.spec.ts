@@ -206,15 +206,21 @@ describe('SalesService', () => {
       ).toEqual(['SALE', 'SALE']);
     });
 
-    it('exige caixa aberto na PRÓPRIA loja', async () => {
+    it('sem caixa aberto, a venda abre um sozinha na PRÓPRIA loja', async () => {
       const other = await ctx.factory.storeProduct(w.storeB.id, w.company.id);
-      await expect(
-        sell(
-          { items: [{ storeProductId: other.id, quantity: 1 }] },
-          w.storeB.id,
-        ),
-      ).rejects.toThrow(/caixa aberto/);
-      expect(await stockOf(other.id)).toBe(100);
+      await sell(
+        { items: [{ storeProductId: other.id, quantity: 1 }] },
+        w.storeB.id,
+      );
+      expect(await stockOf(other.id)).toBe(99);
+      const registers = await ctx.prisma.cashRegister.findMany({
+        where: { status: 'OPEN' },
+        select: { storeId: true },
+      });
+      // a loja B ganhou o caixa dela; o da loja A continua o mesmo
+      expect(registers.map((r) => r.storeId).sort()).toEqual(
+        [w.storeA.id, w.storeB.id].sort(),
+      );
     });
 
     it('registra autor e rota na venda, nos itens e no estoque', async () => {
@@ -955,7 +961,7 @@ describe('SalesService', () => {
       expect(movements.reduce((sum, m) => sum + m.quantity, 0)).toBe(0); // somam zero: estoque líquido inalterado
     });
 
-    it('não cancela duas vezes, nem venda de outra loja, nem sem caixa aberto', async () => {
+    it('não cancela duas vezes nem venda de outra loja; sem caixa aberto, abre um sozinho', async () => {
       const sale = await sell({
         items: [{ storeProductId: beer.id, quantity: 1 }],
       });
@@ -976,12 +982,8 @@ describe('SalesService', () => {
           data: { status: 'CLOSED' },
         }),
       );
-      await expect(cancel(second.id)).rejects.toThrow(
-        /caixa precisa estar aberto/,
-      );
-      expect((await sales.get(w.storeA.id, second.id)).status).toBe(
-        'COMPLETED',
-      );
+      await cancel(second.id);
+      expect((await sales.get(w.storeA.id, second.id)).status).toBe('CANCELED');
     });
 
     it('dois cancelamentos simultâneos: só um vence e o estoque volta uma vez só', async () => {

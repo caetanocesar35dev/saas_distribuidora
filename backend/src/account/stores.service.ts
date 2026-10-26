@@ -29,6 +29,7 @@ const STORE_SELECT = {
   neighborhood: true,
   city: true,
   state: true,
+  cashAutoCloseTime: true,
   createdAt: true,
 } as const;
 

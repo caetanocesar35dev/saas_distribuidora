@@ -357,7 +357,7 @@ describe('CommandTabsService', () => {
       expect(debt.balance).toBe(1);
     });
 
-    it('comanda vazia: 400; comanda já fechada: 409; sem caixa aberto: 409 e a comanda continua aberta', async () => {
+    it('comanda vazia: 400; comanda já fechada: 409; sem caixa aberto, o fechamento abre um sozinho', async () => {
       const empty = await open('Vazia');
       await expect(close(empty.id)).rejects.toBeInstanceOf(BadRequestException);
 
@@ -369,23 +369,12 @@ describe('CommandTabsService', () => {
           data: { status: 'CLOSED' },
         }),
       );
-      await expect(close(tab.id)).rejects.toThrow(/caixa aberto/);
-      expect(
-        (
-          await ctx.prisma.commandTab.findUniqueOrThrow({
-            where: { id: tab.id },
-          })
-        ).status,
-      ).toBe('OPEN');
-      expect(await ctx.prisma.sale.count()).toBe(0);
-
-      await ctx.audit.runAsSystem('seed', () =>
-        ctx.prisma.cashRegister.updateMany({
-          where: { storeId: w.storeA.id },
-          data: { status: 'OPEN' },
-        }),
-      );
       await close(tab.id);
+      expect(
+        await ctx.prisma.cashRegister.count({
+          where: { storeId: w.storeA.id, status: 'OPEN' },
+        }),
+      ).toBe(1);
       await expect(close(tab.id)).rejects.toBeInstanceOf(ConflictException);
     });
 

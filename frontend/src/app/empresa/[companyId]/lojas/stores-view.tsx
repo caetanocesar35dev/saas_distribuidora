@@ -77,6 +77,9 @@ const schema = z.object({
     .string()
     .trim()
     .refine((v) => /^[A-Z]{2}$/.test(v), "Informe a UF com 2 letras (ex.: SP)."),
+  cashAutoCloseTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Informe o horário (ex.: 00:00)."),
 });
 type Values = z.infer<typeof schema>;
 
@@ -91,6 +94,7 @@ const EMPTY: Values = {
   neighborhood: "",
   city: "",
   state: "",
+  cashAutoCloseTime: "00:00",
 };
 
 function toValues(store: Store): Values {
@@ -105,6 +109,7 @@ function toValues(store: Store): Values {
     neighborhood: store.neighborhood ?? "",
     city: store.city ?? "",
     state: store.state ? maskUf(store.state) : "",
+    cashAutoCloseTime: store.cashAutoCloseTime ?? "00:00",
   };
 }
 
@@ -321,6 +326,20 @@ function StoreForm({
           />
         </FormField>
       </div>
+      <FormField
+        label="Fechamento automático do caixa"
+        htmlFor="cashAutoCloseTime"
+        error={errors.cashAutoCloseTime?.message}
+        hint="Se o caixa ficar aberto, ele fecha sozinho neste horário todo dia. Padrão: meia-noite."
+      >
+        <Input
+          id="cashAutoCloseTime"
+          type="time"
+          className="w-32"
+          aria-invalid={!!errors.cashAutoCloseTime}
+          {...register("cashAutoCloseTime")}
+        />
+      </FormField>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
           Cancelar

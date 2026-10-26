@@ -110,7 +110,7 @@ export const clientes: Article[] = [
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto: o dinheiro entra no caixa desta loja.",
+      "O dinheiro entra no caixa desta loja. Se ele estiver fechado, abre sozinho ao receber.",
       "Abra o cliente e clique em Receber pagamento.",
       "Digite o valor e escolha a forma de pagamento (dinheiro, PIX ou cartão).",
       "No modo Automático o sistema abate primeiro a dívida desta loja e depois as outras, da mais antiga para a mais nova.",
@@ -120,7 +120,7 @@ export const clientes: Article[] = [
     problems: [
       {
         message: "Não há caixa aberto nesta loja para receber o pagamento.",
-        fix: "Abra o caixa em Menu › Caixa e tente de novo.",
+        fix: "Raro: o caixa fechou sozinho (horário de fechamento automático) bem no meio da operação. Tente de novo: o caixa abre sozinho.",
       },
       {
         message: "O valor é maior que a dívida total do cliente.",

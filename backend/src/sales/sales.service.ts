@@ -21,6 +21,7 @@ import { assertCreditLimit } from '../customers/credit-limit';
 import { addCustomerDebt } from '../customers/customer-ledger';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureOpenCash } from '../cash-register/cash-auto';
 import {
   CreateLateSaleDto,
   CreateSaleDto,
@@ -163,6 +164,8 @@ export class SalesService {
       merged.set(item.storeProductId, line);
     }
 
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction((tx) =>
       this.createInTx(tx, {
         storeId,
@@ -517,6 +520,8 @@ export class SalesService {
    * movimentos COMPENSATÓRIOS (os originais permanecem no histórico). Exige caixa aberto.
    */
   async cancel(storeId: string, id: string) {
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     await this.prisma.$transaction(async (tx) => {
       await lockCashShared(tx, storeId);
 

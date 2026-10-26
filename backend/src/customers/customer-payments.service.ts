@@ -14,6 +14,7 @@ import {
 import { roundMoney, toCents, fromCents } from '../common/utils/money';
 import { lockCashShared } from '../cash-register/cash-lock';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureOpenCash } from '../cash-register/cash-auto';
 import { Allocation, allocatePayment } from './allocate-payment';
 import { addCustomerDebt } from './customer-ledger';
 import { Viewer } from './customers.service';
@@ -61,6 +62,8 @@ export class CustomerPaymentsService {
 
     const amountCents = toCents(dto.amount);
 
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     const paymentId = await this.prisma.$transaction(async (tx) => {
       await lockCashShared(tx, storeId);
       const cash = await tx.cashRegister.findFirst({

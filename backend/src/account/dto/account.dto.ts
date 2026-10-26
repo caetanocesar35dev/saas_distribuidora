@@ -10,6 +10,7 @@ import {
   ZIP_MESSAGE,
   ZIP_REGEX,
 } from '../../common/utils/address';
+import { CASH_CLOSE_TIME_REGEX } from '../../cash-register/cash-auto';
 import { Role } from '@prisma/client';
 import {
   ArrayMinSize,
@@ -131,6 +132,13 @@ export class CreateStoreDto {
   @IsString()
   @Length(2, 2, { message: 'O estado deve ter 2 letras (UF).' })
   state: string;
+
+  /** Horário (HH:mm) em que o caixa esquecido aberto fecha sozinho. Padrão: meia-noite. */
+  @IsOptional()
+  @Matches(CASH_CLOSE_TIME_REGEX, {
+    message: 'Informe o horário no formato HH:mm (ex.: 00:00 ou 02:30).',
+  })
+  cashAutoCloseTime?: string;
 }
 
 export class UpdateStoreDto extends PartialType(CreateStoreDto) {}

@@ -9,6 +9,7 @@ import { AuditContext } from '../audit/audit-context';
 import { roundMoney, toCents, fromCents } from '../common/utils/money';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureOpenCash } from '../cash-register/cash-auto';
 import {
   AddCommandItemDto,
   CloseCommandTabDto,
@@ -192,6 +193,8 @@ export class CommandTabsService {
     dto: CloseCommandTabDto,
     role: Role,
   ) {
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction(async (tx) => {
       const tab = await this.lockOpenTab(tx, storeId, tabId);
       const items = await tx.commandItem.findMany({

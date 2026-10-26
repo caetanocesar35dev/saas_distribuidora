@@ -54,7 +54,7 @@ export const comandas: Article[] = [
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto.",
+      "Não precisa abrir o caixa antes: se estiver fechado, ele abre sozinho ao fechar a comanda.",
       "Abra a comanda e clique em Fechar comanda.",
       "Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
       "Se houver produtos com vasilhame, informe quantos o cliente devolve agora.",
@@ -67,7 +67,7 @@ export const comandas: Article[] = [
       },
       {
         message: "Não há caixa aberto. Abra o caixa antes de realizar vendas.",
-        fix: "Abra o caixa em Menu › Caixa e feche a comanda de novo.",
+        fix: "Raro: o caixa fechou sozinho (horário de fechamento automático) bem no meio da operação. Tente de novo: o caixa abre sozinho.",
       },
     ],
     related: ["vendas-fiado", "vendas-vasilhame"],

@@ -140,6 +140,15 @@ os campos é a extensão do Prisma).
   `InviteMemberDto`) e `frontend/src/lib/format.ts` (`PersonNameInput` descarta o que não vale ao
   digitar ou colar). Nome de loja, empresa, produto e cliente **pode** ter número.
 
+**Caixa que abre e fecha sozinho (decidido pelo usuário)**
+- Nenhuma operação exige abrir o caixa à mão: venda (inclusive antiga), fechamento de comanda,
+  recebimento de fiado, cancelamento e entrada/sangria chamam `ensureOpenCash`
+  (`src/cash-register/cash-auto.ts`), que abre o caixa com o saldo do último fechamento. Operação
+  nova com dinheiro: chame-o também, ANTES da transação (ele usa a trava exclusiva).
+- O job `cash-auto-close` (a cada 5 min) fecha o caixa esquecido aberto no horário da loja
+  (`Store.cashAutoCloseTime`, padrão `00:00`, o dono muda em Lojas), marcando `autoClosed`.
+  Abrir e fechar à mão continuam funcionando.
+
 **Cadastro e primeiros passos (decidido pelo usuário)**
 - O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,
   `src/common/utils/phone.ts`); editável em Minha conta. O endereço da primeira loja **não** é

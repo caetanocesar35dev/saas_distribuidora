@@ -172,6 +172,8 @@ export interface Store {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  /** Horário (HH:mm) em que o caixa esquecido aberto fecha sozinho; padrão "00:00". */
+  cashAutoCloseTime: string;
   createdAt: string;
 }
 
@@ -186,6 +188,7 @@ export interface StoreBody {
   neighborhood?: string;
   city?: string;
   state?: string;
+  cashAutoCloseTime?: string;
 }
 
 export interface Member {
@@ -376,6 +379,8 @@ export interface CashRegister {
   initialBalance: number;
   finalBalance: number | null;
   status: CashStatus;
+  /** Fechado sozinho no horário da loja (tinha ficado aberto), e não por uma pessoa. */
+  autoClosed: boolean;
 }
 
 export interface CurrentCashRegister extends CashRegister {
