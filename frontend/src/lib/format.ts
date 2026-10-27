@@ -219,10 +219,52 @@ export function parseMoney(text: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
-/** Número com vírgula decimal para preencher um campo de texto. */
+/** Número com vírgula decimal e ponto de milhar para preencher um campo de texto ("1.234,50"). */
 export function moneyToInput(value: number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  return value.toFixed(2).replace(".", ",");
+  const [int, dec] = value.toFixed(2).split(".");
+  return `${groupThousands(int)},${dec}`;
+}
+
+function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Formata o campo de dinheiro enquanto a pessoa digita: põe o ponto de milhar sozinho
+ * ("1234" → "1.234"), aceita a vírgula decimal (no máximo 2 casas) e trata um "." digitado como
+ * vírgula (o ponto do teclado numérico), porque o ponto de milhar quem põe é o campo. Texto colado
+ * de uma vez segue a mesma leitura de `parseMoney` ("10.50" é dez e cinquenta; "1.234" é milhar).
+ * `prev` é o texto que estava no campo antes desta mudança.
+ */
+export function formatMoneyTyping(next: string, prev: string): string {
+  let t = next.replace(/R\$/g, "").replace(/\s/g, "");
+  const before = prev.replace(/\s/g, "");
+  // Uma tecla (um caractere a mais ou a menos): os pontos que já estavam são do milhar.
+  const typing = before !== "" && Math.abs(t.length - before.length) === 1;
+  if (typing && t.length === before.length + 1) {
+    let i = 0;
+    while (i < before.length && t[i] === before[i]) i++;
+    if (t[i] === ".") t = `${t.slice(0, i)},${t.slice(i + 1)}`;
+  }
+
+  let int: string;
+  let dec: string | null = null;
+  const comma = t.indexOf(",");
+  if (comma >= 0) {
+    int = t.slice(0, comma);
+    dec = t.slice(comma + 1).replace(/\D/g, "").slice(0, 2);
+  } else if (!typing && (t.match(/\./g) ?? []).length === 1 && !/^\d{1,3}\.\d{3}$/.test(t)) {
+    // Colado "10.50": o ponto é a casa decimal.
+    [int, dec] = t.split(".");
+    dec = dec.replace(/\D/g, "").slice(0, 2);
+  } else {
+    int = t;
+  }
+
+  int = int.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (dec !== null && int === "") int = "0";
+  return groupThousands(int) + (dec !== null ? `,${dec}` : "");
 }
 
 export function roundMoney(value: number): number {

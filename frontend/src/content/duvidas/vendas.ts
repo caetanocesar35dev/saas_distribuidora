@@ -70,7 +70,7 @@ export const vendas: Article[] = [
       "Escolha o cliente na busca. Se ele ainda não existe, use Cadastrar novo cliente.",
       "Clique em Concluir. O valor entra na dívida do cliente nesta loja.",
       "Se o cliente já deve no fiado, o sistema avisa antes de concluir: quanto ele já deve, em quantas vendas, a data da mais antiga e quanto a dívida fica com esta venda. Clique em Sim, vender no fiado para concluir ou em Não, voltar para trocar a forma de pagamento.",
-      "Se o cliente tem limite de crédito e a venda faz a dívida (somando todas as lojas) passar dele, o atendente é barrado; gerente e dono veem o aviso e podem confirmar em Sim, vender acima do limite.",
+      "Se o cliente tem limite de crédito e a venda faz a dívida (somando todas as lojas) passar dele: gerente e dono veem o aviso e podem confirmar em Sim, vender acima do limite. O atendente não sai da conta dele: o gerente ou o dono digita o próprio e-mail e senha na tela que aparece e clica em Autorizar e vender (nada fica salvo no aparelho).",
       "Para receber depois, use Menu › Clientes e fiado › o cliente › Receber pagamento.",
     ],
     problems: [
@@ -84,11 +84,19 @@ export const vendas: Article[] = [
       },
       {
         message: "Venda acima do limite de crédito",
-        fix: "A dívida do cliente passaria do limite definido pelo gerente ou dono. Atendente: receba em outra forma de pagamento ou chame o gerente. Gerente e dono podem confirmar a venda.",
+        fix: "A dívida do cliente passaria do limite definido pelo gerente ou dono. Atendente: receba em outra forma de pagamento ou peça ao gerente ou ao dono para digitar o e-mail e a senha dele e autorizar. Gerente e dono podem confirmar a venda.",
       },
       {
         message: "Esta venda passa do limite de crédito do cliente.",
-        fix: "Mesmo caso do aviso acima, quando a dívida em outras lojas (que o atendente não vê) faz passar do limite. Chame o gerente.",
+        fix: "Mesmo caso do aviso acima, quando a dívida em outras lojas (que o atendente não vê) faz passar do limite. Clique em Autorização do gerente, abaixo da mensagem, e peça ao gerente para digitar o e-mail e a senha.",
+      },
+      {
+        message: "E-mail ou senha do gerente incorretos.",
+        fix: "O e-mail ou a senha digitados na autorização estão errados. Clique em Autorização do gerente e digite de novo. Depois de 5 erros com o mesmo e-mail, é preciso esperar 15 minutos.",
+      },
+      {
+        message: "Só um gerente ou dono desta loja pode autorizar a venda acima do limite.",
+        fix: "Quem digitou o e-mail e a senha não é gerente nem dono desta loja. Chame um gerente desta loja ou o dono.",
       },
       {
         message: "Não foi possível conferir o fiado",

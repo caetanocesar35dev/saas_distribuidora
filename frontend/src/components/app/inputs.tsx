@@ -1,7 +1,7 @@
 "use client";
 
 import { EyeIcon, EyeOffIcon } from "lucide-react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -10,14 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cleanPersonName, moneyToInput, parseMoney } from "@/lib/format";
+import { cleanPersonName, formatMoneyTyping, moneyToInput, parseMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // ---- Valor em reais --------------------------------------------------------------------------
 
 /**
- * Campo de dinheiro. O usuário digita "12,5" ou "1.234,56"; o valor sai como número (reais, 2
- * casas) ou `undefined` quando vazio/inválido. O texto fica livre enquanto ele digita.
+ * Campo de dinheiro. O usuário digita "12,5" ou "1234,56"; o campo põe o ponto de milhar sozinho
+ * (`formatMoneyTyping`) e completa os centavos ao sair. O valor sai como número (reais, 2 casas)
+ * ou `undefined` quando vazio/inválido.
  */
 export function MoneyInput({
   value,
@@ -40,6 +41,15 @@ export function MoneyInput({
 }) {
   const [text, setText] = useState(value === undefined ? "" : moneyToInput(value));
   const [lastValue, setLastValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingCaret = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (pendingCaret.current === null || !input || document.activeElement !== input) return;
+    input.setSelectionRange(pendingCaret.current, pendingCaret.current);
+    pendingCaret.current = null;
+  }, [text]);
 
   // Se o valor mudou por fora (ex.: formulário reiniciado), o texto acompanha.
   if (value !== lastValue) {
@@ -55,6 +65,7 @@ export function MoneyInput({
         R$
       </span>
       <Input
+        ref={inputRef}
         id={id}
         inputMode="decimal"
         autoComplete="off"
@@ -65,8 +76,20 @@ export function MoneyInput({
         autoFocus={autoFocus}
         aria-invalid={ariaInvalid}
         onChange={(e) => {
-          const next = e.target.value;
-          if (!/^[\d.,\sR$]*$/.test(next)) return;
+          const raw = e.target.value;
+          if (!/^[\d.,\sR$]*$/.test(raw)) return;
+          const next = formatMoneyTyping(raw, text);
+          // O cursor fica depois do mesmo número de dígitos de antes (os pontos de milhar mudam).
+          const caret = e.target.selectionStart ?? raw.length;
+          const beforeCaret = raw.slice(0, caret);
+          const digits = beforeCaret.replace(/\D/g, "").length;
+          const afterSeparator = next.includes(",") && /[,.]\d{0,2}$/.test(beforeCaret);
+          let pos = 0;
+          for (let seen = 0; pos < next.length && seen < digits; pos++) {
+            if (/\d/.test(next[pos])) seen++;
+          }
+          if (afterSeparator && next[pos] === ",") pos++;
+          pendingCaret.current = pos;
           setText(next);
           const parsed = parseMoney(next);
           setLastValue(parsed ?? undefined);

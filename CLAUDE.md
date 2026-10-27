@@ -111,6 +111,18 @@ os campos é a extensão do Prisma).
   comanda), acima do limite o atendente é barrado (403) e gerente/dono só passam com
   `allowOverCreditLimit: true` (sem isso, 409). A conferência é `assertCreditLimit`
   (`src/customers/credit-limit.ts`), dentro da transação da venda.
+- **Autorização do gerente no balcão (decidido pelo usuário):** o atendente não sai da conta. O
+  gerente/dono digita e-mail e senha na tela do atendente e a venda vai com `managerApproval`
+  (`src/customers/manager-approval.ts`): confere a senha e o papel ≥ MANAGER **nesta loja**, e a
+  venda passa como confirmada. As credenciais nunca são gravadas (sem `<form>`, sem autocompletar);
+  5 senhas erradas por e-mail travam 15 min (em memória). A venda que passou do limite grava quem
+  autorizou em `Sale.creditApprovedById` (o próprio vendedor quando gerente/dono confirma; null =
+  não passou), mostrado no detalhe da venda.
+
+**Fiado no painel (decidido pelo usuário)**
+- Faturamento e lucro do painel contam tudo o que foi vendido, inclusive o fiado (competência), mas
+  **separado sem esconder**: cada período traz `fiado` (quanto do faturamento/lucro foi no fiado) e
+  `fiadoReceived` (pagamentos de fiado recebidos na loja no período). Venda cancelada não conta.
 
 **Venda antiga lançada depois (decidido pelo usuário)**
 - `POST /stores/:storeId/sales/late` (só MANAGER ou mais): venda que aconteceu sem o sistema

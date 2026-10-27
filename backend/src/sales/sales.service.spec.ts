@@ -9,7 +9,11 @@ import {
   ServiceTestContext,
 } from '../../test/helpers/service-module';
 import { Role } from '@prisma/client';
-import { World } from '../../test/helpers/factory';
+import { DEFAULT_PASSWORD, World } from '../../test/helpers/factory';
+import {
+  resetManagerApprovalFailures,
+  verifyManagerApproval,
+} from '../customers/manager-approval';
 import { SalesService } from './sales.service';
 
 describe('SalesService', () => {
@@ -578,9 +582,18 @@ describe('SalesService', () => {
       expect(await fiado(customer.id)).toBe(35);
       expect(await ctx.prisma.sale.count()).toBe(1);
 
-      // gerente confirmando: vende
-      await fiadoSale('MANAGER', { allowOverCreditLimit: true });
+      // venda dentro do limite não registra quem autorizou
+      expect(
+        (await ctx.prisma.sale.findFirstOrThrow()).creditApprovedById,
+      ).toBeNull();
+
+      // gerente confirmando: vende, e fica gravado que ele mesmo autorizou
+      const over = await fiadoSale('MANAGER', { allowOverCreditLimit: true });
       expect(await fiado(customer.id)).toBe(45);
+      expect(over.creditApprovedBy).toEqual({
+        id: w.owner.id,
+        name: w.owner.name,
+      });
 
       // venda à vista não olha o limite
       await sell(
@@ -591,6 +604,91 @@ describe('SalesService', () => {
         w.storeA.id,
         'EMPLOYEE',
       );
+    });
+
+    it('limite de crédito: atendente passa com o e-mail e a senha de um gerente da loja', async () => {
+      resetManagerApprovalFailures();
+      const customer = await ctx.factory.customer(w.company.id);
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.customer.update({
+          where: { id: customer.id },
+          data: { creditLimit: 5 },
+        }),
+      );
+      const employee = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'EMPLOYEE' },
+      ]);
+      const managerOfB = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeB.id, role: 'MANAGER' },
+      ]);
+      const fiadoSale = (managerApproval?: {
+        email: string;
+        password: string;
+      }) =>
+        sell(
+          {
+            paymentMethod: 'CREDIT_STORE',
+            customerId: customer.id,
+            items: [{ storeProductId: beer.id, quantity: 1 }], // R$ 10
+            managerApproval,
+          },
+          w.storeA.id,
+          'EMPLOYEE',
+        );
+
+      await expect(fiadoSale()).rejects.toBeInstanceOf(ForbiddenException);
+      // senha errada
+      await expect(
+        fiadoSale({ email: w.owner.email, password: 'errada' }),
+      ).rejects.toThrow(/incorretos/);
+      // o próprio atendente não autoriza
+      await expect(
+        fiadoSale({ email: employee.user.email, password: DEFAULT_PASSWORD }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      // gerente de OUTRA loja não autoriza nesta
+      await expect(
+        fiadoSale({ email: managerOfB.user.email, password: DEFAULT_PASSWORD }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(await ctx.prisma.sale.count()).toBe(0);
+
+      // gerente da loja autoriza: vende, sem precisar confirmar de novo, e fica gravado quem
+      // autorizou (não quem vendeu)
+      const managerOfA = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'MANAGER' },
+      ]);
+      const sale = await fiadoSale({
+        email: managerOfA.user.email,
+        password: DEFAULT_PASSWORD,
+      });
+      expect(await fiado(customer.id)).toBe(10);
+      expect(sale.creditApprovedBy?.id).toBe(managerOfA.user.id);
+      expect(sale.user?.id).toBe(w.owner.id);
+    });
+
+    it('autorização do gerente: trava o e-mail depois de 5 senhas erradas', async () => {
+      resetManagerApprovalFailures();
+      const approval = { email: w.owner.email, password: 'errada' };
+      for (let i = 0; i < 5; i++) {
+        await expect(
+          verifyManagerApproval(ctx.prisma, w.storeA.id, approval),
+        ).rejects.toThrow(/incorretos/);
+      }
+      await expect(
+        verifyManagerApproval(ctx.prisma, w.storeA.id, {
+          ...approval,
+          password: DEFAULT_PASSWORD,
+        }),
+      ).rejects.toThrow(/Muitas tentativas/);
+      // passada a janela, volta a aceitar
+      await expect(
+        verifyManagerApproval(
+          ctx.prisma,
+          w.storeA.id,
+          { ...approval, password: DEFAULT_PASSWORD },
+          Date.now() + 16 * 60_000,
+        ),
+      ).resolves.toMatchObject({ role: 'OWNER' });
+      resetManagerApprovalFailures();
     });
 
     it('cria o saldo na primeira venda a prazo do cliente', async () => {

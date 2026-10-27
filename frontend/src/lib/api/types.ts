@@ -255,6 +255,8 @@ export interface Product {
   bottleTypeId: string | null;
   bottleType: BottleTypeRef | null;
   createdAt: string;
+  /** Só vem na listagem (`GET /products`); preenchido nos excluídos (`deleted=true`). */
+  deletedAt?: string | null;
 }
 
 export interface ProductOfferSummary {
@@ -448,6 +450,8 @@ export interface Sale {
   registeredAt: string | null;
   userId: string;
   user: { id: string; name: string };
+  /** Venda fiada acima do limite de crédito: gerente ou dono que autorizou. null = não passou. */
+  creditApprovedBy: { id: string; name: string } | null;
   customerId: string | null;
   customer: { id: string; name: string; phone: string | null } | null;
   commandTabId: string | null;
@@ -475,6 +479,13 @@ export interface CreateSaleBody {
   bottleReturns?: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
+  /** Atendente: e-mail e senha do gerente/dono que autorizou passar do limite (nunca guardados). */
+  managerApproval?: ManagerApproval;
+}
+
+export interface ManagerApproval {
+  email: string;
+  password: string;
 }
 
 /** Venda antiga lançada depois (só gerente e dono): o mesmo corpo, mais quando ela aconteceu. */
@@ -524,6 +535,7 @@ export interface CloseCommandTabBody {
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
   allowOverCreditLimit?: boolean;
+  managerApproval?: ManagerApproval;
 }
 
 // ---- Clientes e fiado ------------------------------------------------------------------------
@@ -609,9 +621,14 @@ export interface CreatePaymentBody {
 // ---- Painéis ---------------------------------------------------------------------------------
 
 export interface PeriodStats {
+  /** Tudo o que foi vendido (inclusive no fiado). */
   revenue: number;
   profit: number;
   count: number;
+  /** Parte do faturamento e do lucro vendida no fiado. */
+  fiado: { revenue: number; profit: number };
+  /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
+  fiadoReceived: number;
 }
 
 /** "Primeiros passos" do Início (só o dono): true = já feito. */

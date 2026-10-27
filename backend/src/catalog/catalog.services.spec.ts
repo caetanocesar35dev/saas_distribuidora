@@ -260,11 +260,23 @@ describe('Serviços de catálogo', () => {
       await as(() => products.remove(w.company.id, p.id));
       expect((await products.list(w.company.id, page)).data).toHaveLength(0);
       expect(await ctx.prisma.storeProduct.count()).toBe(0);
+      expect(
+        (
+          await products.list(w.company.id, { ...page, deleted: true })
+        ).data.map((x) => x.id),
+      ).toEqual([p.id]);
 
       await as(() => products.restore(w.company.id, p.id));
       expect(
         (await products.list(w.company.id, page)).data.map((x) => x.id),
       ).toEqual([p.id]);
+      expect(
+        (await products.list(w.company.id, { ...page, deleted: true })).data,
+      ).toHaveLength(0);
+      // A oferta excluída junto volta com o preço de antes.
+      const offers = await ctx.prisma.storeProduct.findMany();
+      expect(offers).toHaveLength(1);
+      expect(offers[0].price).toBe(1);
       await expect(
         as(() => products.restore(w.company.id, p.id)),
       ).rejects.toBeInstanceOf(ConflictException);

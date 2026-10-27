@@ -38,7 +38,7 @@ export const produtos: Article[] = [
       "Abra Menu › Produtos e clique em Novo produto.",
       "Digite o nome. O código de barras é opcional: deixe vazio e o sistema cria um sozinho, ou passe o leitor no campo.",
       "Informe quantas unidades vêm no fardo e, se o produto sai com vasilhame, escolha o tipo.",
-      'Em "Em quais lojas este produto é vendido?", marque as lojas e digite o preço de venda de cada uma. O custo é opcional e pode ser diferente por loja.',
+      'Em "Em quais lojas este produto é vendido?", marque as lojas. Se o preço é o mesmo em todas, preencha só o Preço de venda padrão (e o Custo padrão, que é opcional); a loja que tiver preço ou custo próprio é só digitar no campo dela.',
       "Clique em Cadastrar produto. O estoque começa em zero: registre a chegada da mercadoria em Menu › Estoque › Entrada.",
     ],
     problems: [
@@ -178,9 +178,9 @@ export const produtos: Article[] = [
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Para excluir: abra Menu › Produtos e clique na lixeira ao lado do produto. Ele some do catálogo e de todas as lojas.",
-      "Para reativar por engano: cadastre o produto de novo com o mesmo código de barras (Menu › Produtos › Novo produto).",
-      'O sistema avisa que o código pertence a um produto excluído e mostra o botão "Reativar o produto excluído". Clique nele.',
-      "Depois confira o preço e o estoque de cada loja em Menu › Estoque.",
+      "Para reativar: em Menu › Produtos, marque Mostrar só os excluídos, ache o produto e clique em Reativar.",
+      "Ele volta para o catálogo e para as lojas onde era vendido, com o preço e o estoque de antes. Confira em Menu › Estoque.",
+      'Outro caminho: ao cadastrar um produto novo com o código de barras de um excluído, o sistema mostra o botão "Reativar o produto excluído".',
     ],
     problems: [
       {
@@ -189,6 +189,6 @@ export const produtos: Article[] = [
       },
     ],
     related: ["produtos-cadastrar"],
-    keywords: ["excluir", "apagar", "reativar", "restaurar", "engano"],
+    keywords: ["excluir", "apagar", "reativar", "restaurar", "engano", "excluídos"],
   },
 ];

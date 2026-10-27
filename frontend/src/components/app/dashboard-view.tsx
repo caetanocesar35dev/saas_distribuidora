@@ -28,10 +28,30 @@ function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
   return (
     <section>
       <h2 className="mb-2 text-sm font-medium text-muted-foreground">{title}</h2>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Faturamento" value={<Money value={stats.revenue} />} />
-        <StatCard label="Lucro" value={<Money value={stats.profit} />} tone="success" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Faturamento"
+          value={<Money value={stats.revenue} />}
+          hint={
+            stats.fiado.revenue > 0 &&
+            `${formatMoney(stats.fiado.revenue)} disso foi vendido no fiado`
+          }
+        />
+        <StatCard
+          label="Lucro"
+          value={<Money value={stats.profit} />}
+          tone="success"
+          hint={
+            stats.fiado.revenue > 0 &&
+            `${formatMoney(stats.fiado.profit)} disso vem de vendas no fiado`
+          }
+        />
         <StatCard label="Vendas" value={formatInt(stats.count)} />
+        <StatCard
+          label="Fiado recebido"
+          value={<Money value={stats.fiadoReceived} />}
+          hint="Pagamentos de fiado no período, de vendas de qualquer data."
+        />
       </div>
     </section>
   );

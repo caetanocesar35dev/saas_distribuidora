@@ -14,6 +14,8 @@ export const gestao: Article[] = [
       "Para a loja: abra Menu › Início. Gerentes e donos veem o painel logo abaixo dos atalhos.",
       "Para a empresa toda: o dono abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
       "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Histórico de vendas.",
+      "Faturamento e lucro contam tudo o que foi vendido, inclusive no fiado (vendas canceladas ficam de fora). Quando há fiado, o cartão mostra embaixo quanto disso foi vendido no fiado, que ainda pode não ter sido pago.",
+      "O cartão Fiado recebido mostra quanto os clientes pagaram de fiado nesta loja no período, de vendas de qualquer data.",
       "O gráfico mostra faturamento e lucro de cada um dos últimos 7 dias.",
       "Para o dono, enquanto a loja não estiver pronta, o Início mostra os Primeiros passos: confirmar o endereço da loja, cadastrar os produtos, abrir o caixa e convidar a equipe. Cada item leva para a tela certa e marca sozinho quando você conclui. O botão Esconder tira o quadro só deste navegador.",
     ],
@@ -24,7 +26,7 @@ export const gestao: Article[] = [
       },
     ],
     related: ["vendas-historico", "gestao-historico"],
-    keywords: ["dashboard", "relatório", "lucro", "faturamento", "gráfico"],
+    keywords: ["dashboard", "relatório", "lucro", "faturamento", "gráfico", "fiado recebido"],
   },
   {
     id: "gestao-historico",

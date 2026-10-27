@@ -65,6 +65,11 @@ function SaleBody({ sale }: { sale: Sale }) {
           <span className="text-muted-foreground">· Cliente: {sale.customer.name}</span>
         )}
         {sale.commandTabId && <span className="text-muted-foreground">· Veio de uma comanda</span>}
+        {sale.creditApprovedBy && (
+          <Badge variant="outline" title="A venda fiada passou do limite de crédito do cliente.">
+            Acima do limite, autorizado por {sale.creditApprovedBy.name}
+          </Badge>
+        )}
       </div>
 
       <section>

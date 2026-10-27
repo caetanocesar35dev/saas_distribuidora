@@ -99,6 +99,7 @@ function TabBody({ tab }: { tab: CommandTab }) {
         customerId: payload.customerId,
         bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
         allowOverCreditLimit: payload.allowOverCreditLimit,
+        managerApproval: payload.managerApproval,
       },
       {
         onSuccess: (sale) => {

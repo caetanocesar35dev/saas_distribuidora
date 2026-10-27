@@ -11,6 +11,7 @@ import {
   formatAddress,
   formatItemQuantity,
   formatMoney,
+  formatMoneyTyping,
   formatPhone,
   fromDatetimeLocal,
   hasMinRole,
@@ -59,7 +60,29 @@ describe("dinheiro", () => {
 
   it("devolve o valor para o campo com vírgula", () => {
     expect(moneyToInput(12.5)).toBe("12,50");
+    expect(moneyToInput(1234567.8)).toBe("1.234.567,80");
     expect(moneyToInput(undefined)).toBe("");
+  });
+
+  it("formata o campo enquanto a pessoa digita", () => {
+    // Tecla a tecla: o ponto de milhar aparece sozinho.
+    expect(formatMoneyTyping("1234", "123")).toBe("1.234");
+    expect(formatMoneyTyping("1.2345", "1.234")).toBe("12.345");
+    expect(formatMoneyTyping("1.23", "1.234")).toBe("123");
+    // Vírgula decimal, no máximo 2 casas; "." digitado vira vírgula.
+    expect(formatMoneyTyping("1.234,", "1.234")).toBe("1.234,");
+    expect(formatMoneyTyping("1.234,567", "1.234,56")).toBe("1.234,56");
+    expect(formatMoneyTyping("12.", "12")).toBe("12,");
+    expect(formatMoneyTyping(",", "")).toBe("0,");
+    expect(formatMoneyTyping("05", "0")).toBe("5");
+    // Colado ou preenchido de uma vez: mesma leitura do parseMoney.
+    expect(formatMoneyTyping("10.50", "")).toBe("10,50");
+    expect(formatMoneyTyping("1.234", "")).toBe("1.234");
+    expect(formatMoneyTyping("R$ 1.234,5", "")).toBe("1.234,5");
+    expect(formatMoneyTyping("50", "")).toBe("50");
+    expect(formatMoneyTyping("", "12")).toBe("");
+    // O texto formatado é lido de volta com o mesmo valor.
+    expect(parseMoney(formatMoneyTyping("1234567", "123456"))).toBe(1234567);
   });
 
   it("arredonda para centavos sem erro de ponto flutuante", () => {

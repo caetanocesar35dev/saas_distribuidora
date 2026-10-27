@@ -239,6 +239,7 @@ export function PosView({ late = false }: { late?: boolean }) {
       })),
       bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
       allowOverCreditLimit: payload.allowOverCreditLimit,
+      managerApproval: payload.managerApproval,
     };
     const handlers = {
       onSuccess: (sale: Sale) => {

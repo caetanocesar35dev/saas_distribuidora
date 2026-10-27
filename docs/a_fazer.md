@@ -70,6 +70,23 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     Unidades no carrinho, e o detalhe da venda e a comanda mostram "1 fardo de 12 + 3 un.". O
     botão só aparece em produto com "Unidades por fardo" maior que 1.
 
+
+17. [x] **Ajustes pedidos em 2026-10-26.** **Feito:**
+    - **Preço de venda padrão** no Novo produto (como o custo padrão): vale para as lojas marcadas
+      que ficarem sem preço próprio.
+    - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
+      ofertas das lojas (preço e estoque de antes).
+    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
+      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
+      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
+    - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
+      milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
+    - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
+      feita pelo atendente passa com o e-mail e a senha de um gerente ou dono da loja digitados na
+      própria tela, sem salvar as credenciais. **Aprovado pelo usuário:** coluna nova
+      `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
+      limite, autorizado por ...".
+
 15. [x] **Cadastro mais completo sem formulário maior** (pedido do usuário, 2026-10-26).
     **Decidido pelo usuário:** (1) pedir o **celular (WhatsApp) do dono** no cadastro,
     obrigatório, com coluna nova `tb_users.phone` (aprovada); (2) **não** perguntar endereço da
@@ -186,37 +203,60 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ### 6. Vendas
 
-- [ ] Filtrar por período e forma de pagamento e abrir o detalhe.
+- [x] Filtrar por período e forma de pagamento e abrir o detalhe.
+
+- [ ] No Início, vender no fiado: o cartão Faturamento mostra "R$ ... disso foi vendido no
+  fiado"; receber um pagamento de fiado e ver o cartão "Fiado recebido".
+
 - [ ] Cancelar uma venda em dinheiro (sai do caixa) e uma fiada (sai da dívida).
-- [ ] Ver o histórico de alterações da venda.
-- [ ] Como gerente ou dono, no menu "Lançar venda antiga" (abaixo de Histórico de vendas), lançar uma venda de ontem: ela
+- [x] Ver o histórico de alterações da venda.
+- [x] Como gerente ou dono, no menu "Lançar venda antiga" (abaixo de Histórico de vendas), lançar uma venda de ontem: ela
   aparece no filtro de ontem com a marca "lançada depois", o estoque baixa e o dinheiro entra no
   caixa aberto agora (veja o resumo do caixa). Uma data no futuro é recusada.
-- [ ] Como atendente: o botão "Lançar venda antiga" não aparece e a URL mostra "sem permissão".
+- [x] Como atendente: o botão "Lançar venda antiga" não aparece e a URL mostra "sem permissão".
 
 ### 7. Clientes e fiado
 
-- [ ] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
-- [ ] Marcar o filtro "Só quem deve no fiado".
+- [x] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
+- [x] Marcar o filtro "Só quem deve no fiado".
+-- CORRIGIR ABAIXO, pois salva sem adicionar um numero do endereco
 - [ ] Cadastrar um cliente com endereço: digitar um CEP real (ex.: 50030-230) e ver rua, bairro,
   cidade e UF preencherem sozinhos; completar número e complemento; conferir o endereço no
   detalhe do cliente. Cadastrar outro sem endereço (é opcional) e testar um CEP inexistente.
-- [ ] Receber um pagamento automático e um manual (escolhendo por loja).
-- [ ] Pagar na Loja B a dívida da Loja A.
+
+- [x] Receber um pagamento automático e um manual (escolhendo por loja).
+- [ ] Nos campos de dinheiro (receber fiado, PDV, produto): digitar "1234" mostra "1.234"; o "."
+  do teclado numérico vira vírgula; ao sair do campo fica "1.234,00".
+
+
+- [x] Pagar na Loja B a dívida da Loja A.
+
+
+-- MELHORAR ABAIXO, receber valor e dar troco
 - [ ] Tentar receber mais do que o cliente deve.
+
+
 - [ ] Emprestar vasilhame; devolver na mesma loja (funciona) e em outra loja (recusado).
-- [ ] Tentar excluir um cliente que deve: deve ser recusado.
-- [ ] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
+- [x] Tentar excluir um cliente que deve: deve ser recusado.
+- [x] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
   "Limite de crédito" com o valor disponível.
-- [ ] Vender no fiado passando do limite: o atendente é barrado ("Entendi"); gerente e dono veem
-  o aviso e conseguem vender em "Sim, vender acima do limite".
-- [ ] Como atendente, abrir Editar do cliente: o campo de limite não aparece.
+
+
+- [ ] Vender no fiado passando do limite: como atendente, aparece o pedido de autorização; o
+  gerente digita o e-mail e a senha dele e a venda sai (senha errada é recusada, e o navegador não
+  oferece salvar a senha). Gerente e dono veem o aviso e vendem em "Sim, vender acima do limite".
+  No detalhe da venda aparece "Acima do limite, autorizado por" com o nome de quem autorizou.
+
+
+- [x] Como atendente, abrir Editar do cliente: o campo de limite não aparece.
 
 ### 8. Estoque, produtos e vasilhames (gerente ou dono)
 
-- [ ] Dar entrada e ajuste de estoque e alterar preço.
+- [x] Dar entrada e ajuste de estoque e alterar preço.
 - [ ] Criar produto em várias lojas e tentar criar com um código repetido.
-- [ ] Excluir um produto e reativar.
+- [ ] Excluir um produto e reativar em Produtos › "Mostrar só os excluídos" (volta com preço e
+  estoque nas lojas).
+- [ ] Novo produto com "Preço de venda padrão": as lojas marcadas sem preço próprio usam ele.
 - [ ] Criar tipos de vasilhame e lançar movimentações com o fornecedor.
 
 ### 9. Permissões (entrar com cada papel)
@@ -227,7 +267,7 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   não pode ter `costPrice`, `totalCost` nem `totalProfit`.
 - [ ] Gerente (`gerente@exemplo.com`): vê produtos e sangria, mas não a empresa.
 - [ ] Digitar na URL uma página proibida para o papel: deve aparecer "sem permissão".
-
+                                                    
 ### 10. Assinatura e plataforma (`admin@plataforma.com`)
 
 - [ ] Em `/plataforma`, deixar a organização como "vencida" e entrar como dono: aparece a faixa de

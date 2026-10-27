@@ -82,7 +82,7 @@ export const perguntas: Article[] = [
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
-      'Produto: cadastre de novo com o mesmo código de barras em Menu › Produtos › Novo produto. O sistema oferece o botão "Reativar o produto excluído".',
+      "Produto: em Menu › Produtos, marque Mostrar só os excluídos e clique em Reativar. Ele volta com o preço e o estoque de antes nas lojas.",
       'Tipo de vasilhame: crie um tipo com o mesmo nome em Menu › Vasilhames › Tipos de vasilhame e use "Reativar o tipo excluído".',
       "Cliente: clientes excluídos não aparecem na lista. Cadastre o cliente de novo; as vendas e pagamentos antigos continuam guardados no histórico.",
     ],

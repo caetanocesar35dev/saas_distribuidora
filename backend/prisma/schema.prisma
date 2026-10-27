@@ -124,7 +124,8 @@ model User {
 
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
-  sales                Sale[]
+  sales                Sale[]             @relation("SaleSeller")
+  creditApprovedSales  Sale[]             @relation("SaleCreditApprover")
   organizations        Organization[]
   notificationsCreated Notification[]     @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
@@ -599,7 +600,12 @@ model Sale {
   store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id])
+  user   User?   @relation("SaleSeller", fields: [userId], references: [id])
+
+  /// Venda fiada que passou do limite de crédito: gerente ou dono que autorizou (ele mesmo ao
+  /// confirmar, ou quem digitou e-mail e senha na tela do atendente). null = não passou do limite.
+  creditApprovedById String?
+  creditApprovedBy   User?   @relation("SaleCreditApprover", fields: [creditApprovedById], references: [id], onDelete: Restrict)
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
@@ -1216,19 +1222,20 @@ model CustomerStoreBottleBalanceHistory {
 }
 
 model SaleHistory {
-  historyId     String        @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id            String
-  storeId       String
-  total         Float
-  totalCost     Float
-  discount      Float
-  paymentMethod PaymentMethod
-  status        SaleStatus
-  createdAt     DateTime
-  registeredAt  DateTime?
-  userId        String?
-  customerId    String?
-  commandTabId  String?
+  historyId          String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                 String
+  storeId            String
+  total              Float
+  totalCost          Float
+  discount           Float
+  paymentMethod      PaymentMethod
+  status             SaleStatus
+  createdAt          DateTime
+  registeredAt       DateTime?
+  userId             String?
+  creditApprovedById String?
+  customerId         String?
+  commandTabId       String?
 
   modifierId       String?
   modifiedEndpoint String?

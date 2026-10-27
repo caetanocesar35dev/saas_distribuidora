@@ -19,6 +19,10 @@ import { addDays, startOfDayInTz } from '../common/utils/time';
 import { Env } from '../config/env';
 import { assertCreditLimit } from '../customers/credit-limit';
 import { addCustomerDebt } from '../customers/customer-ledger';
+import {
+  ManagerApproval,
+  verifyManagerApproval,
+} from '../customers/manager-approval';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureOpenCash } from '../cash-register/cash-auto';
@@ -59,6 +63,11 @@ export interface CreateSaleInput {
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
   /**
+   * Quem autorizou passar do limite, quando não é quem vende (gerente que digitou e-mail e senha
+   * na tela do atendente). Sem isso, quem confirmou foi o próprio vendedor (`userId`).
+   */
+  creditApproverId?: string;
+  /**
    * Venda antiga lançada depois: quando ela aconteceu. A venda fica com essa data e ganha
    * `registeredAt` = agora; o dinheiro entra no caixa aberto agora.
    */
@@ -77,6 +86,7 @@ const SALE_SELECT = {
   registeredAt: true,
   userId: true,
   user: { select: { id: true, name: true } },
+  creditApprovedBy: { select: { id: true, name: true } },
   customerId: true,
   customer: { select: { id: true, name: true, phone: true } },
   commandTabId: true,
@@ -164,6 +174,7 @@ export class SalesService {
       merged.set(item.storeProductId, line);
     }
 
+    const credit = await this.creditApproval(storeId, dto, role);
     // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
     await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction((tx) =>
@@ -179,12 +190,38 @@ export class SalesService {
           ...line,
         })),
         bottleReturns: dto.bottleReturns,
-        role,
-        allowOverCreditLimit: dto.allowOverCreditLimit,
+        ...credit,
         soldAt,
       }),
     );
     return this.get(storeId, saleId);
+  }
+
+  /**
+   * Quem decide o limite de crédito do fiado: quem vende ou, se o atendente trouxe a autorização
+   * de um gerente/dono (e-mail e senha conferidos agora), o papel de quem autorizou, já confirmado.
+   */
+  async creditApproval(
+    storeId: string,
+    dto: { allowOverCreditLimit?: boolean; managerApproval?: ManagerApproval },
+    role: Role,
+  ): Promise<{
+    role: Role;
+    allowOverCreditLimit?: boolean;
+    creditApproverId?: string;
+  }> {
+    if (!dto.managerApproval)
+      return { role, allowOverCreditLimit: dto.allowOverCreditLimit };
+    const approver = await verifyManagerApproval(
+      this.prisma,
+      storeId,
+      dto.managerApproval,
+    );
+    return {
+      role: approver.role,
+      allowOverCreditLimit: true,
+      creditApproverId: approver.userId,
+    };
   }
 
   /**
@@ -308,6 +345,18 @@ export class SalesService {
     }
     const total = fromCents(subtotalCents - discountCents);
 
+    // Limite de crédito antes de gravar a venda: passando dele, a venda guarda quem autorizou.
+    const overCreditLimit =
+      input.paymentMethod === 'CREDIT_STORE' &&
+      (await assertCreditLimit(tx, {
+        customerId: customerId!,
+        companyId,
+        creditLimit,
+        amount: total,
+        role: input.role,
+        allowOverLimit: input.allowOverCreditLimit,
+      }));
+
     // ---- venda e itens ---------------------------------------------------------------------
     const sale = await tx.sale.create({
       data: {
@@ -320,6 +369,9 @@ export class SalesService {
         userId: input.userId,
         customerId,
         commandTabId: input.commandTabId,
+        creditApprovedById: overCreditLimit
+          ? (input.creditApproverId ?? input.userId)
+          : null,
         ...(input.soldAt
           ? { createdAt: input.soldAt, registeredAt: new Date() }
           : {}),
@@ -331,14 +383,6 @@ export class SalesService {
 
     // ---- caixa ou fiado --------------------------------------------------------------------
     if (input.paymentMethod === 'CREDIT_STORE') {
-      await assertCreditLimit(tx, {
-        customerId: customerId!,
-        companyId,
-        creditLimit,
-        amount: total,
-        role: input.role,
-        allowOverLimit: input.allowOverCreditLimit,
-      });
       if (total > 0) await addCustomerDebt(tx, customerId!, storeId, total);
     } else if (total > 0) {
       await tx.cashMovement.create({

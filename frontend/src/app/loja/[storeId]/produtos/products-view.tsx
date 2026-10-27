@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -12,6 +12,7 @@ import { IntInput, SelectField } from "@/components/app/inputs";
 import { LinkButton } from "@/components/app/link-button";
 import { Pagination } from "@/components/app/pagination";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ import {
   useBottleTypes,
   useDeleteProduct,
   useProducts,
+  useRestoreProduct,
   useUpdateProduct,
 } from "@/lib/api/hooks/catalog";
 import type { Product } from "@/lib/api/types";
@@ -126,26 +128,45 @@ function ProductsList() {
   const { companyId, storeId } = useStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [showDeleted, setShowDeleted] = useState(false);
   const debounced = useDebounced(search);
-  const list = useProducts(companyId, { search: debounced || undefined, page, limit: 20 });
+  const list = useProducts(companyId, {
+    search: debounced || undefined,
+    page,
+    limit: 20,
+    deleted: showDeleted || undefined,
+  });
   const remove = useDeleteProduct(companyId, storeId);
+  const restore = useRestoreProduct(companyId, storeId);
   const [editing, setEditing] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState<Product | null>(null);
 
   return (
     <div className="space-y-3">
-      <div className="relative max-w-md">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Buscar por nome ou código de barras"
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          aria-label="Buscar produtos"
-        />
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="relative w-full max-w-md">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Buscar por nome ou código de barras"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            aria-label="Buscar produtos"
+          />
+        </div>
+        <label className="flex cursor-pointer items-center gap-2 text-sm">
+          <Checkbox
+            checked={showDeleted}
+            onCheckedChange={(checked) => {
+              setShowDeleted(checked);
+              setPage(1);
+            }}
+          />
+          Mostrar só os excluídos
+        </label>
       </div>
 
       {list.isPending ? (
@@ -154,10 +175,17 @@ function ProductsList() {
         <ErrorState error={list.error} onRetry={() => void list.refetch()} />
       ) : list.data.data.length === 0 ? (
         <EmptyState
-          title="Nenhum produto cadastrado"
-          description={debounced ? "Tente outra busca." : "Cadastre o primeiro produto da empresa."}
+          title={showDeleted ? "Nenhum produto excluído" : "Nenhum produto cadastrado"}
+          description={
+            debounced
+              ? "Tente outra busca."
+              : showDeleted
+                ? "Os produtos que você excluir aparecem aqui para reativar."
+                : "Cadastre o primeiro produto da empresa."
+          }
           action={
-            !debounced && (
+            !debounced &&
+            !showDeleted && (
               <LinkButton href={`/loja/${storeId}/produtos/novo`}>
                 <PlusIcon /> Novo produto
               </LinkButton>
@@ -185,6 +213,26 @@ function ProductsList() {
                     <TableCell className="text-right tabular-nums">{product.packQuantity}</TableCell>
                     <TableCell>{product.bottleType?.name ?? "—"}</TableCell>
                     <TableCell>
+                      {product.deletedAt ? (
+                        <div className="flex justify-end">
+                          <ActionButton
+                            variant="outline"
+                            size="sm"
+                            minRole="MANAGER"
+                            disabled={restore.isPending}
+                            onClick={() =>
+                              restore.mutate(product.id, {
+                                onSuccess: (restored) =>
+                                  toast.success(
+                                    `${restored.name} foi reativado, com o preço e o estoque de antes nas lojas.`,
+                                  ),
+                              })
+                            }
+                          >
+                            <RotateCcwIcon /> Reativar
+                          </ActionButton>
+                        </div>
+                      ) : (
                       <div className="flex justify-end gap-1">
                         <HistoryButton
                           size="xs"
@@ -215,6 +263,7 @@ function ProductsList() {
                           <Trash2Icon />
                         </ActionButton>
                       </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -231,7 +280,7 @@ function ProductsList() {
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Excluir ${deleting?.name ?? "o produto"}?`}
-        description="O produto sai do catálogo e de todas as lojas. O código de barras continua reservado: se você cadastrar o mesmo código de novo, o sistema oferece reativar este produto."
+        description="O produto sai do catálogo e de todas as lojas. Para trazê-lo de volta (com o preço e o estoque de antes), marque Mostrar só os excluídos e clique em Reativar."
         confirmLabel="Excluir produto"
         destructive
         pending={remove.isPending}

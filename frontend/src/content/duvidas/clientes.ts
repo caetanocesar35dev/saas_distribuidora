@@ -85,13 +85,14 @@ export const clientes: Article[] = [
       "Abra Menu › Clientes e fiado, clique em Abrir no cliente e depois em Editar (ou defina já em Novo cliente).",
       "Preencha Limite de crédito no fiado e salve. Deixe vazio para o cliente não ter limite.",
       "O limite vale para a dívida somada em todas as lojas. No detalhe do cliente aparece quanto ainda está disponível ou quanto passou.",
-      "Na venda no fiado (PDV ou fechamento de comanda), se a dívida passar do limite, o atendente é barrado e precisa escolher outra forma de pagamento ou chamar o gerente.",
+      "Na venda no fiado (PDV ou fechamento de comanda), se a dívida passar do limite, o atendente só vende com a autorização do gerente ou do dono: ele digita o próprio e-mail e senha na tela do atendente (sem o atendente sair da conta, e nada fica salvo) e clica em Autorizar e vender.",
       "Gerente e dono veem o aviso com o limite e o valor que a dívida vai atingir, e podem confirmar em Sim, vender acima do limite.",
+      "Toda venda que passou do limite fica marcada no detalhe da venda (Menu › Histórico de vendas › clique no número da venda) com o nome de quem autorizou.",
     ],
     problems: [
       {
         message: "Venda acima do limite de crédito",
-        fix: "A venda faria a dívida do cliente passar do limite. Atendente: receba à vista ou chame o gerente. Gerente e dono podem confirmar a venda ou aumentar o limite em Editar.",
+        fix: "A venda faria a dívida do cliente passar do limite. Atendente: receba à vista ou peça a autorização do gerente (e-mail e senha dele na tela). Gerente e dono podem confirmar a venda ou aumentar o limite em Editar.",
       },
       {
         message: "Só gerente ou dono pode definir o limite de crédito do cliente.",

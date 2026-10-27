@@ -160,9 +160,60 @@ describe('DashboardService', () => {
       await make('2026-10-14T11:00:00Z', { status: 'CANCELED', price: 999 }); // cancelada: ignorada
 
       const d = await dashboard.forStore(w.storeA.id, NOW);
-      expect(d.today).toEqual({ revenue: 30, profit: 12, count: 2 });
-      expect(d.week).toEqual({ revenue: 50, profit: 20, count: 4 });
-      expect(d.month).toEqual({ revenue: 70, profit: 28, count: 6 });
+      expect(d.today).toMatchObject({ revenue: 30, profit: 12, count: 2 });
+      expect(d.week).toMatchObject({ revenue: 50, profit: 20, count: 4 });
+      expect(d.month).toMatchObject({ revenue: 70, profit: 28, count: 6 });
+    });
+
+    it('fiado: entra no faturamento e no lucro, mas sai separado, com o recebido no período', async () => {
+      const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T10:00:00Z',
+      }); // à vista: 10 / lucro 4
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T11:00:00Z',
+        quantity: 2,
+        paymentMethod: 'CREDIT_STORE',
+      }); // fiado: 20 / lucro 8
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T12:00:00Z',
+        paymentMethod: 'CREDIT_STORE',
+        status: 'CANCELED',
+      }); // cancelada: fora de tudo
+      const customer = await ctx.factory.customer(w.company.id);
+      const pay = (storeId: string, amount: number, at: string) =>
+        ctx.audit.runAsSystem('seed', () =>
+          ctx.prisma.customerPayment.create({
+            data: {
+              customerId: customer.id,
+              storeId,
+              amount,
+              paymentMethod: 'MONEY',
+              createdAt: new Date(at),
+            },
+          }),
+        );
+      await pay(w.storeA.id, 7.5, '2026-10-14T13:00:00Z'); // hoje
+      await pay(w.storeA.id, 100, '2026-09-20T13:00:00Z'); // mês passado
+      await pay(w.storeB.id, 50, '2026-10-14T13:00:00Z'); // outra loja
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.today).toEqual({
+        revenue: 30,
+        profit: 12,
+        count: 2,
+        fiado: { revenue: 20, profit: 8 },
+        fiadoReceived: 7.5,
+      });
+      const company = await dashboard.forCompany(w.company.id, NOW);
+      expect(company.today.fiadoReceived).toBe(57.5);
+      expect(company.byStore?.[1].today.fiadoReceived).toBe(50);
     });
 
     it('não mistura vendas de outra loja', async () => {
@@ -344,9 +395,13 @@ describe('DashboardService', () => {
       await ctx.factory.debt(customer.id, w.storeB.id, 25);
 
       const d = await dashboard.forCompany(w.company.id, NOW);
-      expect(d.today).toEqual({ revenue: 50, profit: 12 + 15, count: 2 });
+      expect(d.today).toMatchObject({
+        revenue: 50,
+        profit: 12 + 15,
+        count: 2,
+      });
       expect(d.debt).toBe(40);
-      expect(d.byStore).toEqual([
+      expect(d.byStore).toMatchObject([
         {
           storeId: w.storeA.id,
           storeName: 'Loja A',

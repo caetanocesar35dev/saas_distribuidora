@@ -50,6 +50,7 @@ const FIELD_LABEL: Record<string, string> = {
   packs: "Fardos",
   packSize: "Unidades por fardo",
   registeredAt: "Lançada em",
+  creditApprovedById: "Autorizou acima do limite",
   creditLimit: "Limite de crédito",
   termsAcceptedAt: "Aceite dos termos",
   termsVersion: "Versão dos termos",

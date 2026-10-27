@@ -193,6 +193,7 @@ export class CommandTabsService {
     dto: CloseCommandTabDto,
     role: Role,
   ) {
+    const credit = await this.sales.creditApproval(storeId, dto, role);
     // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
     await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction(async (tx) => {
@@ -229,8 +230,7 @@ export class CommandTabsService {
         bottleReturns: dto.bottleReturns,
         commandTabId: tabId,
         skipStock: true,
-        role,
-        allowOverCreditLimit: dto.allowOverCreditLimit,
+        ...credit,
       });
     });
     return this.sales.get(storeId, saleId);

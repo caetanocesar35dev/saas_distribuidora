@@ -385,6 +385,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261026000000_customer_address` | Adiciona o endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) em `tb_customers` (e no histórico) |
 | `20261026010000_user_phone` | Adiciona `phone` (celular/WhatsApp) em `tb_users` (e no histórico) |
 | `20261026020000_cash_auto_close` | Adiciona `cashAutoCloseTime` (HH:mm, padrão 00:00) em `tb_stores` e `autoClosed` em `tb_cash_registers` (e nos históricos): caixa que abre e fecha sozinho |
+| `20261027000000_sale_credit_approver` | Adiciona `creditApprovedById` (FK para `tb_users`, `Restrict`) em `tb_sales` (e no histórico): gerente ou dono que autorizou a venda fiada acima do limite de crédito (null = não passou do limite) |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

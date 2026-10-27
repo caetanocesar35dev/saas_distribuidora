@@ -5,6 +5,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsEmail,
   IsEnum,
   IsInt,
   IsISO8601,
@@ -23,6 +24,8 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+const normalizeEmail = ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.trim().toLowerCase() : value;
 const MONEY = { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false };
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -55,6 +58,21 @@ export class BottleReturnDto {
   @Min(1)
   @Max(100_000)
   quantity: number;
+}
+
+/**
+ * E-mail e senha do gerente ou dono que autoriza, na tela do atendente, a venda fiada acima do
+ * limite. Só conferidos; nunca gravados.
+ */
+export class ManagerApprovalDto {
+  @Transform(normalizeEmail)
+  @IsEmail({}, { message: 'E-mail do gerente inválido.' })
+  email: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Informe a senha do gerente.' })
+  @MaxLength(72)
+  password: string;
 }
 
 /** O preço e o custo NÃO vêm do cliente: são sempre lidos do banco. */
@@ -91,6 +109,12 @@ export class CreateSaleDto {
   @IsOptional()
   @IsBoolean()
   allowOverCreditLimit?: boolean;
+
+  /** Atendente: autorização do gerente ou dono (e-mail e senha) para passar do limite. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ManagerApprovalDto)
+  managerApproval?: ManagerApprovalDto;
 }
 
 /**
@@ -200,6 +224,12 @@ export class CloseCommandTabDto {
   @IsOptional()
   @IsBoolean()
   allowOverCreditLimit?: boolean;
+
+  /** Atendente: autorização do gerente ou dono (e-mail e senha) para passar do limite. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ManagerApprovalDto)
+  managerApproval?: ManagerApprovalDto;
 }
 
 export class ListCommandTabsQuery {

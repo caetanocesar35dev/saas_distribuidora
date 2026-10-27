@@ -106,6 +106,12 @@ export class ListProductsQuery extends PaginationQueryDto {
   @IsString()
   @MaxLength(100)
   search?: string;
+
+  /** true lista só os produtos excluídos (para reativar). */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  deleted?: boolean;
 }
 
 // ---- Oferta do produto na loja ------------------------------------------------------------------
