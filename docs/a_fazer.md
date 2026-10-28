@@ -71,22 +71,6 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     botão só aparece em produto com "Unidades por fardo" maior que 1.
 
 
-17. [x] **Ajustes pedidos em 2026-10-26.** **Feito:**
-    - **Preço de venda padrão** no Novo produto (como o custo padrão): vale para as lojas marcadas
-      que ficarem sem preço próprio.
-    - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
-      ofertas das lojas (preço e estoque de antes).
-    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
-      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
-      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
-    - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
-      milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
-    - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
-      feita pelo atendente passa com o e-mail e a senha de um gerente ou dono da loja digitados na
-      própria tela, sem salvar as credenciais. **Aprovado pelo usuário:** coluna nova
-      `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
-      limite, autorizado por ...".
-
 15. [x] **Cadastro mais completo sem formulário maior** (pedido do usuário, 2026-10-26).
     **Decidido pelo usuário:** (1) pedir o **celular (WhatsApp) do dono** no cadastro,
     obrigatório, com coluna nova `tb_users.phone` (aprovada); (2) **não** perguntar endereço da
@@ -112,9 +96,25 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     `cash-auto-close` a cada 5 minutos, horário em Lojas › Editar e marca "automático" em Caixas
     anteriores. O item 3 (conferência) continua pendente.
 
+17. [x] **Ajustes pedidos em 2026-10-26.** **Feito:**
+    - **Preço de venda padrão** no Novo produto (como o custo padrão): vale para as lojas marcadas
+      que ficarem sem preço próprio.
+    - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
+      ofertas das lojas (preço e estoque de antes).
+    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
+      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
+      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
+    - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
+      milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
+    - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
+      feita pelo atendente passa com o e-mail e a senha de um gerente ou dono da loja digitados na
+      própria tela, sem salvar as credenciais. **Aprovado pelo usuário:** coluna nova
+      `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
+      limite, autorizado por ...".
+
 ### Operação da plataforma
 
-16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
+18. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
     empresa (pedido do usuário, 2026-10-21). Ponto de partida: já existe `platformRole =
     SUPPORT`, mas hoje ele só **consulta** a área `/plataforma` (organizações, planos, usuários e
     notificações); quem altera é o `SUPERADMIN`. Perguntas a responder:
@@ -128,8 +128,9 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
 
 ### Lacunas menores já conhecidas
 
-13. [ ] Cliente excluído não pode ser reativado pela tela; só pela API.
-14. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
+19. [ ] Cliente excluído não pode ser reativado pela tela; só pela API. (Produto já pode, desde
+    2026-10-26.)
+20. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
 
 
 ## Testes manuais
@@ -187,13 +188,18 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [x] Fiado para um cliente sem dívida: vende direto, sem aviso.
 - [x] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
   mais antiga. "Não, voltar" não vende; "Sim, vender no fiado" vende.
-- [x] Tentar vender com estoque insuficiente e com o caixa fechado.
+- [x] Tentar vender com estoque insuficiente ("Estoque insuficiente").
+- [ ] Com o caixa fechado, vender: a venda sai e o caixa abre sozinho, com o saldo do último
+  fechamento (o PDV só avisa, não bloqueia).
 
 ### 4. Caixa
 
-- [ ] Abrir o caixa, lançar entrada e sangria, e fechar conferindo o resumo por forma de
-  pagamento.
+- [ ] Abrir o caixa à mão com outro saldo inicial, lançar entrada e sangria, e fechar conferindo
+  o resumo por forma de pagamento.
 - [x] Ver o histórico de caixas.
+- [ ] Como dono, em Lojas › Editar, mudar o "Fechamento automático do caixa" para daqui a poucos
+  minutos e deixar o caixa aberto: até 5 minutos depois do horário ele fecha sozinho e aparece
+  com a marca "automático" em Caixas anteriores.
 
 ### 5. Comandas
 

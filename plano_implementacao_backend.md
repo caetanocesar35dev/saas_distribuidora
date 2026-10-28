@@ -1,9 +1,14 @@
 # Plano de Implementação — Backend (NestJS + Prisma)
 
-> ## Status da implementação (atualizado em 2026-10-14)
+> ## Status da implementação (atualizado em 2026-10-28)
 >
-> - **Fases 0 a 9 e 11: implementadas e testadas** (408 testes em 27 suítes, no banco
->   `distribuidora_test`; `npm test`, `npm run lint` e `npm run build` limpos).
+> - **Fases 0 a 9 e 11: implementadas e testadas** (415 testes em 28 suítes, no banco
+>   `distribuidora_test`). Desde 2026-10-14 vieram pedidos do usuário, cada um registrado na
+>   sua fase (aviso e limite de fiado, autorização do gerente, LGPD, custo escondido do
+>   atendente, venda antiga, venda em lote, endereço do cliente, celular no cadastro, caixa que
+>   abre e fecha sozinho, reativar produto, fiado no painel). Os testes desses pedidos foram
+>   escritos, mas a suíte completa não foi rodada de novo depois deles (o usuário pediu para não
+>   rodar a cada mudança): rode `npm test` antes do próximo deploy.
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
 >   depois). O banco já está pronto para ela (`Organization.billing*`, `tb_billing_events`);
 >   hoje o status da assinatura é ajustado manualmente pela plataforma
@@ -18,7 +23,7 @@
 >   **interceptor global + `AuditContext` + extensão do Prisma**.
 > - Decisões ⚠️ tomadas na implementação e desvios do plano: ver a seção
 >   [Relatório da implementação](#relatório-da-implementação) no fim deste arquivo.
-> - O código do backend foi commitado em `c340c67`.
+> - O código do backend foi commitado em `c340c67`; os pedidos posteriores estão em `main`.
 
 ## Contexto
 
@@ -365,7 +370,12 @@ access + refresh token com rotação. Não perguntar de novo.
      chama o Asaas aqui:** o cadastro não pode falhar por indisponibilidade do gateway.
      Retorna o mesmo que o login. **LGPD (decisão do usuário, 2026-10-21):** exige
      `acceptTerms: true` (400 sem ele) e grava `User.termsAcceptedAt` e `termsVersion`
-     (`TERMS_VERSION` em `src/auth/terms.ts`).
+     (`TERMS_VERSION` em `src/auth/terms.ts`). **Decisões do usuário (2026-10-26):** exige o
+     **celular (WhatsApp)** do dono (`User.phone`, só dígitos com DDD,
+     `src/common/utils/phone.ts`; editável em `PATCH /me`); o nome de pessoa só aceita letras,
+     espaço, apóstrofo, hífen e ponto (`src/common/utils/person-name.ts`, vale também para
+     `PATCH /me` e convite); e aceita `storeAddress` opcional (o endereço que a consulta do CNPJ
+     trouxe no navegador), gravado na primeira loja.
    - `POST /auth/login` (público): par de tokens + `user`. Usuário inativo ou excluído:
      mesma mensagem de credencial inválida.
    - `POST /auth/refresh` (público): `{ refreshToken }` → par novo de tokens. Token
@@ -505,6 +515,11 @@ funcionam.
    - CRUD em `/companies/:companyId/stores`. Criar respeita `Plan.maxStoresPerCompany`
      e dá `OWNER` na loja nova a todos os OWNERs da company (⚠️).
    - Excluir (soft delete) é bloqueado se houver caixa aberto ou comanda aberta.
+   - **Endereço obrigatório (decisão do usuário, 2026-10-26):** criar e editar exigem CEP, rua,
+     número, bairro, cidade e UF (complemento, telefone e CNPJ opcionais). A primeira loja do
+     cadastro é a exceção (pode ficar sem endereço se a consulta do CNPJ falhar).
+   - `cashAutoCloseTime` (HH:mm, padrão `00:00`): horário do fechamento automático do caixa
+     da loja (Fase 6).
 4. **`MembershipModule`** (OWNER da company):
    - `GET /companies/:companyId/members`: membros com papel por loja.
    - `POST /companies/:companyId/members`: `{ email, name, stores: [{ storeId, role }] }`.
@@ -542,8 +557,11 @@ EMPLOYEE na loja B, revogar só a B; o usuário continua com acesso à A; o hist
      `costPrice` informado no topo é o padrão de todas as lojas, sobrescrevível por loja.
    - `code` duplicado na company → 409 com mensagem clara. Se o duplicado estiver
      excluído → 409 informando que dá para reativá-lo.
-   - `GET` (busca por `code`/`name`, paginado), `GET /:id`, `PATCH`, `DELETE` (soft).
-   - `POST /:id/restore` (reativar).
+   - `GET` (busca por `code`/`name`, paginado; `deleted=true` lista só os excluídos),
+     `GET /:id`, `PATCH`, `DELETE` (soft).
+   - `POST /:id/restore` (reativar). Traz de volta junto as ofertas excluídas com ele (mesmo
+     `deletedAt`, em lojas ativas), com o preço e o estoque de antes (pedido do usuário,
+     2026-10-26).
    - Excluir um `Product` também faz soft delete dos `StoreProduct` dele, na mesma
      transação.
 2. **`StoreProductModule`** (`/stores/:storeId/store-products`):
@@ -602,7 +620,13 @@ altere essas colunas por outro caminho; cada alteração precisa do registro cor
    somada em todas as lojas. A venda fiada (`POST /sales` e fechamento de comanda) chama
    `assertCreditLimit` na transação: acima do limite, funcionário recebe 403 (mensagem sem
    valores) e gerente/dono recebem 409, a menos que enviem `allowOverCreditLimit: true`.
-   `balances` também devolve `creditLimit`.
+   `balances` também devolve `creditLimit`. **Autorização do gerente no balcão (decisão do
+   usuário, 2026-10-26):** o funcionário passa do limite enviando
+   `managerApproval: { email, password }` de um gerente ou dono **da loja**
+   (`src/customers/manager-approval.ts`; 400 com senha errada, 403 se não for gerente da loja,
+   429 depois de 5 erros por e-mail em 15 min, em memória). As credenciais não são gravadas. A
+   venda que passou do limite grava quem autorizou em `Sale.creditApprovedById` (o próprio
+   vendedor quando gerente/dono confirma), migration `20261027000000_sale_credit_approver`.
    **Endereço (decisão do usuário, 2026-10-26):** o cliente tem endereço opcional em campos
    separados (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`), no
    mesmo formato da loja, aceito no create/update por qualquer papel e devolvido em todas as
@@ -668,10 +692,17 @@ de R$100; uma alocação inválida não altera nada (rollback).
    - ⚠️ O código antigo registrava toda venda não fiado (inclusive PIX e cartão) como
      movimento `SALE` no caixa. Manter esse comportamento; `CashMovement` não tem
      forma de pagamento, então separar dinheiro de cartão no fechamento exigiria P9.
+   - **Caixa que abre e fecha sozinho (decisão do usuário, 2026-10-26):** venda (inclusive
+     antiga), fechamento de comanda, recebimento de fiado, cancelamento e entrada/sangria chamam
+     `ensureOpenCash` (`src/cash-register/cash-auto.ts`) **antes** da transação: sem caixa
+     aberto, abre um com o saldo do último fechamento. O job `cash-auto-close` (a cada 5 min,
+     `src/jobs/cash-auto-close.job.ts`) fecha o caixa esquecido aberto no horário da loja
+     (`Store.cashAutoCloseTime`, padrão `00:00`) e marca `CashRegister.autoClosed`. Abrir e
+     fechar à mão continuam funcionando. Migration `20261026020000_cash_auto_close`.
 2. **`SaleModule`** (`/stores/:storeId/sales`):
    - `POST`: `{ paymentMethod, customerId?, discount?, items: [{ storeProductId, quantity }], bottleReturns?: [{ bottleTypeId, quantity }] }`.
      Uma transação:
-     1. Exige caixa aberto na loja.
+     1. Exige caixa aberto na loja (aberto sozinho antes por `ensureOpenCash`).
      2. Para cada item: `StoreProduct` da loja, ativo e não excluído; preço e custo
         **do banco**; baixa atômica de estoque (409 se insuficiente, com o nome do
         produto).
@@ -741,13 +772,19 @@ compensatórios.
 1. `GET /stores/:storeId/dashboard` (MANAGER) e `GET /companies/:companyId/dashboard`
    (OWNER, soma das lojas + quebra por loja):
    - Receita, lucro e número de vendas de hoje, 7 dias e mês (`APP_TIMEZONE`, só
-     `COMPLETED`).
+     `COMPLETED`). **Fiado (decisão do usuário, 2026-10-26: separar sem esconder):** a receita
+     e o lucro incluem o fiado, e cada período traz também `fiado: { revenue, profit }` (a
+     parte vendida no fiado) e `fiadoReceived` (pagamentos de fiado recebidos na loja no
+     período).
    - Top 5 produtos em 7 dias.
    - Gráfico dos últimos 7 dias (receita e lucro por dia).
    - Alertas de estoque baixo.
    - Total de fiado em aberto.
    Usar agregações no banco (`groupBy`/`aggregate` ou `$queryRaw` tipado), sem trazer
    todas as vendas para a memória como o código antigo fazia.
+   - `GET /stores/:storeId/onboarding` (OWNER; decisão do usuário, 2026-10-26): "Primeiros
+     passos" do Início (endereço da loja, produtos, caixa já aberto, equipe), conferidos no
+     banco a cada chamada.
 2. ⚠️ Relatórios extras (vendas por vendedor, por forma de pagamento) ficam de fora
    até o usuário pedir.
 
@@ -1004,7 +1041,7 @@ As regras de negócio estão marcadas no código com `TODO(decisão-produto)`.
 | Cancelar comanda | Devolve o estoque, fecha e some da lista (soft delete) |
 | Falha ao enviar e-mail | Vai para o log e não derruba a operação (convite e cadastro continuam) |
 | Lista de lojas da empresa | Qualquer membro vê (necessário para montar o produto compartilhado) |
-| E-mail do usuário | Não é editável por `PATCH /me` (só o nome) |
+| E-mail do usuário | Não é editável por `PATCH /me` (só o nome e o celular) |
 
 ### Desvios deste plano
 - **Sessão:** access token de 15 min + refresh token com rotação (pedido do usuário), no lugar do token único de 12 h. Exigiu a tabela nova `tb_refresh_tokens`.

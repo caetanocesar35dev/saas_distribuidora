@@ -258,6 +258,10 @@ funciona.
 2. **Lojas:** listar, criar, editar e excluir (`/api/companies/:companyId/stores`, dono).
    Criar respeita o limite do plano (409 com a mensagem do limite). Excluir é recusado com
    caixa ou comanda aberta. A loja nova já nasce com todos os donos como OWNER.
+   - ✅ **Endereço obrigatório e máscaras (pedido do usuário, 2026-10-26):** CEP, rua, número,
+     bairro, cidade e UF obrigatórios (complemento, telefone e CNPJ não); máscaras de telefone,
+     CEP e UF; o CEP preenche o endereço pela ViaCEP. Campo "Fechamento automático do caixa"
+     (horário, padrão 00:00).
 3. **Equipe** (`/api/companies/:companyId/members`, dono):
    - Convidar por e-mail com o papel em cada loja (`stores: [{ storeId, role }]`). Usuário
      novo recebe o link de definir senha (ver Fase 1).
@@ -281,6 +285,9 @@ funciona.
      por loja e custo comum pré-preenchido (editável por loja). Payload:
      `{ name, code?, packQuantity?, bottleTypeId?, costPrice?, stores: [{ storeId, price, costPrice? }] }`.
    - Código de barras opcional (o backend gera um EAN-13 se vazio).
+   - ✅ **Preço de venda padrão (pedido do usuário, 2026-10-26)**, ao lado do custo padrão: vale
+     para as lojas marcadas sem preço próprio (só na tela; o backend continua recebendo o preço
+     por loja).
 3. **Colocar na loja** um produto que já existe no catálogo
    (`POST /api/stores/:storeId/store-products`) e **tirar da loja** (`DELETE`).
 4. **Editar preço, custo e ativo** só desta loja (`PATCH .../store-products/:id`), deixando
@@ -297,7 +304,9 @@ funciona.
      fornecedor (funcionário) e ajuste manual (gerente, quantidade com sinal). O estoque
      de vasilhame **só muda por movimentação** e nunca fica negativo nessas operações.
    - Histórico de movimentações com filtros (tipo, cliente, período).
-8. **Excluir e reativar** produtos e tipos de vasilhame (soft delete).
+8. **Excluir e reativar** produtos e tipos de vasilhame (soft delete). ✅ Produtos (pedido do
+   usuário, 2026-10-26): "Mostrar só os excluídos" na lista de Produtos (`?deleted=true`) com o
+   botão Reativar; o produto volta com as ofertas das lojas (preço e estoque de antes).
 
 **Critério de conclusão:** criar um produto marcando 2 lojas gera as duas ofertas;
 editar o preço numa loja não altera a outra.
@@ -314,9 +323,14 @@ editar o preço numa loja não altera a outra.
      backend devolve. O movimento do caixa não separa dinheiro de PIX/cartão: a
      conferência usa esse resumo.
    - Histórico de caixas fechados e o detalhe de cada um (`history`, `/:id`).
+   - ✅ **Caixa que abre e fecha sozinho (decisão do usuário, 2026-10-26):** o backend abre o
+     caixa na primeira operação com dinheiro (com o saldo do último fechamento) e fecha o
+     esquecido no horário da loja. Abrir à mão só serve para informar outro saldo inicial. Em
+     Caixas anteriores, o fechado sozinho tem a marca "automático"; o horário fica em Lojas ›
+     Editar › "Fechamento automático do caixa" (dono, padrão 00:00).
 2. **Venda** (`POST /api/stores/:storeId/sales`):
-   - **Exige caixa aberto na loja, em qualquer forma de pagamento (inclusive fiado).**
-     Sem caixa, o PDV fica bloqueado com o botão para abrir.
+   - ~~Exige caixa aberto~~ **Não bloqueia mais por caixa fechado** (2026-10-26): o PDV só avisa
+     que a primeira venda abre o caixa sozinha (`CashAutoOpenNote`).
    - Busca por nome/código e **leitor de código de barras** (`.../store-products/by-code/:code`,
      só itens ativos).
    - Carrinho com quantidades e desconto (o desconto não pode passar do total). O total
@@ -348,7 +362,7 @@ editar o preço numa loja não altera a outra.
 6. ✅ **Lançar venda antiga (pedido do usuário, 2026-10-23)** (`POST .../sales/late`, **gerente e
    dono**): item "Lançar venda antiga" do menu, logo abaixo de Histórico de vendas (`/loja/[storeId]/lancar-venda-antiga`; a pedido do usuário saiu de dentro da tela de Vendas) é o PDV em
    modo `late`, com o campo "Data e hora em que a venda aconteceu" (sem limite para trás, nunca
-   no futuro). Exige caixa aberto: à vista, o dinheiro entra no caixa de agora. A lista e o
+   no futuro). À vista, o dinheiro entra no caixa de agora (aberto sozinho se preciso). A lista e o
    detalhe de vendas mostram "lançada depois" (`registeredAt`). O atendente não vê o botão e a
    URL mostra "sem permissão".
 7. ✅ **Venda em lote (pedido do usuário, 2026-10-23).** Na busca de produtos (PDV, comanda e
@@ -381,8 +395,8 @@ de barras (foco no campo de busca, atalhos de teclado).
    - Histórico de pagamentos (`.../customers/:id/payments`) e de vendas a prazo
      (`GET /api/stores/:storeId/sales?customerId=`).
 3. **Receber pagamento** (`POST /api/stores/:storeId/customers/:customerId/payments`):
-   - O dinheiro entra **na loja ativa** (a da URL) e exige **caixa aberto** nela. Não há
-     campo "loja onde está pagando": é sempre a loja ativa.
+   - O dinheiro entra **na loja ativa** (a da URL), no caixa aberto dela (aberto sozinho se
+     preciso, desde 2026-10-26). Não há campo "loja onde está pagando": é sempre a loja ativa.
    - Forma de pagamento: qualquer uma **menos** `CREDIT_STORE`.
    - **Automático:** só o valor; o backend abate primeiro a dívida da loja ativa e depois
      as demais (mais antigas primeiro).
@@ -413,10 +427,16 @@ de barras (foco no campo de busca, atalhos de teclado).
 6. ✅ **Limite de crédito no fiado (pedido do usuário, 2026-10-21).** Gerente e dono definem o
    "Limite de crédito no fiado" no cadastro do cliente (o atendente não vê o campo); o detalhe
    mostra o limite e quanto está disponível ou passou. No `CheckoutDialog`, se a venda faz a
-   dívida (todas as lojas) passar do limite: o atendente vê "Venda acima do limite de crédito"
-   só com "Entendi"; gerente e dono veem o limite e o valor final e confirmam em "Sim, vender
-   acima do limite" (envia `allowOverCreditLimit: true`). O atendente só enxerga as lojas dele,
-   então a tela barra quando dá para saber; o resto o backend barra (403).
+   dívida (todas as lojas) passar do limite: gerente e dono veem o limite e o valor final e
+   confirmam em "Sim, vender acima do limite" (envia `allowOverCreditLimit: true`).
+   - ✅ **Autorização do gerente (pedido do usuário, 2026-10-26):** o atendente não é mais só
+     barrado ("Entendi"). Abre "Venda acima do limite de crédito" com e-mail e senha do
+     gerente ou dono, que autoriza ali mesmo ("Autorizar e vender", envia `managerApproval`),
+     sem o atendente sair da conta nem refazer o carrinho. Sem `<form>`, sem autocompletar e com
+     a senha em texto mascarado (`-webkit-text-security`) para o navegador não oferecer salvar.
+     Quando o backend barra sem a tela ter visto (dívida em lojas que o atendente não enxerga),
+     o erro traz o botão "Autorização do gerente".
+   - O detalhe da venda mostra "Acima do limite, autorizado por Fulano" (`creditApprovedBy`).
 7. ✅ **Endereço do cliente (pedido do usuário, 2026-10-26).** O cadastro e a edição de cliente
    ganharam o bloco "Endereço (opcional)" (CEP, rua, número, complemento, bairro, cidade e UF),
    no mesmo formato do endereço da loja. **Decidido pelo usuário:** campos separados e
@@ -424,6 +444,10 @@ de barras (foco no campo de busca, atalhos de teclado).
    `src/hooks/use-cep-autofill.ts`; nunca troca o que a pessoa digitou, e falha ou CEP
    inexistente só avisa). Ao editar, texto vazio apaga o campo. O endereço aparece no cabeçalho
    do detalhe do cliente. O cadastro rápido do PDV continua só com nome e telefone.
+8. ✅ **Campos de dinheiro com formatação automática (pedido do usuário, 2026-10-26).** O
+   `MoneyInput` (todos os campos de valor, inclusive receber fiado) põe o ponto de milhar
+   enquanto a pessoa digita, trata o "." do teclado numérico como vírgula e limita a 2 casas
+   (`formatMoneyTyping` em `src/lib/format.ts`); ao sair do campo, completa os centavos.
 
 
 **Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
@@ -439,6 +463,12 @@ automático e manual, e os saldos se atualizam.
    7 dias; estoque baixo; fiado em aberto. **Os períodos são fixos e calculados no
    backend**; o painel não aceita filtro de período. Para períodos livres, usar o
    histórico de vendas (Fase 5).
+   - ✅ **Fiado no painel (decisão do usuário, 2026-10-26: separar sem esconder):** Faturamento
+     e Lucro continuam contando o fiado, com a linha "R$ X disso foi vendido no fiado" embaixo,
+     e há o cartão "Fiado recebido" (pagamentos do período).
+   - ✅ **Primeiros passos (decisão do usuário, 2026-10-26):** no Início, o dono vê o quadro com
+     endereço da loja, produtos, caixa e equipe (`GET .../onboarding`), cada item marca sozinho;
+     "Esconder" some com ele neste navegador.
 2. **Histórico de alterações:** botão "Histórico" nos detalhes (produto da loja, venda,
    comanda, caixa, movimentação de vasilhame, produto, cliente, tipo de vasilhame, loja,
    membro e papel por loja), para gerente/dono:
@@ -479,6 +509,12 @@ automático e manual, e os saldos se atualizam.
      e a Política de privacidade", com links para as páginas públicas `/termos` e
      `/privacidade` (textos em `src/content/legal.ts`, um **modelo** a revisar; os dados do operador vêm das variáveis `LEGAL_*` do ambiente). O
      backend exige `acceptTerms: true` e grava data e versão do aceite.
+   - ✅ **Cadastro mais completo (pedido do usuário, 2026-10-26):** celular (WhatsApp) do dono
+     obrigatório, com máscara (editável em Minha conta); o endereço da primeira loja não é
+     perguntado: vai o que a consulta do CNPJ trouxe (`storeAddress`, mostrado no cadastro). O
+     nome de pessoa (cadastro, Minha conta, convite) descarta números e símbolos ao digitar ou
+     colar (`PersonNameInput`), e os campos de senha têm o olho para mostrar/esconder
+     (`PasswordInput`).
 2. **Aviso de assinatura e modo somente leitura.** Regra do produto: inadimplência **nunca
    bloqueia o sistema inteiro**, só deixa em somente leitura. Usar `subscription` de
    `GET /api/me/memberships` (`status`, `accessMode`, `reason`, `trialEndsAt`,
@@ -546,14 +582,14 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 | 1 Autenticação e contexto | ✅ Login, cadastro, esqueci a senha, `/redefinir-senha?token=` (também convite), seleção de empresa/loja, troca no topo, Minha conta |
 | 2 Autorização na interface | ✅ `useCurrentRole`, `RequireRole`, `RequireCompanyOwner`, `PageGuard`, `ActionButton` (apaga sozinho por papel e por somente leitura) |
 | 3 Administração | ✅ Dados da empresa, lojas, equipe (convite, papel por loja, revogar), nova empresa |
-| 4 Catálogo, estoque, vasilhames | ✅ Estoque (entrada e ajuste separados), produtos (criar em várias lojas, editar, excluir, reativar pelo erro 409), tipos de vasilhame, movimentações |
+| 4 Catálogo, estoque, vasilhames | ✅ Estoque (entrada e ajuste separados), produtos (criar em várias lojas, editar, excluir, reativar pelo erro 409 e, desde 2026-10-26, pela lista de excluídos), tipos de vasilhame, movimentações |
 | 5 PDV, caixa, comandas | ✅ PDV com leitor de código de barras, atalhos F2/F9, desconto, fiado, vasilhames; caixa (abrir, entrada, sangria, fechar com resumo, histórico); vendas (filtros, detalhe, cancelar); comandas |
 | 6 Clientes e fiado | ✅ Cadastro, saldos por loja, pagamento automático e manual por loja, empréstimo e devolução de vasilhame (só na loja da dívida) |
 | 7 Painéis, histórico, notificações | ✅ Painel da loja e da empresa (gráfico de 7 dias), `HistoryButton` (diff por campo), sino e lista de notificações |
 | 8a Cadastro e somente leitura | ✅ Faixas de teste, carência e somente leitura; botões apagados com o motivo; fechar caixa continua liberado; recarga periódica dos memberships |
 | 8b Pagamento da assinatura | ⏸ Não feita: depende da Fase 10 do backend (Asaas). A tela Assinatura mostra o estado e diz que o suporte regulariza |
 | 9 Plataforma | ✅ `/plataforma`: organizações (lista com filtros e detalhe com **ajuste manual da assinatura**, que hoje é a forma de regularizar), planos, usuários (ativar/desativar) e notificações (criar, agendar, expirar). SUPPORT só consulta (botões apagados); quem é da plataforma e não tem loja entra direto nela |
-| 10 Acabamento | ✅ Estados de carregamento/erro, responsivo (celular e tablet), revisão da Central de Dúvidas (60 artigos; todo botão "?" e todo "veja também" aponta para um artigo existente, conferido por teste) |
+| 10 Acabamento | ✅ Estados de carregamento/erro, responsivo (celular e tablet), revisão da Central de Dúvidas (60 artigos, 61 em 2026-10-28; todo botão "?" e todo "veja também" aponta para um artigo existente, conferido por teste) |
 
 ### Decisões e desvios (todos já refletidos nas seções acima)
 
@@ -581,11 +617,12 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 
 1. **Swagger sem schemas** de corpo e resposta (por isso os tipos à mão). Adicionar
    `@ApiProperty`/plugin do Nest resolveria e permitiria gerar os tipos.
-2. **Não há listagem de excluídos** (produtos, tipos de vasilhame, clientes). Produto e tipo
-   se reativam pelo erro 409 (a mensagem traz o id; a tela oferece "Reativar"). **Cliente
-   excluído não tem caminho na interface** (a regra "reativar" do plano fica só na API).
-3. `GET /sales` devolve `costPrice` e `totalCost` também para o atendente. A interface esconde,
-   mas a API entrega.
+2. **Listagem de excluídos:** ✅ produtos têm desde 2026-10-26 (`?deleted=true` e "Mostrar só
+   os excluídos"). Tipos de vasilhame continuam se reativando pelo erro 409, e **cliente
+   excluído segue sem caminho na interface** (só pela API; item 19 de
+   `docs/a_fazer.md`).
+3. ✅ Resolvido em 2026-10-21: o `HideCostInterceptor` tira custo e lucro de toda resposta para
+   o atendente (antes `GET /sales` entregava `costPrice` e `totalCost`).
 4. O motivo do ajuste de inventário só vai para o log do servidor (já era a parada P9 do backend).
 5. A fila de renovação do BFF é em memória: com mais de uma instância do Next, usar afinidade de
    sessão ou mover a fila para um armazenamento comum.
@@ -593,7 +630,9 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 ### Como foi verificado
 
 `tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
-Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend):
+Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend). Os números
+abaixo são da entrega de 2026-10-16; em 2026-10-28 são **96 unitários e 39 de ponta a ponta**
+(os dos pedidos posteriores foram escritos, mas não rodados de novo a pedido do usuário):
 
 - **90 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
   consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,

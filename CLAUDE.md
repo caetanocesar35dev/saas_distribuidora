@@ -29,14 +29,15 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 408
-  testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 415
+  testes (contados em 2026-10-28; os últimos pedidos têm testes escritos, mas a suíte não foi
+  rodada de novo). **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 90
-  testes unitários e 38 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 96
+  testes unitários e 39 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
