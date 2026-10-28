@@ -11,10 +11,12 @@ export const clientes: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra Menu › Clientes e fiado e clique em Novo cliente.",
-      "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado. Salve.",
+      "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado.",
+      "Se quiser, preencha o Endereço (opcional): digite o CEP e o sistema busca rua, bairro, cidade e UF sozinho; você completa o número e o complemento. O que você já digitou não é trocado. Se o CEP não for encontrado ou a consulta estiver fora do ar, preencha à mão. Salve.",
       "Para achar alguém, use a busca por nome ou telefone. A lista já mostra quanto cada cliente deve no fiado.",
       "Para mudar os dados, abra o cliente e clique em Editar.",
-      "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente.",
+      "O endereço aparece embaixo do nome na tela do cliente. Para apagar, abra Editar e limpe os campos.",
+      "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente (cadastro rápido, só nome e telefone; o endereço você completa depois em Editar).",
     ],
     problems: [
       {
@@ -25,9 +27,30 @@ export const clientes: Article[] = [
         message: "O cliente deve vasilhames e não pode ser excluído.",
         fix: "Registre as devoluções de vasilhame antes de excluir.",
       },
+      {
+        message: "CEP não encontrado. Preencha o endereço abaixo.",
+        fix: "O CEP não existe na consulta pública. Confira os números ou preencha rua, bairro, cidade e UF à mão: o endereço é opcional.",
+      },
+      {
+        message: "Não foi possível consultar o CEP agora.",
+        fix: "A consulta está fora do ar ou sem internet. Preencha o endereço à mão ou tente de novo daqui a pouco.",
+      },
+      {
+        message: "O estado deve ter 2 letras (UF).",
+        fix: "Digite a sigla do estado com 2 letras, por exemplo PE, ou deixe o campo vazio.",
+      },
     ],
     related: ["clientes-fiado", "clientes-limite", "faq-excluir-engano"],
-    keywords: ["novo cliente", "cadastro", "telefone"],
+    keywords: [
+      "novo cliente",
+      "cadastro",
+      "telefone",
+      "endereço",
+      "cep",
+      "rua",
+      "bairro",
+      "cidade",
+    ],
   },
   {
     id: "clientes-fiado",
@@ -62,13 +85,14 @@ export const clientes: Article[] = [
       "Abra Menu › Clientes e fiado, clique em Abrir no cliente e depois em Editar (ou defina já em Novo cliente).",
       "Preencha Limite de crédito no fiado e salve. Deixe vazio para o cliente não ter limite.",
       "O limite vale para a dívida somada em todas as lojas. No detalhe do cliente aparece quanto ainda está disponível ou quanto passou.",
-      "Na venda no fiado (PDV ou fechamento de comanda), se a dívida passar do limite, o atendente é barrado e precisa escolher outra forma de pagamento ou chamar o gerente.",
+      "Na venda no fiado (PDV ou fechamento de comanda), se a dívida passar do limite, o atendente só vende com a autorização do gerente ou do dono: ele digita o próprio e-mail e senha na tela do atendente (sem o atendente sair da conta, e nada fica salvo) e clica em Autorizar e vender.",
       "Gerente e dono veem o aviso com o limite e o valor que a dívida vai atingir, e podem confirmar em Sim, vender acima do limite.",
+      "Toda venda que passou do limite fica marcada no detalhe da venda (Menu › Histórico de vendas › clique no número da venda) com o nome de quem autorizou.",
     ],
     problems: [
       {
         message: "Venda acima do limite de crédito",
-        fix: "A venda faria a dívida do cliente passar do limite. Atendente: receba à vista ou chame o gerente. Gerente e dono podem confirmar a venda ou aumentar o limite em Editar.",
+        fix: "A venda faria a dívida do cliente passar do limite. Atendente: receba à vista ou peça a autorização do gerente (e-mail e senha dele na tela). Gerente e dono podem confirmar a venda ou aumentar o limite em Editar.",
       },
       {
         message: "Só gerente ou dono pode definir o limite de crédito do cliente.",
@@ -87,7 +111,7 @@ export const clientes: Article[] = [
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto: o dinheiro entra no caixa desta loja.",
+      "O dinheiro entra no caixa desta loja. Se ele estiver fechado, abre sozinho ao receber.",
       "Abra o cliente e clique em Receber pagamento.",
       "Digite o valor e escolha a forma de pagamento (dinheiro, PIX ou cartão).",
       "No modo Automático o sistema abate primeiro a dívida desta loja e depois as outras, da mais antiga para a mais nova.",
@@ -97,7 +121,7 @@ export const clientes: Article[] = [
     problems: [
       {
         message: "Não há caixa aberto nesta loja para receber o pagamento.",
-        fix: "Abra o caixa em Menu › Caixa e tente de novo.",
+        fix: "Raro: o caixa fechou sozinho (horário de fechamento automático) bem no meio da operação. Tente de novo: o caixa abre sozinho.",
       },
       {
         message: "O valor é maior que a dívida total do cliente.",

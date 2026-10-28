@@ -5,15 +5,19 @@ export const gestao: Article[] = [
     id: "gestao-painel",
     category: "gestao",
     title: "Painel da loja e da empresa",
-    purpose: "Acompanhar faturamento, lucro, produtos mais vendidos, estoque baixo e fiado em aberto.",
+    purpose:
+      "Acompanhar faturamento, lucro, produtos mais vendidos, estoque baixo e fiado em aberto.",
     where: "Menu › Início (loja) · Menu › Painel da empresa (dono)",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Para a loja: abra Menu › Início. Gerentes e donos veem o painel logo abaixo dos atalhos.",
       "Para a empresa toda: o dono abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
-      "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Vendas.",
+      "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Histórico de vendas.",
+      "Faturamento e lucro contam tudo o que foi vendido, inclusive no fiado (vendas canceladas ficam de fora). Quando há fiado, o cartão mostra embaixo quanto disso foi vendido no fiado, que ainda pode não ter sido pago.",
+      "O cartão Fiado recebido mostra quanto os clientes pagaram de fiado nesta loja no período, de vendas de qualquer data.",
       "O gráfico mostra faturamento e lucro de cada um dos últimos 7 dias.",
+      "Para o dono, enquanto a loja não estiver pronta, o Início mostra os Primeiros passos: confirmar o endereço da loja, cadastrar os produtos, abrir o caixa e convidar a equipe. Cada item leva para a tela certa e marca sozinho quando você conclui. O botão Esconder tira o quadro só deste navegador.",
     ],
     problems: [
       {
@@ -22,13 +26,14 @@ export const gestao: Article[] = [
       },
     ],
     related: ["vendas-historico", "gestao-historico"],
-    keywords: ["dashboard", "relatório", "lucro", "faturamento", "gráfico"],
+    keywords: ["dashboard", "relatório", "lucro", "faturamento", "gráfico", "fiado recebido"],
   },
   {
     id: "gestao-historico",
     category: "gestao",
     title: "Histórico de alterações",
-    purpose: "Descobrir quem mudou algo, quando e o que mudou (preço, estoque, papel de alguém...).",
+    purpose:
+      "Descobrir quem mudou algo, quando e o que mudou (preço, estoque, papel de alguém...).",
     where: "Botão Histórico na tela do item (produto, venda, caixa, cliente, loja, equipe)",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
@@ -55,7 +60,7 @@ export const gestao: Article[] = [
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Equipe.",
-      "Para convidar, clique em Convidar pessoa, digite nome e e-mail, marque as lojas e escolha o papel em cada uma (atendente, gerente ou dono).",
+      "Para convidar, clique em Convidar pessoa, digite o nome da pessoa (só letras) e o e-mail, marque as lojas e escolha o papel em cada uma (atendente, gerente ou dono).",
       "A pessoa recebe um e-mail para criar a senha (vale 7 dias). Se já tem conta no sistema, só ganha o acesso.",
       "Para mudar o papel, use a lista ao lado da loja, na linha da pessoa. O papel pode ser diferente em cada loja.",
       "Para dar acesso a outra loja, clique no nome da loja em Dar acesso também a.",
@@ -84,10 +89,11 @@ export const gestao: Article[] = [
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Lojas.",
-      "Para criar, clique em Nova loja, preencha o nome (o resto é opcional) e salve. Todos os donos da empresa já viram donos da loja nova.",
-      "Se a loja tiver CNPJ próprio (filial), digite-o primeiro: ao completar, o sistema busca os dados públicos e preenche endereço, telefone e, se estiver vazio, o nome da loja com o nome fantasia. O que você já digitou não é trocado; confira antes de salvar.",
+      "Para criar, clique em Nova loja, preencha o nome e o endereço (CEP, rua, número, bairro, cidade e UF são obrigatórios; complemento, telefone e CNPJ são opcionais) e salve. Todos os donos da empresa já viram donos da loja nova.",
+      "Se o CNPJ da loja for o mesmo da empresa, deixe o campo em branco: a loja usa o CNPJ da empresa. Se ela tiver CNPJ próprio (filial), digite-o primeiro: ao completar, o sistema busca os dados públicos e preenche endereço, telefone e, se estiver vazio, o nome da loja com o nome fantasia. O que você já digitou não é trocado; confira antes de salvar.",
       "Se a busca não encontrar o CNPJ ou estiver fora do ar, preencha o endereço você mesmo.",
       "Para mudar endereço ou telefone, clique em Editar.",
+      "Em Fechamento automático do caixa, escolha o horário em que o caixa esquecido aberto fecha sozinho todo dia (padrão: meia-noite). Use um horário depois do fim do expediente, por exemplo 02:00 para quem fecha de madrugada.",
       "Para excluir, clique em Excluir e confirme.",
     ],
     problems: [

@@ -19,13 +19,28 @@ import { addDays, startOfDayInTz } from '../common/utils/time';
 import { Env } from '../config/env';
 import { assertCreditLimit } from '../customers/credit-limit';
 import { addCustomerDebt } from '../customers/customer-ledger';
+import {
+  ManagerApproval,
+  verifyManagerApproval,
+} from '../customers/manager-approval';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateSaleDto, ListSalesQuery } from './dto/sales.dto';
+import { ensureOpenCash } from '../cash-register/cash-auto';
+import {
+  CreateLateSaleDto,
+  CreateSaleDto,
+  ListSalesQuery,
+} from './dto/sales.dto';
+import { toUnits } from './packs';
 
 export interface SaleLineInput {
   storeProductId: string;
+  /** Unidades avulsas (sem contar os fardos). */
   quantity: number;
+  /** Fardos (venda em lote). */
+  packs?: number;
+  /** Unidades por fardo já gravadas (item de comanda); sem isso, vem do cadastro do produto. */
+  packSize?: number | null;
   /** Só para uso interno (comanda: preço do momento em que o item foi adicionado). */
   price?: number;
   costPrice?: number;
@@ -47,6 +62,16 @@ export interface CreateSaleInput {
   role: Role;
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
+  /**
+   * Quem autorizou passar do limite, quando não é quem vende (gerente que digitou e-mail e senha
+   * na tela do atendente). Sem isso, quem confirmou foi o próprio vendedor (`userId`).
+   */
+  creditApproverId?: string;
+  /**
+   * Venda antiga lançada depois: quando ela aconteceu. A venda fica com essa data e ganha
+   * `registeredAt` = agora; o dinheiro entra no caixa aberto agora.
+   */
+  soldAt?: Date;
 }
 
 const SALE_SELECT = {
@@ -58,8 +83,10 @@ const SALE_SELECT = {
   paymentMethod: true,
   status: true,
   createdAt: true,
+  registeredAt: true,
   userId: true,
   user: { select: { id: true, name: true } },
+  creditApprovedBy: { select: { id: true, name: true } },
   customerId: true,
   customer: { select: { id: true, name: true, phone: true } },
   commandTabId: true,
@@ -69,6 +96,8 @@ const SALE_SELECT = {
       id: true,
       storeProductId: true,
       quantity: true,
+      packs: true,
+      packSize: true,
       price: true,
       costPrice: true,
       storeProduct: {
@@ -98,22 +127,56 @@ export class SalesService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
+  /**
+   * Venda antiga lançada depois (só gerente e dono, decisão do usuário): igual à venda normal
+   * (estoque, caixa aberto agora, fiado e limite), mas com a data em que aconteceu.
+   */
+  async createLate(
+    storeId: string,
+    companyId: string,
+    userId: string,
+    dto: CreateLateSaleDto,
+    role: Role,
+  ) {
+    const soldAt = new Date(dto.soldAt);
+    // Um minuto de folga para a diferença de relógio entre o navegador e o servidor.
+    if (soldAt.getTime() > Date.now() + 60_000) {
+      throw new BadRequestException('A data da venda não pode ser no futuro.');
+    }
+    return this.create(storeId, companyId, userId, dto, role, soldAt);
+  }
+
+  /** "DD/MM/AAAA HH:mm" no fuso da aplicação (descrição da entrada no caixa). */
+  private formatSoldAt(date: Date): string {
+    return new Intl.DateTimeFormat('pt-BR', {
+      timeZone: this.config.get('APP_TIMEZONE', { infer: true }),
+      dateStyle: 'short',
+      timeStyle: 'short',
+    })
+      .format(date)
+      .replace(',', '');
+  }
+
   async create(
     storeId: string,
     companyId: string,
     userId: string,
     dto: CreateSaleDto,
     role: Role,
+    soldAt?: Date,
   ) {
-    // Itens repetidos viram uma linha só.
-    const merged = new Map<string, number>();
+    // Itens repetidos viram uma linha só (somando unidades avulsas e fardos).
+    const merged = new Map<string, { quantity: number; packs: number }>();
     for (const item of dto.items) {
-      merged.set(
-        item.storeProductId,
-        (merged.get(item.storeProductId) ?? 0) + item.quantity,
-      );
+      const line = merged.get(item.storeProductId) ?? { quantity: 0, packs: 0 };
+      line.quantity += item.quantity;
+      line.packs += item.packs ?? 0;
+      merged.set(item.storeProductId, line);
     }
 
+    const credit = await this.creditApproval(storeId, dto, role);
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction((tx) =>
       this.createInTx(tx, {
         storeId,
@@ -122,16 +185,43 @@ export class SalesService {
         paymentMethod: dto.paymentMethod,
         customerId: dto.customerId,
         discount: dto.discount,
-        lines: [...merged].map(([storeProductId, quantity]) => ({
+        lines: [...merged].map(([storeProductId, line]) => ({
           storeProductId,
-          quantity,
+          ...line,
         })),
         bottleReturns: dto.bottleReturns,
-        role,
-        allowOverCreditLimit: dto.allowOverCreditLimit,
+        ...credit,
+        soldAt,
       }),
     );
     return this.get(storeId, saleId);
+  }
+
+  /**
+   * Quem decide o limite de crédito do fiado: quem vende ou, se o atendente trouxe a autorização
+   * de um gerente/dono (e-mail e senha conferidos agora), o papel de quem autorizou, já confirmado.
+   */
+  async creditApproval(
+    storeId: string,
+    dto: { allowOverCreditLimit?: boolean; managerApproval?: ManagerApproval },
+    role: Role,
+  ): Promise<{
+    role: Role;
+    allowOverCreditLimit?: boolean;
+    creditApproverId?: string;
+  }> {
+    if (!dto.managerApproval)
+      return { role, allowOverCreditLimit: dto.allowOverCreditLimit };
+    const approver = await verifyManagerApproval(
+      this.prisma,
+      storeId,
+      dto.managerApproval,
+    );
+    return {
+      role: approver.role,
+      allowOverCreditLimit: true,
+      creditApproverId: approver.userId,
+    };
   }
 
   /**
@@ -181,7 +271,9 @@ export class SalesService {
         price: true,
         costPrice: true,
         stock: true,
-        product: { select: { name: true, bottleTypeId: true } },
+        product: {
+          select: { name: true, bottleTypeId: true, packQuantity: true },
+        },
       },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
@@ -191,9 +283,21 @@ export class SalesService {
       );
     }
 
+    // ---- fardos -> unidades (daqui em diante, `quantity` é o total em unidades) -------------
+    const lines = input.lines.map((l) => {
+      const p = byId.get(l.storeProductId)!;
+      const { units, packs, packSize } = toUnits(
+        p.product.name,
+        l.quantity,
+        l.packs ?? 0,
+        l.packSize ?? p.product.packQuantity,
+      );
+      return { ...l, quantity: units, packs, packSize };
+    });
+
     if (!input.skipStock) {
       const wanted = new Map<string, number>();
-      for (const l of input.lines)
+      for (const l of lines)
         wanted.set(
           l.storeProductId,
           (wanted.get(l.storeProductId) ?? 0) + l.quantity,
@@ -218,7 +322,7 @@ export class SalesService {
     // ---- totais ----------------------------------------------------------------------------
     let subtotalCents = 0;
     let costCents = 0;
-    const itemRows = input.lines.map((line) => {
+    const itemRows = lines.map((line) => {
       const p = byId.get(line.storeProductId)!;
       const price = roundMoney(line.price ?? p.price);
       const costPrice = roundMoney(line.costPrice ?? p.costPrice);
@@ -227,6 +331,8 @@ export class SalesService {
       return {
         storeProductId: line.storeProductId,
         quantity: line.quantity,
+        packs: line.packs,
+        packSize: line.packSize,
         price,
         costPrice,
       };
@@ -238,6 +344,18 @@ export class SalesService {
       );
     }
     const total = fromCents(subtotalCents - discountCents);
+
+    // Limite de crédito antes de gravar a venda: passando dele, a venda guarda quem autorizou.
+    const overCreditLimit =
+      input.paymentMethod === 'CREDIT_STORE' &&
+      (await assertCreditLimit(tx, {
+        customerId: customerId!,
+        companyId,
+        creditLimit,
+        amount: total,
+        role: input.role,
+        allowOverLimit: input.allowOverCreditLimit,
+      }));
 
     // ---- venda e itens ---------------------------------------------------------------------
     const sale = await tx.sale.create({
@@ -251,6 +369,12 @@ export class SalesService {
         userId: input.userId,
         customerId,
         commandTabId: input.commandTabId,
+        creditApprovedById: overCreditLimit
+          ? (input.creditApproverId ?? input.userId)
+          : null,
+        ...(input.soldAt
+          ? { createdAt: input.soldAt, registeredAt: new Date() }
+          : {}),
       },
     });
     await tx.saleItem.createMany({
@@ -259,14 +383,6 @@ export class SalesService {
 
     // ---- caixa ou fiado --------------------------------------------------------------------
     if (input.paymentMethod === 'CREDIT_STORE') {
-      await assertCreditLimit(tx, {
-        customerId: customerId!,
-        companyId,
-        creditLimit,
-        amount: total,
-        role: input.role,
-        allowOverLimit: input.allowOverCreditLimit,
-      });
       if (total > 0) await addCustomerDebt(tx, customerId!, storeId, total);
     } else if (total > 0) {
       await tx.cashMovement.create({
@@ -274,12 +390,21 @@ export class SalesService {
           cashRegisterId: cash.id,
           type: 'SALE',
           amount: total,
-          description: `Venda #${sale.id.slice(0, 8)}`,
+          description: input.soldAt
+            ? `Venda #${sale.id.slice(0, 8)} lançada depois (de ${this.formatSoldAt(input.soldAt)})`
+            : `Venda #${sale.id.slice(0, 8)}`,
         },
       });
     }
 
-    await this.registerBottles(tx, input, byId, sale.id, customerId);
+    // `lines` já está em unidades: 2 fardos de 12 com vasilhame levam 24 vasilhames.
+    await this.registerBottles(
+      tx,
+      { ...input, lines },
+      byId,
+      sale.id,
+      customerId,
+    );
     return sale.id;
   }
 
@@ -295,8 +420,8 @@ export class SalesService {
     saleId: string,
     customerId: string | null,
   ) {
-    // TODO(decisão-produto): cada produto com vasilhame leva `quantity` vasilhames (como no sistema antigo),
-    // e não `quantity × packQuantity`. Confirmar com o usuário.
+    // Cada unidade de produto com vasilhame leva 1 vasilhame (como no sistema antigo). Na venda em
+    // lote, `quantity` já é o total em unidades (fardos convertidos).
     const taken = new Map<string, number>();
     for (const line of input.lines) {
       const bottleTypeId = products.get(line.storeProductId)!.product
@@ -439,6 +564,8 @@ export class SalesService {
    * movimentos COMPENSATÓRIOS (os originais permanecem no histórico). Exige caixa aberto.
    */
   async cancel(storeId: string, id: string) {
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     await this.prisma.$transaction(async (tx) => {
       await lockCashShared(tx, storeId);
 

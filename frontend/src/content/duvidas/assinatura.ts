@@ -67,7 +67,7 @@ export const assinatura: Article[] = [
     steps: [
       "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano.",
       "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: entre em contato informando o nome da empresa.",
-      "Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso \"fale com o responsável\".",
+      'Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso "fale com o responsável".',
     ],
     related: ["assinatura-somente-leitura"],
     keywords: ["pagar", "pagamento", "assinar", "regularizar", "plano"],

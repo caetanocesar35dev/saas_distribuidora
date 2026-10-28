@@ -32,6 +32,8 @@ export function useCnpjAutofill<F extends string>(options: {
   hints?: Partial<Record<Status, string>>;
 }) {
   const [status, setStatus] = useState<Status>("idle");
+  // Dados da última consulta que achou o CNPJ (o cadastro usa o endereço para a primeira loja).
+  const [found, setFound] = useState<CnpjData | null>(null);
   const autofilled = useRef<Partial<Record<F, string>>>({});
   const pending = useRef<AbortController | null>(null);
 
@@ -48,6 +50,7 @@ export function useCnpjAutofill<F extends string>(options: {
     pending.current = null;
     if (!isValidCnpj(value)) {
       setStatus("idle");
+      setFound(null);
       return;
     }
     const controller = new AbortController();
@@ -61,6 +64,7 @@ export function useCnpjAutofill<F extends string>(options: {
           for (const name of Object.keys(values) as F[]) fill(name, values[name] ?? "");
         }
         setStatus(result.status);
+        setFound(result.status === "found" ? result.data : null);
       })
       .catch(() => {
         // consulta cancelada porque o CNPJ mudou
@@ -72,5 +76,5 @@ export function useCnpjAutofill<F extends string>(options: {
     (status === "found"
       ? "Dados preenchidos com a consulta pública do CNPJ. Confira antes de continuar."
       : HINTS[status]);
-  return { status, hint, onCnpjChange };
+  return { status, hint, found, onCnpjChange };
 }

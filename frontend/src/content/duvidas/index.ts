@@ -40,10 +40,7 @@ export function getArticle(id: string): Article | undefined {
 
 /** Minúsculas e sem acento, para a busca ignorar diferenças de digitação. */
 function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+  return text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 function searchableText(article: Article): string {
@@ -62,9 +59,7 @@ function searchableText(article: Article): string {
 const index = new Map(ARTICLES.map((a) => [a.id, searchableText(a)]));
 
 export function searchArticles(query: string, audience: Audience | "ALL"): Article[] {
-  const terms = normalize(query)
-    .split(/\s+/)
-    .filter(Boolean);
+  const terms = normalize(query).split(/\s+/).filter(Boolean);
   return ARTICLES.filter((article) => {
     if (audience !== "ALL" && !article.audience.includes(audience)) return false;
     const text = index.get(article.id) ?? "";

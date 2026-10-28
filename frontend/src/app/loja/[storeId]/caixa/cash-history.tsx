@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { useState } from "react";
 import { EmptyState, ErrorState, LoadingRows, Money } from "@/components/app/common";
 import { Pagination } from "@/components/app/pagination";
@@ -48,6 +49,15 @@ export function CashHistory() {
                 <TableCell className="whitespace-nowrap">{formatDateTime(r.openedAt)}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   {r.closedAt ? formatDateTime(r.closedAt) : "—"}
+                  {r.autoClosed && (
+                    <Badge
+                      variant="outline"
+                      className="ml-1.5"
+                      title="O caixa tinha ficado aberto e fechou sozinho no horário da loja."
+                    >
+                      automático
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <Money value={r.initialBalance} />

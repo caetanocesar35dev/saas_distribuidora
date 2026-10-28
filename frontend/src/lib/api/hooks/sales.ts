@@ -6,6 +6,7 @@ import type {
   CloseCommandTabBody,
   CommandItem,
   CommandTab,
+  CreateLateSaleBody,
   CreateSaleBody,
   MessageResponse,
   Sale,
@@ -52,6 +53,16 @@ export function useCreateSale(storeId: string) {
   return useMutation({
     mutationFn: (body: CreateSaleBody) => storeApi(storeId).post<Sale>("/sales", body),
     // Falha (ex.: estoque insuficiente) é tratada na tela do PDV, que mantém o carrinho.
+    meta: { silent: true },
+    onSettled: () => refresh(),
+  });
+}
+
+/** Venda antiga lançada depois (só gerente e dono). */
+export function useCreateLateSale(storeId: string) {
+  const refresh = useRefreshAfterSale(storeId);
+  return useMutation({
+    mutationFn: (body: CreateLateSaleBody) => storeApi(storeId).post<Sale>("/sales/late", body),
     meta: { silent: true },
     onSettled: () => refresh(),
   });
@@ -111,7 +122,7 @@ export function useCreateCommandTab(storeId: string) {
 export function useAddTabItem(storeId: string, tabId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: { storeProductId: string; quantity: number }) =>
+    mutationFn: (body: { storeProductId: string; quantity: number; packs?: number }) =>
       storeApi(storeId).post<CommandItem>(`/command-tabs/${tabId}/items`, body),
     onSettled: async () => {
       await client.invalidateQueries({ queryKey: salesKeys.tabs(storeId) });

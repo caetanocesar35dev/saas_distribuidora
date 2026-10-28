@@ -26,6 +26,56 @@ export function formatCents(cents: number): string {
 const intFormat = new Intl.NumberFormat("pt-BR");
 export const formatInt = (value: number) => intFormat.format(value);
 
+/**
+ * Nome de pessoa (usuário, convidado): só letras (com acento, de qualquer idioma), espaço,
+ * apóstrofo, hífen e ponto, começando por letra. Números e símbolos não entram. É a mesma regra do
+ * backend. Nome de loja, empresa e produto PODE ter número: não use esta regra neles.
+ */
+export const PERSON_NAME_REGEX = /^[\p{L}\p{M}][\p{L}\p{M} '’.-]*$/u;
+export const PERSON_NAME_MESSAGE = "O nome deve ter só letras (sem números ou símbolos).";
+
+export const isValidPersonName = (value: string) => PERSON_NAME_REGEX.test(value.trim());
+
+/** Tira o que não pode estar num nome de pessoa (números e símbolos), para o campo digitado ou colado. */
+export const cleanPersonName = (value: string) => value.replace(/[^\p{L}\p{M} '’.-]/gu, "");
+
+/**
+ * Endereço em uma linha: "Rua A, 10 - Sala 3 · Centro · Recife/PE · CEP 50030-230". Campos
+ * vazios são pulados; sem nada, devolve "".
+ */
+export function formatAddress(a: {
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zipCode?: string | null;
+}): string {
+  const street = [a.street && (a.number ? `${a.street}, ${a.number}` : a.street), a.complement]
+    .filter(Boolean)
+    .join(" - ");
+  const city = a.city ? (a.state ? `${a.city}/${a.state}` : a.city) : (a.state ?? "");
+  return [street, a.neighborhood, city, a.zipCode && `CEP ${a.zipCode}`]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * Quantidade de um item de venda ou comanda (venda em lote): "2 fardos de 12 + 3 un." ou "5 un.".
+ * `units` é o total em unidades; `packs` × `packSize` são os fardos contidos nele.
+ */
+export function formatItemQuantity(
+  units: number,
+  packs: number | null | undefined,
+  packSize: number | null | undefined,
+): string {
+  if (!packs || !packSize) return `${formatInt(units)} un.`;
+  const loose = units - packs * packSize;
+  const fardos = `${formatInt(packs)} ${packs === 1 ? "fardo" : "fardos"} de ${formatInt(packSize)}`;
+  return loose > 0 ? `${fardos} + ${formatInt(loose)} un.` : fardos;
+}
+
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: TIME_ZONE,
   day: "2-digit",
@@ -47,8 +97,7 @@ const timeFormat = new Intl.DateTimeFormat("pt-BR", {
 });
 
 export const formatDate = (iso: string | Date) => dateFormat.format(new Date(iso));
-export const formatDateTime = (iso: string | Date) =>
-  dateTimeFormat.format(new Date(iso));
+export const formatDateTime = (iso: string | Date) => dateTimeFormat.format(new Date(iso));
 export const formatTime = (iso: string | Date) => timeFormat.format(new Date(iso));
 
 /** "AAAA-MM-DD" (dia do calendário) para exibição, sem passar por fuso. */
@@ -98,12 +147,49 @@ export function formatCnpj(value: string | null | undefined): string {
 
 /** Máscara 00.000.000/0000-00 enquanto digita (aceita letras nos 12 primeiros). */
 export function maskCnpj(value: string): string {
-  const d = value.toUpperCase().replace(/[^0-9A-Z]/g, "").slice(0, 14);
+  const d = value
+    .toUpperCase()
+    .replace(/[^0-9A-Z]/g, "")
+    .slice(0, 14);
   const separators: Record<number, string> = { 2: ".", 5: ".", 8: "/", 12: "-" };
   let out = "";
   for (let i = 0; i < d.length; i++) out += (i > 0 && separators[i] ? separators[i] : "") + d[i];
   return out;
 }
+
+/**
+ * Máscara de telefone (fixo ou celular) enquanto digita: (81) 3333-4444 ou (81) 99999-0000. Até
+ * 10 dígitos formata como fixo; com 11, como celular.
+ */
+export function maskPhone(value: string): string {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Telefone fixo (10 dígitos) ou celular (11, começando por 9 depois do DDD). */
+export const isValidPhone = (value: string) =>
+  /^[1-9]{2}(?:[2-8]\d{7}|9\d{8})$/.test(onlyDigits(value));
+
+/** Sigla de estado enquanto digita: só letras, maiúsculas, até 2. */
+export const maskUf = (value: string) =>
+  value
+    .replace(/[^A-Za-z]/g, "")
+    .toUpperCase()
+    .slice(0, 2);
+
+/** Máscara de celular enquanto digita: (81) 99999-0000. */
+export function maskMobile(value: string): string {
+  const d = onlyDigits(value).slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : "";
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+/** Celular brasileiro: DDD + 9 dígitos começando por 9 (mesma regra do backend). */
+export const isValidMobile = (value: string) => /^[1-9]{2}9\d{8}$/.test(onlyDigits(value));
 
 export function formatPhone(value: string | null | undefined): string {
   const d = onlyDigits(value ?? "");
@@ -133,10 +219,52 @@ export function parseMoney(text: string): number | null {
   return Math.round(n * 100) / 100;
 }
 
-/** Número com vírgula decimal para preencher um campo de texto. */
+/** Número com vírgula decimal e ponto de milhar para preencher um campo de texto ("1.234,50"). */
 export function moneyToInput(value: number | null | undefined): string {
   if (value === null || value === undefined) return "";
-  return value.toFixed(2).replace(".", ",");
+  const [int, dec] = value.toFixed(2).split(".");
+  return `${groupThousands(int)},${dec}`;
+}
+
+function groupThousands(digits: string): string {
+  return digits.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+}
+
+/**
+ * Formata o campo de dinheiro enquanto a pessoa digita: põe o ponto de milhar sozinho
+ * ("1234" → "1.234"), aceita a vírgula decimal (no máximo 2 casas) e trata um "." digitado como
+ * vírgula (o ponto do teclado numérico), porque o ponto de milhar quem põe é o campo. Texto colado
+ * de uma vez segue a mesma leitura de `parseMoney` ("10.50" é dez e cinquenta; "1.234" é milhar).
+ * `prev` é o texto que estava no campo antes desta mudança.
+ */
+export function formatMoneyTyping(next: string, prev: string): string {
+  let t = next.replace(/R\$/g, "").replace(/\s/g, "");
+  const before = prev.replace(/\s/g, "");
+  // Uma tecla (um caractere a mais ou a menos): os pontos que já estavam são do milhar.
+  const typing = before !== "" && Math.abs(t.length - before.length) === 1;
+  if (typing && t.length === before.length + 1) {
+    let i = 0;
+    while (i < before.length && t[i] === before[i]) i++;
+    if (t[i] === ".") t = `${t.slice(0, i)},${t.slice(i + 1)}`;
+  }
+
+  let int: string;
+  let dec: string | null = null;
+  const comma = t.indexOf(",");
+  if (comma >= 0) {
+    int = t.slice(0, comma);
+    dec = t.slice(comma + 1).replace(/\D/g, "").slice(0, 2);
+  } else if (!typing && (t.match(/\./g) ?? []).length === 1 && !/^\d{1,3}\.\d{3}$/.test(t)) {
+    // Colado "10.50": o ponto é a casa decimal.
+    [int, dec] = t.split(".");
+    dec = dec.replace(/\D/g, "").slice(0, 2);
+  } else {
+    int = t;
+  }
+
+  int = int.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (dec !== null && int === "") int = "0";
+  return groupThousands(int) + (dec !== null ? `,${dec}` : "");
 }
 
 export function roundMoney(value: number): number {
@@ -153,13 +281,7 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   CREDIT_STORE: "Fiado",
 };
 
-export const PAYMENT_METHODS: PaymentMethod[] = [
-  "MONEY",
-  "PIX",
-  "DEBIT",
-  "CREDIT",
-  "CREDIT_STORE",
-];
+export const PAYMENT_METHODS: PaymentMethod[] = ["MONEY", "PIX", "DEBIT", "CREDIT", "CREDIT_STORE"];
 
 export const ROLE_LABEL: Record<Role, string> = {
   OWNER: "Dono",

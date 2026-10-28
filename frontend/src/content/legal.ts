@@ -13,8 +13,8 @@
  */
 import { formatCnpj } from "@/lib/format";
 
-export const TERMS_VERSION = "2026-10-21";
-export const TERMS_UPDATED_AT = "21/10/2026";
+export const TERMS_VERSION = "2026-10-26";
+export const TERMS_UPDATED_AT = "26/10/2026";
 
 export interface LegalOperator {
   name: string;
@@ -139,6 +139,7 @@ export function privacySections(op = legalOperator()): LegalSection[] {
       paragraphs: [
         "Com fornecedores necessários para o serviço funcionar: hospedagem e banco de dados, envio de e-mails e, quando houver, o processador de pagamentos da assinatura (os dados do cartão são digitados direto no processador e nunca passam pelo nosso sistema).",
         "Ao digitar um CNPJ no cadastro ou nas lojas, o seu navegador consulta um serviço público de CNPJ (publica.cnpj.ws) para preencher razão social, nome fantasia e endereço. Só o CNPJ é enviado.",
+        "Ao digitar o CEP no cadastro de um cliente, o seu navegador consulta um serviço público de CEP (viacep.com.br) para preencher rua, bairro, cidade e UF. Só o CEP é enviado, sem o nome nem outros dados do cliente.",
         "Com autoridades, quando exigido por lei ou ordem judicial.",
       ],
     },

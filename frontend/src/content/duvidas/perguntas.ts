@@ -10,7 +10,7 @@ export const perguntas: Article[] = [
     minRole: null,
     audience: ["EMPLOYEE", "MANAGER"],
     steps: [
-      "Caixa fechado: abra o caixa em Menu › Caixa. Sem caixa aberto não se vende, nem no fiado.",
+      "O caixa não precisa estar aberto: a primeira venda abre o caixa sozinha.",
       "Sistema somente para consulta: se a faixa vermelha aparece no topo, a assinatura está vencida. Só o dono (ou o responsável pela assinatura) pode resolver.",
       "Estoque insuficiente: o produto está com menos unidades do que o pedido. Peça ao gerente para dar entrada da mercadoria.",
       "Produto não aparece: ele pode estar pausado ou não ser vendido nesta loja. Veja em Menu › Estoque.",
@@ -60,13 +60,14 @@ export const perguntas: Article[] = [
     id: "faq-cancelei-fiado",
     category: "perguntas",
     title: "Cancelei uma venda no fiado que já tinha sido paga em parte e deu erro",
-    purpose: "Entender por que não dá para cancelar venda no fiado que o cliente já pagou em parte.",
-    where: "Menu › Vendas › a venda",
+    purpose:
+      "Entender por que não dá para cancelar venda no fiado que o cliente já pagou em parte.",
+    where: "Menu › Histórico de vendas › a venda",
     minRole: "MANAGER",
     audience: ["MANAGER"],
     steps: [
       "Quando o cliente já pagou uma parte do fiado, o sistema não deixa cancelar a venda, porque o estorno ficaria errado.",
-      "A mensagem é: \"Não é possível cancelar: o cliente já pagou parte desta venda a prazo.\"",
+      'A mensagem é: "Não é possível cancelar: o cliente já pagou parte desta venda a prazo."',
       "Faça o acerto manualmente com o cliente. Peça orientação ao dono se precisar.",
     ],
     related: ["vendas-cancelar", "clientes-receber"],
@@ -81,8 +82,8 @@ export const perguntas: Article[] = [
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
-      "Produto: cadastre de novo com o mesmo código de barras em Menu › Produtos › Novo produto. O sistema oferece o botão \"Reativar o produto excluído\".",
-      "Tipo de vasilhame: crie um tipo com o mesmo nome em Menu › Vasilhames › Tipos de vasilhame e use \"Reativar o tipo excluído\".",
+      "Produto: em Menu › Produtos, marque Mostrar só os excluídos e clique em Reativar. Ele volta com o preço e o estoque de antes nas lojas.",
+      'Tipo de vasilhame: crie um tipo com o mesmo nome em Menu › Vasilhames › Tipos de vasilhame e use "Reativar o tipo excluído".',
       "Cliente: clientes excluídos não aparecem na lista. Cadastre o cliente de novo; as vendas e pagamentos antigos continuam guardados no histórico.",
     ],
     related: ["produtos-excluir-reativar"],
@@ -97,9 +98,9 @@ export const perguntas: Article[] = [
     minRole: "MANAGER",
     audience: ["MANAGER"],
     steps: [
-      "A mensagem \"Já existe um produto com o código ...\" quer dizer que outro produto da empresa já usa esse código. Procure-o em Menu › Produtos pela busca.",
+      'A mensagem "Já existe um produto com o código ..." quer dizer que outro produto da empresa já usa esse código. Procure-o em Menu › Produtos pela busca.',
       "Se o produto já existe e só falta vender na sua loja, use Menu › Estoque › Colocar produto na loja.",
-      "Se a mensagem diz que o código pertence a um produto excluído, use o botão \"Reativar o produto excluído\".",
+      'Se a mensagem diz que o código pertence a um produto excluído, use o botão "Reativar o produto excluído".',
       "Se não tiver código de barras, deixe o campo vazio: o sistema cria um sozinho.",
     ],
     related: ["produtos-cadastrar", "produtos-colocar-tirar"],
@@ -114,7 +115,7 @@ export const perguntas: Article[] = [
     minRole: null,
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
-      "Veja o artigo completo em \"Não recebi o e-mail de redefinição de senha\", na categoria Acesso e conta.",
+      'Veja o artigo completo em "Não recebi o e-mail de redefinição de senha", na categoria Acesso e conta.',
       "Resumo: espere alguns minutos, olhe o spam, confira o e-mail digitado e peça um link novo.",
     ],
     related: ["acesso-email-nao-chegou", "acesso-esqueci-senha"],

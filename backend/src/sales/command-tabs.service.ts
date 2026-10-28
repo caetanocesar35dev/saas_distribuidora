@@ -9,17 +9,21 @@ import { AuditContext } from '../audit/audit-context';
 import { roundMoney, toCents, fromCents } from '../common/utils/money';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
+import { ensureOpenCash } from '../cash-register/cash-auto';
 import {
   AddCommandItemDto,
   CloseCommandTabDto,
   CreateCommandTabDto,
 } from './dto/sales.dto';
+import { toUnits } from './packs';
 import { SalesService } from './sales.service';
 
 const ITEM_SELECT = {
   id: true,
   storeProductId: true,
   quantity: true,
+  packs: true,
+  packSize: true,
   price: true,
   costPrice: true,
   addedAt: true,
@@ -110,7 +114,7 @@ export class CommandTabsService {
           price: true,
           costPrice: true,
           stock: true,
-          product: { select: { name: true } },
+          product: { select: { name: true, packQuantity: true } },
         },
       });
       if (!product)
@@ -118,13 +122,20 @@ export class CommandTabsService {
           'Produto não encontrado, inativo ou de outra loja.',
         );
 
+      // Venda em lote: fardos viram unidades (o estoque é em unidades).
+      const { units, packs, packSize } = toUnits(
+        product.product.name,
+        dto.quantity,
+        dto.packs ?? 0,
+        product.product.packQuantity,
+      );
       const decremented = await tx.storeProduct.updateMany({
-        where: { id: product.id, storeId, stock: { gte: dto.quantity } },
-        data: { stock: { decrement: dto.quantity } },
+        where: { id: product.id, storeId, stock: { gte: units } },
+        data: { stock: { decrement: units } },
       });
       if (decremented.count === 0) {
         throw new ConflictException(
-          `Estoque insuficiente para o produto "${product.product.name}". Disponível: ${product.stock}, solicitado: ${dto.quantity}.`,
+          `Estoque insuficiente para o produto "${product.product.name}". Disponível: ${product.stock}, solicitado: ${units}.`,
         );
       }
 
@@ -132,7 +143,9 @@ export class CommandTabsService {
         data: {
           commandTabId: tabId,
           storeProductId: product.id,
-          quantity: dto.quantity,
+          quantity: units,
+          packs,
+          packSize,
           price: product.price,
           costPrice: product.costPrice,
         },
@@ -180,6 +193,9 @@ export class CommandTabsService {
     dto: CloseCommandTabDto,
     role: Role,
   ) {
+    const credit = await this.sales.creditApproval(storeId, dto, role);
+    // Sem caixa aberto, abre um sozinho (decisão do usuário: o caixa não depende de abrir à mão).
+    await ensureOpenCash(this.prisma, storeId);
     const saleId = await this.prisma.$transaction(async (tx) => {
       const tab = await this.lockOpenTab(tx, storeId, tabId);
       const items = await tx.commandItem.findMany({
@@ -204,15 +220,17 @@ export class CommandTabsService {
         discount: dto.discount,
         lines: items.map((i) => ({
           storeProductId: i.storeProductId,
-          quantity: i.quantity,
+          // o item guarda o total em unidades; a venda recebe avulsas + fardos (tamanho gravado)
+          quantity: i.quantity - i.packs * (i.packSize ?? 0),
+          packs: i.packs,
+          packSize: i.packSize,
           price: i.price,
           costPrice: i.costPrice,
         })),
         bottleReturns: dto.bottleReturns,
         commandTabId: tabId,
         skipStock: true,
-        role,
-        allowOverCreditLimit: dto.allowOverCreditLimit,
+        ...credit,
       });
     });
     return this.sales.get(storeId, saleId);

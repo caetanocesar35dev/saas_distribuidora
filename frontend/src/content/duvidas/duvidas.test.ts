@@ -33,7 +33,14 @@ describe("Central de Dúvidas", () => {
   });
 
   it("linguagem de balcão: nada de termos técnicos nos textos", () => {
-    const forbidden = [/\bAPI\b/, /\btoken\b/i, /\bendpoint\b/i, /\bHTTP\b/, /\b40[0-9]\b/, /\b50[0-9]\b/];
+    const forbidden = [
+      /\bAPI\b/,
+      /\btoken\b/i,
+      /\bendpoint\b/i,
+      /\bHTTP\b/,
+      /\b40[0-9]\b/,
+      /\b50[0-9]\b/,
+    ];
     for (const article of ARTICLES) {
       const text = [
         article.title,

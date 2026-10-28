@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **98 rotas**. Todas começam com `/api`.
+Total: **100 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -23,7 +23,8 @@ Total: **98 rotas**. Todas começam com `/api`.
 - `POST /stores/:storeId/customers/:customerId/bottle-returns`: a devolução só abate a dívida **da própria loja** (409 se o cliente deve em outra).
 - **Funcionário nunca recebe custo nem lucro**: `costPrice`, `totalCost`, `totalProfit` e `profit` são retirados de toda resposta de loja ou empresa (`HideCostInterceptor`).
 - `POST/PATCH /companies/:companyId/customers`: o campo `creditLimit` **exige gerente** (403 para o funcionário).
-- `POST /stores/:storeId/sales` e `POST /stores/:storeId/command-tabs/:id/close` no fiado: acima do limite de crédito do cliente (soma de todas as lojas), **funcionário recebe 403**; gerente e dono recebem 409, a menos que enviem `allowOverCreditLimit: true`.
+- `POST /stores/:storeId/sales` e `POST /stores/:storeId/command-tabs/:id/close` no fiado: acima do limite de crédito do cliente (soma de todas as lojas), **funcionário recebe 403**; gerente e dono recebem 409, a menos que enviem `allowOverCreditLimit: true`. O funcionário passa enviando `managerApproval: { email, password }` de um gerente ou dono **desta loja** (400 se a senha estiver errada, 403 se não for gerente da loja, 429 depois de 5 erros por e-mail em 15 min).
+- `GET /companies/:companyId/products?deleted=true`: lista só os produtos excluídos; `POST /companies/:companyId/products/:id/restore` os reativa junto com as ofertas das lojas.
 - `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade).
 - Rotas `/platform/*`: `SUPPORT` só lê; `SUPERADMIN` lê e escreve (cada escrita aparece como "Plataforma: SUPERADMIN").
 
@@ -120,6 +121,7 @@ Total: **98 rotas**. Todas começam com `/api`.
 |---|---|---|---|
 | GET | `/api/companies/:companyId/dashboard` | Empresa: OWNER ou mais | Funciona |
 | GET | `/api/stores/:storeId/dashboard` | Loja: MANAGER ou mais | Funciona |
+| GET | `/api/stores/:storeId/onboarding` | Loja: OWNER ou mais | Funciona |
 
 ## health
 
@@ -194,6 +196,7 @@ Total: **98 rotas**. Todas começam com `/api`.
 | POST | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales/:id` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/sales/:id/cancel` | Loja: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/stores/:storeId/sales/late` | Loja: MANAGER ou mais | Bloqueada (402) |
 
 ## stores
 

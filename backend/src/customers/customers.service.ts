@@ -22,8 +22,44 @@ const CUSTOMER_SELECT = {
   name: true,
   phone: true,
   creditLimit: true,
+  zipCode: true,
+  street: true,
+  number: true,
+  complement: true,
+  neighborhood: true,
+  city: true,
+  state: true,
   createdAt: true,
 } satisfies Prisma.CustomerSelect;
+
+const ADDRESS_FIELDS = [
+  'zipCode',
+  'street',
+  'number',
+  'complement',
+  'neighborhood',
+  'city',
+  'state',
+] as const;
+
+/**
+ * Endereço (opcional) do DTO para o banco: campo ausente não mexe; texto vazio apaga (null); a
+ * UF vai em maiúsculas.
+ */
+function addressData(
+  dto: Partial<Record<(typeof ADDRESS_FIELDS)[number], string>>,
+) {
+  const data: Partial<Record<(typeof ADDRESS_FIELDS)[number], string | null>> =
+    {};
+  for (const key of ADDRESS_FIELDS) {
+    const value = dto[key];
+    if (value === undefined) continue;
+    const text = value.trim();
+    data[key] =
+      text === '' ? null : key === 'state' ? text.toUpperCase() : text;
+  }
+  return data;
+}
 
 /** O limite de crédito do fiado só é definido por gerente ou dono (decisão do usuário). */
 function assertCanSetCreditLimit(
@@ -153,6 +189,7 @@ export class CustomersService {
         name: dto.name,
         phone: dto.phone,
         creditLimit: creditLimitValue(dto.creditLimit),
+        ...addressData(dto),
       },
       select: CUSTOMER_SELECT,
     });
@@ -172,6 +209,7 @@ export class CustomersService {
         name: dto.name,
         phone: dto.phone,
         creditLimit: creditLimitValue(dto.creditLimit),
+        ...addressData(dto),
       },
       select: CUSTOMER_SELECT,
     });

@@ -65,7 +65,7 @@ test.describe("limite de crédito no fiado", () => {
     await context.close();
   });
 
-  test("atendente é barrado na tela e na API acima do limite", async ({ browser }) => {
+  test("atendente é barrado acima do limite e passa com a senha do gerente", async ({ browser }) => {
     // cliente com limite de R$ 1,00, criado pelo dono
     const { token, companyId } = await seedCompany();
     const nome = `Limite Atendente ${Date.now() % 100000}`;
@@ -82,11 +82,23 @@ test.describe("limite de crédito no fiado", () => {
     const checkout = await fiadoDeAgua(page, storeId, nome);
     const aviso = page.getByRole("alertdialog");
     await expect(aviso.getByText("Venda acima do limite de crédito")).toBeVisible();
-    await expect(aviso).toContainText("Só gerente ou dono pode vender no fiado acima do limite");
+    await expect(aviso).toContainText("o gerente ou o dono da loja digita o e-mail e a senha");
     await expect(aviso.getByRole("button", { name: /Sim/ })).toHaveCount(0);
-    await aviso.getByRole("button", { name: "Entendi" }).click();
+    await aviso.getByRole("button", { name: "Cancelar" }).click();
     await expect(checkout).toBeVisible();
     await expect(page.getByText("Venda concluída")).toBeHidden();
+
+    // senha errada: a venda não sai e dá para tentar de novo pelo botão do erro
+    await checkout.getByRole("button", { name: "Concluir", exact: true }).click();
+    await aviso.getByLabel("E-mail do gerente ou dono").fill("dono@exemplo.com");
+    await aviso.getByLabel("Senha").fill("senha-errada");
+    await aviso.getByRole("button", { name: "Autorizar e vender" }).click();
+    await expect(checkout.getByText("E-mail ou senha do gerente incorretos.")).toBeVisible();
+    await checkout.getByRole("button", { name: "Autorização do gerente" }).click();
+    await aviso.getByLabel("E-mail do gerente ou dono").fill("dono@exemplo.com");
+    await aviso.getByLabel("Senha").fill("123456");
+    await aviso.getByRole("button", { name: "Autorizar e vender" }).click();
+    await expect(page.getByText("Venda concluída")).toBeVisible();
 
     // a API também recusa, mesmo pedindo para passar do limite
     const products = await backend<{ data: { id: string; product: { name: string } }[] }>(

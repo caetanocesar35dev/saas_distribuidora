@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -9,14 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { moneyToInput, parseMoney } from "@/lib/format";
+import { cleanPersonName, formatMoneyTyping, moneyToInput, parseMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // ---- Valor em reais --------------------------------------------------------------------------
 
 /**
- * Campo de dinheiro. O usuário digita "12,5" ou "1.234,56"; o valor sai como número (reais, 2
- * casas) ou `undefined` quando vazio/inválido. O texto fica livre enquanto ele digita.
+ * Campo de dinheiro. O usuário digita "12,5" ou "1234,56"; o campo põe o ponto de milhar sozinho
+ * (`formatMoneyTyping`) e completa os centavos ao sair. O valor sai como número (reais, 2 casas)
+ * ou `undefined` quando vazio/inválido.
  */
 export function MoneyInput({
   value,
@@ -39,6 +41,15 @@ export function MoneyInput({
 }) {
   const [text, setText] = useState(value === undefined ? "" : moneyToInput(value));
   const [lastValue, setLastValue] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const pendingCaret = useRef<number | null>(null);
+
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (pendingCaret.current === null || !input || document.activeElement !== input) return;
+    input.setSelectionRange(pendingCaret.current, pendingCaret.current);
+    pendingCaret.current = null;
+  }, [text]);
 
   // Se o valor mudou por fora (ex.: formulário reiniciado), o texto acompanha.
   if (value !== lastValue) {
@@ -54,6 +65,7 @@ export function MoneyInput({
         R$
       </span>
       <Input
+        ref={inputRef}
         id={id}
         inputMode="decimal"
         autoComplete="off"
@@ -64,8 +76,20 @@ export function MoneyInput({
         autoFocus={autoFocus}
         aria-invalid={ariaInvalid}
         onChange={(e) => {
-          const next = e.target.value;
-          if (!/^[\d.,\sR$]*$/.test(next)) return;
+          const raw = e.target.value;
+          if (!/^[\d.,\sR$]*$/.test(raw)) return;
+          const next = formatMoneyTyping(raw, text);
+          // O cursor fica depois do mesmo número de dígitos de antes (os pontos de milhar mudam).
+          const caret = e.target.selectionStart ?? raw.length;
+          const beforeCaret = raw.slice(0, caret);
+          const digits = beforeCaret.replace(/\D/g, "").length;
+          const afterSeparator = next.includes(",") && /[,.]\d{0,2}$/.test(beforeCaret);
+          let pos = 0;
+          for (let seen = 0; pos < next.length && seen < digits; pos++) {
+            if (/\d/.test(next[pos])) seen++;
+          }
+          if (afterSeparator && next[pos] === ",") pos++;
+          pendingCaret.current = pos;
           setText(next);
           const parsed = parseMoney(next);
           setLastValue(parsed ?? undefined);
@@ -178,5 +202,78 @@ export function SelectField<V extends string>({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+// ---- Nome de pessoa --------------------------------------------------------------------------
+
+/**
+ * Campo de nome de pessoa: números e símbolos não entram (digitados ou colados). Serve também com
+ * `{...register("name")}` do React Hook Form (o valor limpo é o que ele lê).
+ */
+export function PersonNameInput({ onChange, ...props }: React.ComponentProps<typeof Input>) {
+  return (
+    <Input
+      autoComplete="name"
+      maxLength={120}
+      {...props}
+      onChange={(e) => {
+        const cleaned = cleanPersonName(e.target.value);
+        if (cleaned !== e.target.value) e.target.value = cleaned;
+        onChange?.(e);
+      }}
+    />
+  );
+}
+
+// ---- Senha -----------------------------------------------------------------------------------
+
+/**
+ * Campo de senha com o botão de olho para mostrar ou esconder o que foi digitado. Serve também com
+ * `{...register("password")}` do React Hook Form. Começa escondido, e o botão não entra na ordem do
+ * Tab (para o Enter e o Tab do formulário seguirem normais).
+ */
+export function PasswordInput({
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "type">) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input type={visible ? "text" : "password"} className={cn("pr-9", className)} {...props} />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Esconder a senha" : "Mostrar a senha"}
+        aria-pressed={visible}
+        className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-lg text-muted-foreground transition-colors hover:text-foreground"
+      >
+        {visible ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+      </button>
+    </div>
+  );
+}
+
+// ---- Campo com máscara -----------------------------------------------------------------------
+
+/**
+ * Campo que aplica uma máscara enquanto a pessoa digita ou cola (telefone, CEP, UF...). Serve com
+ * `{...register("campo")}` do React Hook Form: o valor que ele lê já vem formatado.
+ */
+export function MaskedInput({
+  mask,
+  onChange,
+  ...props
+}: React.ComponentProps<typeof Input> & { mask: (value: string) => string }) {
+  return (
+    <Input
+      {...props}
+      onChange={(e) => {
+        const masked = mask(e.target.value);
+        if (masked !== e.target.value) e.target.value = masked;
+        onChange?.(e);
+      }}
+    />
   );
 }

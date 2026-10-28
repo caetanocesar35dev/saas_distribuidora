@@ -10,20 +10,21 @@ export const vendas: Article[] = [
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Confira se o caixa está aberto (Menu › Caixa). Sem caixa aberto o PDV não vende.",
+      "Não precisa abrir o caixa antes: se ele estiver fechado, a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       "Abra Menu › Vender (PDV). O cursor já fica na busca (tecla F2 volta para ela).",
-      "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho.",
+      "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho. Ao tocar, a busca continua filtrada, para você adicionar mais do mesmo produto; pelo leitor, ela limpa sozinha para o próximo código.",
+      "Para vender em lote (fardo, caixa, engradado), toque em + fardo, no rodapé do cartão do produto (ao lado de + 1 un.): entra 1 fardo de uma vez (ex.: 12 unidades). No carrinho, ajuste Fardos e Unidades separados (ex.: 2 fardos + 3 unidades). O preço do fardo é o da unidade vezes as unidades do fardo; para dar desconto de atacado, use o campo Desconto no pagamento.",
       "Clique em Finalizar venda (ou tecla F9).",
       "Escolha a forma de pagamento. Se quiser, digite um desconto. No dinheiro, digite o valor recebido para ver o troco.",
-      "Clique em Concluir. A venda aparece em Menu › Vendas.",
+      "Clique em Concluir. A venda aparece em Menu › Histórico de vendas.",
     ],
     problems: [
       {
         message: "O caixa está fechado",
-        fix: "Abra o caixa em Menu › Caixa.",
+        fix: "Não precisa fazer nada: a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       },
       {
-        message: "Estoque insuficiente para o produto ...",
+        message: "Estoque insuficiente",
         fix: "A quantidade pedida é maior que o estoque. O carrinho é mantido: diminua a quantidade ou peça ao gerente para dar entrada da mercadoria.",
       },
       {
@@ -34,9 +35,26 @@ export const vendas: Article[] = [
         message: "O produto não aparece na busca",
         fix: "Ele pode estar pausado, sem estoque ou não ser vendido nesta loja. Veja em Menu › Estoque.",
       },
+      {
+        message: "O botão + fardo não aparece",
+        fix: "O produto não tem a quantidade por fardo cadastrada. Peça ao gerente para preencher Unidades por fardo (maior que 1) em Menu › Produtos › o produto › Editar.",
+      },
     ],
     related: ["vendas-fiado", "vendas-vasilhame", "vendas-historico"],
-    keywords: ["pdv", "vender", "leitor", "código de barras", "desconto", "troco", "carrinho"],
+    keywords: [
+      "pdv",
+      "vender",
+      "leitor",
+      "código de barras",
+      "desconto",
+      "troco",
+      "carrinho",
+      "fardo",
+      "lote",
+      "caixa fechada",
+      "engradado",
+      "atacado",
+    ],
   },
   {
     id: "vendas-fiado",
@@ -52,7 +70,7 @@ export const vendas: Article[] = [
       "Escolha o cliente na busca. Se ele ainda não existe, use Cadastrar novo cliente.",
       "Clique em Concluir. O valor entra na dívida do cliente nesta loja.",
       "Se o cliente já deve no fiado, o sistema avisa antes de concluir: quanto ele já deve, em quantas vendas, a data da mais antiga e quanto a dívida fica com esta venda. Clique em Sim, vender no fiado para concluir ou em Não, voltar para trocar a forma de pagamento.",
-      "Se o cliente tem limite de crédito e a venda faz a dívida (somando todas as lojas) passar dele, o atendente é barrado; gerente e dono veem o aviso e podem confirmar em Sim, vender acima do limite.",
+      "Se o cliente tem limite de crédito e a venda faz a dívida (somando todas as lojas) passar dele: gerente e dono veem o aviso e podem confirmar em Sim, vender acima do limite. O atendente não sai da conta dele: o gerente ou o dono digita o próprio e-mail e senha na tela que aparece e clica em Autorizar e vender (nada fica salvo no aparelho).",
       "Para receber depois, use Menu › Clientes e fiado › o cliente › Receber pagamento.",
     ],
     problems: [
@@ -66,11 +84,19 @@ export const vendas: Article[] = [
       },
       {
         message: "Venda acima do limite de crédito",
-        fix: "A dívida do cliente passaria do limite definido pelo gerente ou dono. Atendente: receba em outra forma de pagamento ou chame o gerente. Gerente e dono podem confirmar a venda.",
+        fix: "A dívida do cliente passaria do limite definido pelo gerente ou dono. Atendente: receba em outra forma de pagamento ou peça ao gerente ou ao dono para digitar o e-mail e a senha dele e autorizar. Gerente e dono podem confirmar a venda.",
       },
       {
         message: "Esta venda passa do limite de crédito do cliente.",
-        fix: "Mesmo caso do aviso acima, quando a dívida em outras lojas (que o atendente não vê) faz passar do limite. Chame o gerente.",
+        fix: "Mesmo caso do aviso acima, quando a dívida em outras lojas (que o atendente não vê) faz passar do limite. Clique em Autorização do gerente, abaixo da mensagem, e peça ao gerente para digitar o e-mail e a senha.",
+      },
+      {
+        message: "E-mail ou senha do gerente incorretos.",
+        fix: "O e-mail ou a senha digitados na autorização estão errados. Clique em Autorização do gerente e digite de novo. Depois de 5 erros com o mesmo e-mail, é preciso esperar 15 minutos.",
+      },
+      {
+        message: "Só um gerente ou dono desta loja pode autorizar a venda acima do limite.",
+        fix: "Quem digitou o e-mail e a senha não é gerente nem dono desta loja. Chame um gerente desta loja ou o dono.",
       },
       {
         message: "Não foi possível conferir o fiado",
@@ -114,17 +140,61 @@ export const vendas: Article[] = [
     category: "vendas",
     title: "Ver o histórico de vendas",
     purpose: "Consultar vendas passadas, com filtros e o total do período.",
-    where: "Menu › Vendas",
+    where: "Menu › Histórico de vendas",
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE", "MANAGER"],
     steps: [
-      "Abra Menu › Vendas. Por padrão aparecem as vendas de hoje.",
+      "Abra Menu › Histórico de vendas. Por padrão aparecem as vendas de hoje.",
       "Mude o período em De e até, ou filtre por forma de pagamento, situação (concluída ou cancelada) ou número da venda.",
       "No topo aparecem o faturamento do filtro (só vendas concluídas) e, para gerente e dono, o lucro.",
       "Clique no número da venda (#...) para ver os itens, o vendedor, o cliente e os vasilhames.",
+      "Vendas com a marca lançada depois são vendas antigas, lançadas depois que aconteceram; elas aparecem no dia em que aconteceram.",
     ],
-    related: ["vendas-cancelar", "gestao-historico"],
+    related: ["vendas-cancelar", "vendas-lancar-antiga", "gestao-historico"],
     keywords: ["histórico", "relatório", "período", "faturamento"],
+  },
+  {
+    id: "vendas-lancar-antiga",
+    category: "vendas",
+    title: "Lançar uma venda antiga",
+    purpose:
+      "Registrar vendas que aconteceram sem o sistema, por exemplo quando a internet caiu e a venda foi anotada no papel.",
+    where: "Menu › Lançar venda antiga (logo abaixo de Histórico de vendas)",
+    minRole: "MANAGER",
+    audience: ["MANAGER", "OWNER", "EMPLOYEE"],
+    steps: [
+      "O dinheiro da venda antiga entra no caixa aberto agora (se estiver fechado, ele abre sozinho).",
+      "No menu, clique em Lançar venda antiga, logo abaixo de Histórico de vendas. O item só aparece para gerente e dono.",
+      "Informe a data e a hora em que a venda aconteceu. Pode ser qualquer data passada, mas não no futuro.",
+      "Monte o carrinho como no PDV, clique em Lançar venda e escolha a forma de pagamento, o desconto e o cliente (fiado ou vasilhames), como numa venda normal.",
+      "A venda aparece nos relatórios e painéis no dia em que aconteceu, com a marca lançada depois. O estoque baixa agora.",
+      "No caixa, a venda entra como Venda #... lançada depois e conta no resumo do caixa atual. No fiado, o valor vai para a dívida do cliente e não mexe no caixa.",
+      "Para lançar várias vendas do mesmo dia, clique em Lançar outra: a data fica preenchida.",
+    ],
+    problems: [
+      {
+        message: "A data da venda não pode ser no futuro.",
+        fix: "Confira a data e a hora. Para uma venda de agora, use o PDV normal (Menu › Vender).",
+      },
+      {
+        message: "Você não tem permissão para ver esta página",
+        fix: "Só gerente e dono lançam vendas antigas. O atendente anota a venda no papel e entrega ao gerente.",
+      },
+      {
+        message: "Estoque insuficiente",
+        fix: "O estoque do sistema está menor do que o vendido. Confira a contagem e faça uma entrada ou um ajuste de estoque antes de lançar.",
+      },
+    ],
+    related: ["vendas-vender", "vendas-historico", "caixa-fechar"],
+    keywords: [
+      "venda antiga",
+      "venda atrasada",
+      "lançar depois",
+      "internet caiu",
+      "sem internet",
+      "papel",
+      "retroativa",
+    ],
   },
   {
     id: "vendas-cancelar",
@@ -132,18 +202,18 @@ export const vendas: Article[] = [
     title: "Cancelar uma venda",
     purpose:
       "Desfazer uma venda feita por engano: devolve estoque, estorna o valor e desfaz vasilhames.",
-    where: "Menu › Vendas › a venda › Cancelar venda",
+    where: "Menu › Histórico de vendas › a venda › Cancelar venda",
     minRole: "MANAGER",
     audience: ["MANAGER"],
     steps: [
-      "Confira se o caixa está aberto: o estorno é lançado nele.",
-      "Abra Menu › Vendas, clique no número da venda e depois em Cancelar venda.",
+      "O estorno é lançado no caixa aberto (se estiver fechado, ele abre sozinho).",
+      "Abra Menu › Histórico de vendas, clique no número da venda e depois em Cancelar venda.",
       "Confirme. O estoque volta, o dinheiro é estornado no caixa (ou na dívida, se foi fiado) e os vasilhames são desfeitos.",
     ],
     problems: [
       {
         message: "Para cancelar uma venda, o caixa precisa estar aberto para registrar o estorno.",
-        fix: "Abra o caixa em Menu › Caixa e tente de novo.",
+        fix: "Raro: o caixa fechou sozinho (horário de fechamento automático) bem no meio da operação. Tente de novo: o caixa abre sozinho.",
       },
       {
         message: "Não é possível cancelar: o cliente já pagou parte desta venda a prazo.",

@@ -111,7 +111,7 @@ export function useStockAdjustment(storeId: string) {
 
 export function useProducts(
   companyId: string,
-  params: { search?: string; page?: number; limit?: number } = {},
+  params: { search?: string; page?: number; limit?: number; deleted?: boolean } = {},
   enabled = true,
 ) {
   return useQuery({

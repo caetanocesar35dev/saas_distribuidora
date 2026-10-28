@@ -17,6 +17,7 @@ import { FormField } from "@/components/app/form";
 import { IntInput, MoneyInput } from "@/components/app/inputs";
 import { CustomerPicker, type PickedCustomer } from "@/components/app/pos/customer-picker";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
-import type { BottleReturnLine, PaymentMethod } from "@/lib/api/types";
+import type { BottleReturnLine, ManagerApproval, PaymentMethod } from "@/lib/api/types";
 import {
   creditLimitCheck,
   creditWarning,
@@ -58,6 +59,8 @@ export interface CheckoutPayload {
   bottleReturns: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
+  /** Atendente: gerente ou dono digitou o e-mail e a senha para autorizar passar do limite. */
+  managerApproval?: ManagerApproval;
 }
 
 /**
@@ -127,7 +130,17 @@ export function CheckoutDialog({
   // Já busca a dívida ao escolher fiado + cliente, para o aviso abrir na hora.
   useCustomerBalances(companyId, customer?.id ?? "", method === "CREDIT_STORE" && !!customer);
 
+  // Último pedido enviado (sem credenciais), para pedir a autorização se o backend barrar.
+  const [lastPayload, setLastPayload] = useState<CheckoutPayload | null>(null);
+  const [approvalFor, setApprovalFor] = useState<CheckoutPayload | null>(null);
+  const limitBlocked =
+    !canPassLimit &&
+    lastPayload?.paymentMethod === "CREDIT_STORE" &&
+    !!error &&
+    /limite de crédito|acima do limite|senha do gerente/i.test(error);
+
   async function submit(payload: CheckoutPayload) {
+    setLastPayload(payload);
     if (payload.paymentMethod !== "CREDIT_STORE" || !customer) return onSubmit(payload);
     setCheckingCredit(true);
     try {
@@ -307,12 +320,22 @@ export function CheckoutDialog({
           </div>
 
           {error && (
-            <p
+            <div
               role="alert"
-              className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              className="space-y-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
             >
-              {error}
-            </p>
+              <p>{error}</p>
+              {limitBlocked && lastPayload && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setApprovalFor(lastPayload)}
+                >
+                  Autorização do gerente
+                </Button>
+              )}
+            </div>
           )}
 
           <DialogFooter>
@@ -340,6 +363,25 @@ export function CheckoutDialog({
               setCreditCheck(null);
               onSubmit(limit ? { ...payload, allowOverCreditLimit: true } : payload);
             }}
+            onApprove={(managerApproval) => {
+              const { payload } = creditCheck;
+              setCreditCheck(null);
+              onSubmit({ ...payload, managerApproval });
+            }}
+          />
+        )}
+
+        {/* O backend barrou pelo limite sem a tela ter visto antes (o atendente não enxerga a
+            dívida de todas as lojas): o gerente autoriza aqui mesmo. */}
+        {approvalFor && (
+          <ManagerApprovalDialog
+            description="Esta venda passa do limite de crédito do cliente."
+            onCancel={() => setApprovalFor(null)}
+            onApprove={(managerApproval) => {
+              const payload = approvalFor;
+              setApprovalFor(null);
+              onSubmit({ ...payload, managerApproval });
+            }}
           />
         )}
       </DialogContent>
@@ -348,8 +390,99 @@ export function CheckoutDialog({
 }
 
 /**
+ * Venda do atendente acima do limite (decisão do usuário): o gerente ou dono digita o e-mail e a
+ * senha aqui mesmo, sem o atendente sair da conta. As credenciais vão só nesta venda e não ficam
+ * guardadas: os campos não têm autocompletar, a senha não usa `type="password"` onde o navegador
+ * consegue mascarar texto comum (assim ele não oferece "salvar senha") e tudo some ao fechar.
+ */
+function ManagerApprovalDialog({
+  description,
+  onCancel,
+  onApprove,
+}: {
+  description: React.ReactNode;
+  onCancel: () => void;
+  onApprove: (approval: ManagerApproval) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const masksText =
+    typeof CSS !== "undefined" && CSS.supports("-webkit-text-security", "disc");
+  const valid = /^\S+@\S+\.\S+$/.test(email.trim()) && password !== "";
+
+  function approve() {
+    if (!valid) return;
+    const approval = { email: email.trim(), password };
+    setPassword("");
+    onApprove(approval);
+  }
+
+  return (
+    <AlertDialog open onOpenChange={(open) => !open && onCancel()}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Venda acima do limite de crédito</AlertDialogTitle>
+          <AlertDialogDescription>
+            {description} Para vender mesmo assim, o gerente ou o dono da loja digita o e-mail e a
+            senha dele abaixo. Nada fica salvo neste aparelho.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {/* Sem <form>: o navegador não trata como login (nem oferece salvar a senha). */}
+        <div
+          className="space-y-3"
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              approve();
+            }
+          }}
+        >
+          <FormField label="E-mail do gerente ou dono" htmlFor="approval-email">
+            <Input
+              id="approval-email"
+              type="text"
+              inputMode="email"
+              name="approval-email-no-save"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoFocus
+            />
+          </FormField>
+          <FormField label="Senha" htmlFor="approval-password">
+            <Input
+              id="approval-password"
+              type={masksText ? "text" : "password"}
+              name="approval-secret-no-save"
+              autoComplete={masksText ? "off" : "new-password"}
+              autoCapitalize="none"
+              spellCheck={false}
+              data-1p-ignore
+              data-lpignore="true"
+              style={masksText ? ({ WebkitTextSecurity: "disc" } as React.CSSProperties) : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </FormField>
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <Button type="button" variant="destructive" disabled={!valid} onClick={approve}>
+            Autorizar e vender
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/**
  * Antes de vender no fiado: mostra a dívida em aberto e, se a venda passa do limite de crédito,
- * barra o atendente ou pede a confirmação de gerente e dono.
+ * pede a autorização do gerente (atendente) ou a confirmação de gerente e dono.
  */
 function CreditConfirmDialog({
   customerName,
@@ -361,6 +494,7 @@ function CreditConfirmDialog({
   currentStoreId,
   onCancel,
   onConfirm,
+  onApprove,
 }: {
   customerName: string;
   failed: boolean;
@@ -371,25 +505,21 @@ function CreditConfirmDialog({
   currentStoreId: string;
   onCancel: () => void;
   onConfirm: () => void;
+  onApprove: (approval: ManagerApproval) => void;
 }) {
   if (limit && !canPassLimit) {
     return (
-      <AlertDialog open onOpenChange={(open) => !open && onCancel()}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Venda acima do limite de crédito</AlertDialogTitle>
-            <AlertDialogDescription>
-              O limite de crédito de <strong className="text-foreground">{customerName}</strong> é{" "}
-              <strong className="text-foreground">{formatMoney(limit.limit)}</strong>, e esta venda
-              passa desse valor. Só gerente ou dono pode vender no fiado acima do limite. Escolha
-              outra forma de pagamento ou chame o gerente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Entendi</AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ManagerApprovalDialog
+        description={
+          <>
+            O limite de crédito de <strong className="text-foreground">{customerName}</strong> é{" "}
+            <strong className="text-foreground">{formatMoney(limit.limit)}</strong>, e esta venda
+            passa desse valor.
+          </>
+        }
+        onCancel={onCancel}
+        onApprove={onApprove}
+      />
     );
   }
 

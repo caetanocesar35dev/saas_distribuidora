@@ -48,7 +48,7 @@ export const vasilhames: Article[] = [
       },
       {
         message: "O tipo ... existe, mas está excluído",
-        fix: "Clique em \"Reativar o tipo excluído\" em vez de criar outro com o mesmo nome.",
+        fix: 'Clique em "Reativar o tipo excluído" em vez de criar outro com o mesmo nome.',
       },
     ],
     related: ["vasilhames-estoque", "produtos-cadastrar"],
@@ -118,7 +118,7 @@ export const vasilhames: Article[] = [
       "Conte os vasilhames na loja.",
       "Abra Menu › Vasilhames e clique em Ajuste manual.",
       "Escolha o tipo, diga se o ajuste soma ou tira do estoque e digite a diferença.",
-      "Escreva uma observação (ex.: \"quebra\") e registre.",
+      'Escreva uma observação (ex.: "quebra") e registre.',
     ],
     problems: [
       {

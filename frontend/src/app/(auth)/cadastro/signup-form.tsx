@@ -8,21 +8,59 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { FormField } from "@/components/app/form";
+import { PasswordInput, PersonNameInput } from "@/components/app/inputs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { api, errorMessage, publicApi } from "@/lib/api/client";
 import type { AuthResponse, Membership, Plan, SignupBody } from "@/lib/api/types";
 import { companyFieldsFromCnpj, useCnpjAutofill } from "@/hooks/use-cnpj-autofill";
-import { formatCents, isValidCnpj, maskCnpj, normalizeCnpj } from "@/lib/format";
+import type { CnpjData } from "@/lib/cnpj-lookup";
+import {
+  formatAddress,
+  formatCents,
+  isValidCnpj,
+  isValidMobile,
+  isValidPersonName,
+  maskCnpj,
+  maskMobile,
+  normalizeCnpj,
+  onlyDigits,
+  PERSON_NAME_MESSAGE,
+} from "@/lib/format";
 import { resolveHome } from "@/lib/session/last-selection";
 import { sessionKeys } from "@/lib/session/queries";
 import { cn } from "@/lib/utils";
 
+/**
+ * Endereço e telefone da primeira loja a partir da consulta pública do CNPJ (decisão do usuário:
+ * não perguntar no cadastro). Sem consulta, a loja fica sem endereço e o dono completa em Lojas.
+ */
+function storeAddressFromCnpj(data: CnpjData | null): SignupBody["storeAddress"] {
+  if (!data) return undefined;
+  const address = {
+    phone: data.phone ?? undefined,
+    zipCode: data.zipCode ?? undefined,
+    street: data.street ?? undefined,
+    number: data.number ?? undefined,
+    complement: data.complement ?? undefined,
+    neighborhood: data.neighborhood ?? undefined,
+    city: data.city ?? undefined,
+    state: data.state ?? undefined,
+  };
+  return Object.values(address).some(Boolean) ? address : undefined;
+}
+
 const schema = z
   .object({
-    name: z.string().trim().min(1, "Informe seu nome.").max(120),
+    name: z
+      .string()
+      .trim()
+      .min(1, "Informe seu nome.")
+      .max(120)
+      .refine(isValidPersonName, PERSON_NAME_MESSAGE),
     email: z.email("Informe um e-mail válido."),
+    phone: z.string().refine(isValidMobile, "Informe um celular válido com DDD."),
     password: z
       .string()
       .min(8, "A senha deve ter no mínimo 8 caracteres.")
@@ -73,7 +111,7 @@ export function SignupForm() {
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { cnpj: "", acceptTerms: false },
+    defaultValues: { cnpj: "", phone: "", acceptTerms: false },
   });
   const cnpjLookup = useCnpjAutofill({
     get: (name) => getValues(name),
@@ -111,6 +149,9 @@ export function SignupForm() {
           storeName: v.storeName,
           planId: v.planId || undefined,
           acceptTerms: v.acceptTerms,
+          phone: onlyDigits(v.phone),
+          // Endereço e telefone da primeira loja vêm da consulta do CNPJ (sem campo na tela).
+          storeAddress: storeAddressFromCnpj(cnpjLookup.found),
         });
       })}
     >
@@ -124,7 +165,7 @@ export function SignupForm() {
       <fieldset className="space-y-4">
         <legend className="mb-2 text-sm font-medium">Seus dados</legend>
         <FormField label="Seu nome" htmlFor="name" error={errors.name?.message}>
-          <Input id="name" autoComplete="name" aria-invalid={!!errors.name} {...register("name")} />
+          <PersonNameInput id="name" aria-invalid={!!errors.name} {...register("name")} />
         </FormField>
         <FormField label="E-mail" htmlFor="email" error={errors.email?.message}>
           <Input
@@ -135,6 +176,30 @@ export function SignupForm() {
             {...register("email")}
           />
         </FormField>
+        <FormField
+          label="Celular (WhatsApp)"
+          htmlFor="phone"
+          error={errors.phone?.message}
+          hint="Para o suporte e os avisos da assinatura falarem com você."
+        >
+          <Controller
+            control={control}
+            name="phone"
+            render={({ field }) => (
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel-national"
+                placeholder="(81) 99999-0000"
+                aria-invalid={!!errors.phone}
+                value={field.value ?? ""}
+                onBlur={field.onBlur}
+                onChange={(e) => field.onChange(maskMobile(e.target.value))}
+              />
+            )}
+          />
+        </FormField>
         <div className="grid gap-4 sm:grid-cols-2">
           <FormField
             label="Senha"
@@ -142,18 +207,16 @@ export function SignupForm() {
             error={errors.password?.message}
             hint="Mínimo de 8 caracteres."
           >
-            <Input
+            <PasswordInput
               id="password"
-              type="password"
               autoComplete="new-password"
               aria-invalid={!!errors.password}
               {...register("password")}
             />
           </FormField>
           <FormField label="Repita a senha" htmlFor="confirm" error={errors.confirm?.message}>
-            <Input
+            <PasswordInput
               id="confirm"
-              type="password"
               autoComplete="new-password"
               aria-invalid={!!errors.confirm}
               {...register("confirm")}
@@ -213,6 +276,13 @@ export function SignupForm() {
         >
           <Input id="storeName" aria-invalid={!!errors.storeName} {...register("storeName")} />
         </FormField>
+        {cnpjLookup.found && formatAddress(cnpjLookup.found) && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            Endereço da loja pela consulta do CNPJ:{" "}
+            <span className="text-foreground">{formatAddress(cnpjLookup.found)}</span>. Você pode
+            mudar depois em Lojas.
+          </p>
+        )}
       </fieldset>
 
       <fieldset className="space-y-2">

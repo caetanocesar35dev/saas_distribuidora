@@ -24,6 +24,7 @@ import {
   AddCommandItemDto,
   CloseCommandTabDto,
   CreateCommandTabDto,
+  CreateLateSaleDto,
   CreateSaleDto,
   ListCommandTabsQuery,
   ListSalesQuery,
@@ -43,6 +44,23 @@ export class SalesController {
     @Body() dto: CreateSaleDto,
   ) {
     return this.sales.create(
+      tenant.storeId,
+      tenant.companyId,
+      user.id,
+      dto,
+      tenant.role,
+    );
+  }
+
+  /** Venda antiga lançada depois (internet caiu etc.): só gerente e dono. */
+  @StoreRole(Role.MANAGER)
+  @Post('late')
+  createLate(
+    @Tenant() tenant: StoreTenant,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateLateSaleDto,
+  ) {
+    return this.sales.createLate(
       tenant.storeId,
       tenant.companyId,
       user.id,

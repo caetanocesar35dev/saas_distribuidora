@@ -2,21 +2,40 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { PageHeader, QueryBoundary } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
+import { PasswordInput, PersonNameInput } from "@/components/app/inputs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  isValidMobile,
+  isValidPersonName,
+  maskMobile,
+  onlyDigits,
+  PERSON_NAME_MESSAGE,
+} from "@/lib/format";
 import { useChangePassword, useUpdateProfile } from "@/lib/api/hooks/account";
 import { errorMessage } from "@/lib/api/client";
 import { useLogoutAll } from "@/lib/session/actions";
 import { useMe } from "@/lib/session/queries";
 
 const nameSchema = z.object({
-  name: z.string().trim().min(1, "Informe seu nome.").max(120, "Use no máximo 120 caracteres."),
+  name: z
+    .string()
+    .trim()
+    .min(1, "Informe seu nome.")
+    .max(120, "Use no máximo 120 caracteres.")
+    .refine(isValidPersonName, PERSON_NAME_MESSAGE),
+  phone: z
+    .string()
+    .refine(
+      (v) => v === "" || isValidMobile(v),
+      "Informe um celular válido com DDD ou deixe em branco.",
+    ),
 });
 
 const passwordSchema = z
@@ -51,36 +70,75 @@ function Section({
   );
 }
 
-function ProfileForm({ name, email }: { name: string; email: string }) {
+function ProfileForm({
+  name,
+  email,
+  phone,
+}: {
+  name: string;
+  email: string;
+  phone: string | null;
+}) {
   const update = useUpdateProfile();
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors, isDirty },
     reset,
-  } = useForm({ resolver: zodResolver(nameSchema), defaultValues: { name } });
+  } = useForm({
+    resolver: zodResolver(nameSchema),
+    defaultValues: { name, phone: phone ? maskMobile(phone) : "" },
+  });
 
   return (
     <form
       className="max-w-sm space-y-4"
       noValidate
       onSubmit={handleSubmit((values) =>
-        update.mutate(values, {
-          onSuccess: (profile) => {
-            reset({ name: profile.name });
-            toast.success("Nome atualizado.");
+        // celular vazio apaga (o backend grava null)
+        update.mutate(
+          { name: values.name, phone: onlyDigits(values.phone) },
+          {
+            onSuccess: (profile) => {
+              reset({ name: profile.name, phone: profile.phone ? maskMobile(profile.phone) : "" });
+              toast.success("Dados atualizados.");
+            },
           },
-        }),
+        ),
       )}
     >
       <FormField label="Nome" htmlFor="name" error={errors.name?.message}>
-        <Input id="name" autoComplete="name" aria-invalid={!!errors.name} {...register("name")} />
+        <PersonNameInput id="name" aria-invalid={!!errors.name} {...register("name")} />
       </FormField>
-      <FormField label="E-mail" htmlFor="email" hint="O e-mail é o seu acesso e não pode ser alterado aqui.">
+      <FormField label="Celular (WhatsApp)" htmlFor="phone" error={errors.phone?.message}>
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field }) => (
+            <Input
+              id="phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel-national"
+              placeholder="(81) 99999-0000"
+              aria-invalid={!!errors.phone}
+              value={field.value}
+              onBlur={field.onBlur}
+              onChange={(e) => field.onChange(maskMobile(e.target.value))}
+            />
+          )}
+        />
+      </FormField>
+      <FormField
+        label="E-mail"
+        htmlFor="email"
+        hint="O e-mail é o seu acesso e não pode ser alterado aqui."
+      >
         <Input id="email" value={email} disabled readOnly />
       </FormField>
       <Button type="submit" disabled={!isDirty || update.isPending}>
-        {update.isPending ? "Salvando..." : "Salvar nome"}
+        {update.isPending ? "Salvando..." : "Salvar dados"}
       </Button>
     </form>
   );
@@ -114,28 +172,34 @@ function PasswordForm() {
         );
       })}
     >
-      <FormField label="Senha atual" htmlFor="currentPassword" error={errors.currentPassword?.message}>
-        <Input
+      <FormField
+        label="Senha atual"
+        htmlFor="currentPassword"
+        error={errors.currentPassword?.message}
+      >
+        <PasswordInput
           id="currentPassword"
-          type="password"
           autoComplete="current-password"
           aria-invalid={!!errors.currentPassword}
           {...register("currentPassword")}
         />
       </FormField>
-      <FormField label="Nova senha" htmlFor="newPassword" error={errors.newPassword?.message} hint="Mínimo de 8 caracteres.">
-        <Input
+      <FormField
+        label="Nova senha"
+        htmlFor="newPassword"
+        error={errors.newPassword?.message}
+        hint="Mínimo de 8 caracteres."
+      >
+        <PasswordInput
           id="newPassword"
-          type="password"
           autoComplete="new-password"
           aria-invalid={!!errors.newPassword}
           {...register("newPassword")}
         />
       </FormField>
       <FormField label="Repita a nova senha" htmlFor="confirm" error={errors.confirm?.message}>
-        <Input
+        <PasswordInput
           id="confirm"
-          type="password"
           autoComplete="new-password"
           aria-invalid={!!errors.confirm}
           {...register("confirm")}
@@ -165,7 +229,7 @@ export function AccountView() {
         {(profile) => (
           <>
             <Section title="Seus dados">
-              <ProfileForm name={profile.name} email={profile.email} />
+              <ProfileForm name={profile.name} email={profile.email} phone={profile.phone} />
             </Section>
             <Section
               title="Trocar a senha"

@@ -23,6 +23,7 @@ describe('Autenticação e conta (e2e)', () => {
     nomeFantasia: 'Maria Bebidas',
     storeName: 'Matriz',
     acceptTerms: true,
+    phone: '81999990000',
     ...over,
   });
 
@@ -119,6 +120,48 @@ describe('Autenticação e conta (e2e)', () => {
       .post('/api/auth/logout')
       .send({ refreshToken: 'qualquer' })
       .expect(200);
+  });
+
+  it('nome de pessoa não aceita números nem símbolos (cadastro, perfil e convite)', async () => {
+    const msg = 'só letras';
+    const bad = ['Maria 2', '123', 'Maria@Silva', '  ', '-Maria'];
+    for (const name of bad) {
+      const res = await t.http
+        .post('/api/auth/signup')
+        .send(signupBody({ name }))
+        .expect(400);
+      expect(JSON.stringify(res.body)).toMatch(
+        name.trim() === '' ? /obrigatório/ : new RegExp(msg),
+      );
+    }
+
+    // nomes de verdade passam: acento, apóstrofo, hífen, ponto e nome composto
+    for (const [i, name] of [
+      "João D'Ávila-Neto",
+      'Ana Maria Jr.',
+      'Zoë Müller',
+    ].entries()) {
+      await t.http
+        .post('/api/auth/signup')
+        .send(
+          signupBody({
+            name,
+            email: `ok${i}@dist.com`,
+            cnpj: buildCnpj(`70000000000${i}`),
+          }),
+        )
+        .expect(201);
+    }
+
+    // perfil
+    const user = await t.factory.user({ name: 'Antigo' });
+    const auth = await t.login(user.email);
+    await t.http
+      .patch('/api/me')
+      .set(auth)
+      .send({ name: 'Novo 7' })
+      .expect(400);
+    await t.http.patch('/api/me').set(auth).send({ name: 'Novo' }).expect(200);
   });
 
   it('o interceptor de auditoria grava a rota e o usuário nas alterações', async () => {

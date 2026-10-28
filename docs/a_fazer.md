@@ -45,7 +45,73 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
     da lista de devedores.
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
-13. [ ] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido ou algo do tipo.
+13. [x] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido anteriormente ou algo do tipo.
+    **Decidido pelo usuário (2026-10-23):** só **gerente e dono** lançam; a venda à vista entra
+    no **caixa aberto agora** (fiado só mexe na dívida); coluna nova `tb_sales.registeredAt`
+    (quando foi lançada; a data da venda continua em `createdAt`); **sem limite** de dias para
+    trás (só não pode data futura). **Feito (2026-10-23):** item "Lançar venda antiga" do menu, abaixo de Histórico de vendas (o PDV com
+    o campo de data e hora); a venda fica marcada "lançada depois" na lista e no detalhe.
+14. [x] **Vender em lote (fardo, caixa, engradado)** (pedido do usuário, 2026-10-23). Hoje o PDV
+    (e a comanda e a venda antiga) só vende por **unidade**: para vender dois fardos de cerveja,
+    o operador precisa fazer a conta e digitar 24 unidades. Ponto de partida: o produto já tem
+    `packQuantity` (unidades por fardo, ex.: 12), mas ele não é usado na venda. A pensar:
+    - Na tela: botão ou seletor "unidade / fardo" no item do carrinho, convertendo para unidades
+      (2 fardos × 12 = 24), mostrando "2 fardos (24 un.)".
+    - Preço do fardo: o mesmo da unidade × quantidade ou um **preço próprio do fardo** (desconto
+      no atacado)? Preço próprio exige coluna nova por loja (aprovação de schema).
+    - Vasilhame: hoje sai 1 vasilhame por unidade vendida com vasilhame; conferir se no fardo a
+      regra continua (ex.: fardo de long neck não tem vasilhame, engradado de litrão tem 12).
+    - Estoque continua em unidades; o comprovante e o histórico mostram fardos e unidades.
+    **Decidido pelo usuário (2026-10-23):** preço do fardo = **preço da unidade × unidades do
+    fardo** (sem preço próprio; desconto de atacado pelo campo Desconto); a venda **guarda os
+    fardos** no item (colunas novas em `tb_sale_items` e `tb_command_items`), para o detalhe e
+    o histórico mostrarem "2 fardos (24 un.)". Estoque continua em unidades. **Feito (2026-10-23):**
+    botão "+ fardo" na busca de produtos (PDV, comanda e venda antiga), contadores Fardos e
+    Unidades no carrinho, e o detalhe da venda e a comanda mostram "1 fardo de 12 + 3 un.". O
+    botão só aparece em produto com "Unidades por fardo" maior que 1.
+
+
+17. [x] **Ajustes pedidos em 2026-10-26.** **Feito:**
+    - **Preço de venda padrão** no Novo produto (como o custo padrão): vale para as lojas marcadas
+      que ficarem sem preço próprio.
+    - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
+      ofertas das lojas (preço e estoque de antes).
+    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
+      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
+      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
+    - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
+      milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
+    - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
+      feita pelo atendente passa com o e-mail e a senha de um gerente ou dono da loja digitados na
+      própria tela, sem salvar as credenciais. **Aprovado pelo usuário:** coluna nova
+      `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
+      limite, autorizado por ...".
+
+15. [x] **Cadastro mais completo sem formulário maior** (pedido do usuário, 2026-10-26).
+    **Decidido pelo usuário:** (1) pedir o **celular (WhatsApp) do dono** no cadastro,
+    obrigatório, com coluna nova `tb_users.phone` (aprovada); (2) **não** perguntar endereço da
+    loja: preencher a primeira loja com o endereço e o telefone que a consulta pública do CNPJ já
+    devolve; (3) **sem** caixa "usar o mesmo CNPJ" (loja sem CNPJ já usa o da empresa); (4)
+    "Primeiros passos" no Início para o dono: confirmar o endereço da loja, cadastrar produtos,
+    abrir o caixa e convidar a equipe. **Feito (2026-10-26):** celular no cadastro e em Minha
+    conta; primeira loja com o endereço da consulta do CNPJ (mostrado no cadastro); quadro
+    "Primeiros passos" no Início do dono (rota `GET /stores/:storeId/onboarding`), com Esconder.
+
+16. [x] **Caixa sem depender de abrir e fechar à mão** (pedido do usuário, 2026-10-26: ele abriu
+    um caixa em 16/10 e só fechou em 26/10, por esquecimento). **Decidido pelo usuário:**
+    1. **Abertura automática:** a primeira operação com dinheiro (venda, fechamento de comanda,
+       recebimento de fiado, entrada/sangria, cancelamento) abre o caixa sozinha, com o troco
+       inicial igual ao saldo do último fechamento. O PDV não bloqueia mais por "caixa fechado".
+    2. **Fechamento automático diário:** o caixa esquecido aberto fecha sozinho no horário da
+       loja, **padrão meia-noite**, que o **dono pode mudar** (coluna nova
+       `tb_stores.cashAutoCloseTime`). O caixa fica marcado "fechado automaticamente" (coluna nova
+       `tb_cash_registers.autoClosed`).
+    3. Conferência depois (valor contado e diferença): **fica para depois**.
+    4. Opção de loja sem controle de caixa: o usuário acha que **não será necessária** com 1 e 2.
+    **Feito (2026-10-26): 1 e 2.** `ensureOpenCash` antes de cada operação com dinheiro, job
+    `cash-auto-close` a cada 5 minutos, horário em Lojas › Editar e marca "automático" em Caixas
+    anteriores. O item 3 (conferência) continua pendente.
+
 ### Operação da plataforma
 
 16. [ ] **Pensar como seria a role de suporte**, para as pessoas que trabalham no suporte da
@@ -64,9 +130,7 @@ próprio) e roteiro de testes manuais. Criada em 2026-10-21.
 
 13. [ ] Cliente excluído não pode ser reativado pela tela; só pela API.
 14. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
-15. [ ] O PDV depende de internet; se a conexão cair, não vende.
 
-**Ordem sugerida:** 1, 2 e 4 primeiro; depois 7 e 8.
 
 ## Testes manuais
 
@@ -76,77 +140,123 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ### 1. Cadastro e acesso
 
-- [ ] Criar conta em `/cadastro` com o CNPJ `05.648.257/0001-78`: razão social e nome fantasia
+- [x] Criar conta em `/cadastro` com o CNPJ `05.648.257/0001-78`: razão social e nome fantasia
   devem ser preenchidos sozinhos.
-- [ ] Digitar um CNPJ com letras (ex.: `12.ABC.345/01DE-35`): é aceito, e aparece o aviso de que
+- [x] Digitar um CNPJ com letras (ex.: `12.ABC.345/01DE-35`): é aceito, e aparece o aviso de que
   não foi encontrado.
-- [ ] Digitar um CNPJ inválido: aparece "CNPJ inválido.".
-- [ ] Tentar criar a conta sem marcar "Li e aceito": deve ser recusado. Abrir os links dos
+- [x] Digitar um CNPJ inválido: aparece "CNPJ inválido.".
+- [x] O celular é obrigatório no cadastro (com máscara e DDD). Depois de cadastrar com um CNPJ real,
+  conferir em Lojas que a primeira loja veio com endereço e telefone, e no Início o quadro
+  "Primeiros passos" (cada item marca sozinho; Esconder some com ele).
+- [x] Digitar números ou símbolos no campo "Seu nome" (cadastro, Minha conta e convite de equipe):
+  eles não entram no campo; colar "Maria 123" deixa só "Maria". Acentos, apóstrofo e hífen
+  (ex.: João D'Ávila-Neto) passam.
+- [x] Tentar criar a conta sem marcar "Li e aceito": deve ser recusado. Abrir os links dos
   termos e da política (abrem sem login, em `/termos` e `/privacidade`).
-- [ ] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
+- [x] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
+- [x] Nos campos de senha (login, cadastro, redefinição e Minha conta), o olho mostra e esconde o
+  que foi digitado.
 - [ ] Deixar a aba parada por mais de 15 minutos e continuar usando: não pode pedir login de novo.
 - [ ] "Esqueci a senha": pegar o link no log do backend e redefinir a senha.
 - [ ] Errar a senha 6 vezes seguidas: aparece a mensagem de muitas tentativas.
 
 ### 2. Dono (`dono@exemplo.com`)
 
-- [ ] Trocar de loja e de empresa pelo topo da tela.
-- [ ] Criar uma loja informando um CNPJ real: endereço e telefone devem ser preenchidos.
+- [x] Trocar de loja e de empresa pelo topo da tela.
+- [x] Criar uma loja informando um CNPJ real: endereço e telefone devem ser preenchidos.
+- [x] Em Nova loja, tentar salvar sem endereço: CEP, rua, número, bairro, cidade e UF são
+  obrigatórios (complemento, telefone e CNPJ não).
+- [x] Em Nova loja, conferir as máscaras (telefone, CEP, UF) e os limites: telefone sem DDD ou CEP
+  com menos de 8 números é recusado; números na UF não entram.
 - [ ] Convidar um funcionário (o link aparece no log do backend), mudar o papel dele por loja e
   revogar o acesso.
-- [ ] Editar os dados da empresa; o CNPJ deve estar bloqueado.
-- [ ] Ver o painel da empresa e o gráfico de 7 dias.
+- [x] Editar os dados da empresa; o CNPJ deve estar bloqueado.
+- [x] Ver o painel da empresa e o gráfico de 7 dias.
 
 ### 3. PDV
 
-- [ ] Vender buscando o produto pelo nome e pelo leitor de código de barras, se houver um.
-- [ ] Usar os atalhos F2 (buscar) e F9 (finalizar).
-- [ ] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
+- [x] Vender buscando o produto pelo nome e pelo leitor de código de barras, se houver um.
+- [x] Usar os atalhos F2 (buscar) e F9 (finalizar).
+- [x] Vender em lote: tocar em "+ fardo" no rodapé do cartão de um produto com fardo cadastrado, juntar
+  unidades avulsas no carrinho (ex.: 2 fardos + 3 un.) e conferir o subtotal e, no detalhe da
+  venda, "2 fardos de 12 + 3 un.". O estoque baixa em unidades. Na comanda, "+ fardo" lança o
+  fardo inteiro.
+- [x] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
 - [ ] Vender produto com vasilhame: na troca 1 por 1 não pede cliente; se o cliente sai devendo,
   exige cliente.
-- [ ] Fiado para um cliente sem dívida: vende direto, sem aviso.
-- [ ] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
+- [x] Fiado para um cliente sem dívida: vende direto, sem aviso.
+- [x] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
   mais antiga. "Não, voltar" não vende; "Sim, vender no fiado" vende.
-- [ ] Tentar vender com estoque insuficiente e com o caixa fechado.
+- [x] Tentar vender com estoque insuficiente e com o caixa fechado.
 
 ### 4. Caixa
 
 - [ ] Abrir o caixa, lançar entrada e sangria, e fechar conferindo o resumo por forma de
   pagamento.
-- [ ] Ver o histórico de caixas.
+- [x] Ver o histórico de caixas.
 
 ### 5. Comandas
 
-- [ ] Abrir, lançar itens (o estoque baixa na hora), remover item e fechar no fiado (o aviso deve
+- [x] Abrir, lançar itens (o estoque baixa na hora), remover item e fechar no fiado (o aviso deve
   aparecer).
-- [ ] Cancelar uma comanda: o estoque volta.
+- [x] Cancelar uma comanda: o estoque volta.
 
 ### 6. Vendas
 
-- [ ] Filtrar por período e forma de pagamento e abrir o detalhe.
+- [x] Filtrar por período e forma de pagamento e abrir o detalhe.
+
+- [ ] No Início, vender no fiado: o cartão Faturamento mostra "R$ ... disso foi vendido no
+  fiado"; receber um pagamento de fiado e ver o cartão "Fiado recebido".
+
 - [ ] Cancelar uma venda em dinheiro (sai do caixa) e uma fiada (sai da dívida).
-- [ ] Ver o histórico de alterações da venda.
+- [x] Ver o histórico de alterações da venda.
+- [x] Como gerente ou dono, no menu "Lançar venda antiga" (abaixo de Histórico de vendas), lançar uma venda de ontem: ela
+  aparece no filtro de ontem com a marca "lançada depois", o estoque baixa e o dinheiro entra no
+  caixa aberto agora (veja o resumo do caixa). Uma data no futuro é recusada.
+- [x] Como atendente: o botão "Lançar venda antiga" não aparece e a URL mostra "sem permissão".
 
 ### 7. Clientes e fiado
 
-- [ ] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
-- [ ] Marcar o filtro "Só quem deve no fiado".
-- [ ] Receber um pagamento automático e um manual (escolhendo por loja).
-- [ ] Pagar na Loja B a dívida da Loja A.
+- [x] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
+- [x] Marcar o filtro "Só quem deve no fiado".
+-- CORRIGIR ABAIXO, pois salva sem adicionar um numero do endereco
+- [ ] Cadastrar um cliente com endereço: digitar um CEP real (ex.: 50030-230) e ver rua, bairro,
+  cidade e UF preencherem sozinhos; completar número e complemento; conferir o endereço no
+  detalhe do cliente. Cadastrar outro sem endereço (é opcional) e testar um CEP inexistente.
+
+- [x] Receber um pagamento automático e um manual (escolhendo por loja).
+- [ ] Nos campos de dinheiro (receber fiado, PDV, produto): digitar "1234" mostra "1.234"; o "."
+  do teclado numérico vira vírgula; ao sair do campo fica "1.234,00".
+
+
+- [x] Pagar na Loja B a dívida da Loja A.
+
+
+-- MELHORAR ABAIXO, receber valor e dar troco
 - [ ] Tentar receber mais do que o cliente deve.
+
+
 - [ ] Emprestar vasilhame; devolver na mesma loja (funciona) e em outra loja (recusado).
-- [ ] Tentar excluir um cliente que deve: deve ser recusado.
-- [ ] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
+- [x] Tentar excluir um cliente que deve: deve ser recusado.
+- [x] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
   "Limite de crédito" com o valor disponível.
-- [ ] Vender no fiado passando do limite: o atendente é barrado ("Entendi"); gerente e dono veem
-  o aviso e conseguem vender em "Sim, vender acima do limite".
-- [ ] Como atendente, abrir Editar do cliente: o campo de limite não aparece.
+
+
+- [ ] Vender no fiado passando do limite: como atendente, aparece o pedido de autorização; o
+  gerente digita o e-mail e a senha dele e a venda sai (senha errada é recusada, e o navegador não
+  oferece salvar a senha). Gerente e dono veem o aviso e vendem em "Sim, vender acima do limite".
+  No detalhe da venda aparece "Acima do limite, autorizado por" com o nome de quem autorizou.
+
+
+- [x] Como atendente, abrir Editar do cliente: o campo de limite não aparece.
 
 ### 8. Estoque, produtos e vasilhames (gerente ou dono)
 
-- [ ] Dar entrada e ajuste de estoque e alterar preço.
+- [x] Dar entrada e ajuste de estoque e alterar preço.
 - [ ] Criar produto em várias lojas e tentar criar com um código repetido.
-- [ ] Excluir um produto e reativar.
+- [ ] Excluir um produto e reativar em Produtos › "Mostrar só os excluídos" (volta com preço e
+  estoque nas lojas).
+- [ ] Novo produto com "Preço de venda padrão": as lojas marcadas sem preço próprio usam ele.
 - [ ] Criar tipos de vasilhame e lançar movimentações com o fornecedor.
 
 ### 9. Permissões (entrar com cada papel)
@@ -157,7 +267,7 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   não pode ter `costPrice`, `totalCost` nem `totalProfit`.
 - [ ] Gerente (`gerente@exemplo.com`): vê produtos e sangria, mas não a empresa.
 - [ ] Digitar na URL uma página proibida para o papel: deve aparecer "sem permissão".
-
+                                                    
 ### 10. Assinatura e plataforma (`admin@plataforma.com`)
 
 - [ ] Em `/plataforma`, deixar a organização como "vencida" e entrar como dono: aparece a faixa de

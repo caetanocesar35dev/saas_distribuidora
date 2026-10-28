@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Money } from "@/components/app/common";
@@ -84,12 +83,10 @@ export function PayDialog({
         </DialogHeader>
 
         {cashClosed && (
-          <div role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            O caixa desta loja está fechado. Para receber, é preciso abrir o caixa antes.{" "}
-            <Link href={`/loja/${storeId}/caixa`} className="font-medium underline">
-              Ir para o caixa
-            </Link>
-          </div>
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            O caixa desta loja está fechado: ele abre sozinho ao receber, com o saldo do último
+            fechamento.
+          </p>
         )}
 
         <form
@@ -246,7 +243,7 @@ export function PayDialog({
             <Button type="button" variant="outline" disabled={pay.isPending} onClick={onClose}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={!!invalid || cashClosed || pay.isPending}>
+            <Button type="submit" disabled={!!invalid || pay.isPending}>
               {pay.isPending ? "Registrando..." : "Receber pagamento"}
             </Button>
           </DialogFooter>

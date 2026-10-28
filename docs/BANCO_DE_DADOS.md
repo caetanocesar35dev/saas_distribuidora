@@ -141,9 +141,9 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 |---|---|---|
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
 | `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
-| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
+| `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `phone` (celular/WhatsApp, só dígitos; obrigatório no cadastro público, null em contas por convite ou do seed), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
-| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) |
+| `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha. `cashAutoCloseTime`: horário em que o caixa esquecido aberto fecha sozinho (padrão `00:00`, o dono muda) |
 | `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
@@ -192,7 +192,7 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja. `creditLimit` (opcional): limite de crédito do fiado, comparado com a dívida somada em todas as lojas; só gerente e dono definem; acima dele o atendente não vende no fiado e gerente/dono confirmam |
+| `tb_customers` | Cliente da distribuidora | Cadastro único na company; pode comprar e dever em qualquer loja. `creditLimit` (opcional): limite de crédito do fiado, comparado com a dívida somada em todas as lojas; só gerente e dono definem; acima dele o atendente não vende no fiado e gerente/dono confirmam. Endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`), no mesmo formato do endereço da loja |
 | `tb_customer_store_balances` | Dívida em dinheiro (fiado) | Único por (`customerId`, `storeId`); `balance`. O total do cliente é a **soma das linhas**, calculada na hora |
 | `tb_customer_store_bottle_balances` | Vasilhames que o cliente deve | Único por (`customerId`, `storeId`, `bottleTypeId`); `balance` (inteiro) |
 | `tb_customer_payments` | Pagamento recebido | `storeId` = loja onde o dinheiro foi **fisicamente recebido**; `amount`, `paymentMethod` |
@@ -204,11 +204,11 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_sales` | Venda no PDV | `total`, `totalCost`, `discount`, `paymentMethod` (`MONEY`, `PIX`, `DEBIT`, `CREDIT`, `CREDIT_STORE` = fiado), `status` (`COMPLETED`/`CANCELED`). `userId` (vendedor), `customerId` e `commandTabId` opcionais. `commandTabId` é único: uma comanda gera no máximo uma venda |
-| `tb_sale_items` | Itens da venda | `quantity`, `price` e `costPrice` **copiados no momento da venda** (preço histórico). Sem `createdAt` |
+| `tb_sales` | Venda no PDV | `total`, `totalCost`, `discount`, `paymentMethod` (`MONEY`, `PIX`, `DEBIT`, `CREDIT`, `CREDIT_STORE` = fiado), `status` (`COMPLETED`/`CANCELED`). `userId` (vendedor), `customerId` e `commandTabId` opcionais. `commandTabId` é único: uma comanda gera no máximo uma venda. `createdAt` é quando a venda aconteceu; `registeredAt` (opcional) marca a **venda antiga lançada depois** (quando foi lançada; `null` = lançada na hora). No resumo do caixa, a venda antiga conta pelo `registeredAt` |
+| `tb_sale_items` | Itens da venda | `quantity`, `price` e `costPrice` **copiados no momento da venda** (preço histórico). Sem `createdAt`. **Venda em lote:** `quantity` é sempre o total em unidades; `packs` (fardos contidos nela, 0 = só unidades) e `packSize` (unidades por fardo na hora da venda) |
 | `tb_command_tabs` | Comanda (conta aberta) | `name`, `status` (`OPEN`/`CLOSED`), `customerId` opcional |
-| `tb_command_items` | Consumo da comanda | Mesmo padrão do item de venda, com `addedAt` |
-| `tb_cash_registers` | Sessão de caixa | `openedAt`, `closedAt`, `initialBalance`, `finalBalance`, `status` (`OPEN`/`CLOSED`) |
+| `tb_command_items` | Consumo da comanda | Mesmo padrão do item de venda (inclusive `packs`/`packSize`), com `addedAt` |
+| `tb_cash_registers` | Sessão de caixa | `openedAt`, `closedAt`, `initialBalance`, `finalBalance`, `status` (`OPEN`/`CLOSED`), `autoClosed` (fechado sozinho pelo job `cash-auto-close` no horário da loja). **Abre sozinho** na primeira operação com dinheiro, com `initialBalance` = `finalBalance` do último fechamento (decisão do usuário) |
 | `tb_cash_movements` | Entradas e saídas do caixa | `type`: `IN`, `OUT`, `SALE`; `amount`, `description` |
 
 ### 3.6 Avisos
@@ -380,6 +380,12 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261008000001_subscription_access` | Adiciona `trialEndsAt` e `pastDueSince` em `tb_organizations` (e no histórico) |
 | `20261013000000_refresh_tokens` | Cria `tb_refresh_tokens` (refresh token com rotação), `th_refresh_token_history` (sem `tokenHash`) e os 2 triggers |
 | `20261021000000_credit_limit_and_terms` | Adiciona `creditLimit` em `tb_customers` e `termsAcceptedAt`/`termsVersion` em `tb_users` (e nos históricos) |
+| `20261023000000_sale_registered_at` | Adiciona `registeredAt` em `tb_sales` (e no histórico): venda antiga lançada depois |
+| `20261023010000_sale_packs` | Adiciona `packs` e `packSize` em `tb_sale_items` e `tb_command_items` (e nos históricos): venda em lote |
+| `20261026000000_customer_address` | Adiciona o endereço opcional (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`) em `tb_customers` (e no histórico) |
+| `20261026010000_user_phone` | Adiciona `phone` (celular/WhatsApp) em `tb_users` (e no histórico) |
+| `20261026020000_cash_auto_close` | Adiciona `cashAutoCloseTime` (HH:mm, padrão 00:00) em `tb_stores` e `autoClosed` em `tb_cash_registers` (e nos históricos): caixa que abre e fecha sozinho |
+| `20261027000000_sale_credit_approver` | Adiciona `creditApprovedById` (FK para `tb_users`, `Restrict`) em `tb_sales` (e no histórico): gerente ou dono que autorizou a venda fiada acima do limite de crédito (null = não passou do limite) |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

@@ -345,6 +345,18 @@ editar o preço numa loja não altera a outra.
    - Fechar gera a venda (forma de pagamento, desconto, cliente, devolução de vasilhames)
      sem baixar estoque de novo. Comanda vazia não fecha (400).
    - Cancelar devolve o estoque de todos os itens.
+6. ✅ **Lançar venda antiga (pedido do usuário, 2026-10-23)** (`POST .../sales/late`, **gerente e
+   dono**): item "Lançar venda antiga" do menu, logo abaixo de Histórico de vendas (`/loja/[storeId]/lancar-venda-antiga`; a pedido do usuário saiu de dentro da tela de Vendas) é o PDV em
+   modo `late`, com o campo "Data e hora em que a venda aconteceu" (sem limite para trás, nunca
+   no futuro). Exige caixa aberto: à vista, o dinheiro entra no caixa de agora. A lista e o
+   detalhe de vendas mostram "lançada depois" (`registeredAt`). O atendente não vê o botão e a
+   URL mostra "sem permissão".
+7. ✅ **Venda em lote (pedido do usuário, 2026-10-23).** Na busca de produtos (PDV, comanda e
+   venda antiga), produtos com "Unidades por fardo" > 1 ganham, dentro do próprio cartão, um rodapé com "+ 1 un." e "+ fardo (N)" (a pedido do usuário, para não ficar ambíguo numa grade cheia). No
+   carrinho, contadores separados de Fardos e Unidades (`cart.ts`: `packs` + `quantity`, total
+   em `lineUnits`). Preço do fardo = unidade × N (decisão do usuário); a venda envia
+   `items: [{ storeProductId, quantity, packs }]` e o detalhe da venda e a comanda mostram
+   "2 fardos de 12 + 3 un." (`formatItemQuantity`).
 
 **Layout:** o PDV é a tela mais usada; deve funcionar bem em tablet e com leitor de código
 de barras (foco no campo de busca, atalhos de teclado).
@@ -405,6 +417,14 @@ de barras (foco no campo de busca, atalhos de teclado).
    só com "Entendi"; gerente e dono veem o limite e o valor final e confirmam em "Sim, vender
    acima do limite" (envia `allowOverCreditLimit: true`). O atendente só enxerga as lojas dele,
    então a tela barra quando dá para saber; o resto o backend barra (403).
+7. ✅ **Endereço do cliente (pedido do usuário, 2026-10-26).** O cadastro e a edição de cliente
+   ganharam o bloco "Endereço (opcional)" (CEP, rua, número, complemento, bairro, cidade e UF),
+   no mesmo formato do endereço da loja. **Decidido pelo usuário:** campos separados e
+   preenchimento pelo CEP via ViaCEP, consultada do navegador (`src/lib/cep-lookup.ts`,
+   `src/hooks/use-cep-autofill.ts`; nunca troca o que a pessoa digitou, e falha ou CEP
+   inexistente só avisa). Ao editar, texto vazio apaga o campo. O endereço aparece no cabeçalho
+   do detalhe do cliente. O cadastro rápido do PDV continua só com nome e telefone.
+
 
 **Critério de conclusão:** pagar a dívida da Loja A estando na Loja B funciona nos modos
 automático e manual, e os saldos se atualizam.
@@ -575,12 +595,12 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 `tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
 Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend):
 
-- **78 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
+- **90 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
   consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,
   histórico de alterações, cliente da API, renovação de sessão em fila (um teste quebra de
   propósito a fila para provar que ele a pega), BFF (origem, renovação, cookies) e a integridade
   da Central de Dúvidas.
-- **34 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
+- **38 testes de ponta a ponta** (`npm run test:e2e`, Chromium): login e segurança da sessão;
   venda com troca de vasilhame 1 por 1 (e bloqueio quando sai devendo sem cliente); fiado com
   cliente novo e recebimento (valor acima da dívida recusado na tela); comanda lançada, fechada e
   cancelada (estoque devolvido); cancelamento de venda; histórico; entrada e ajuste de estoque;

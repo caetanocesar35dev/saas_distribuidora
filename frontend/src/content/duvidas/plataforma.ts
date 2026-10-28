@@ -16,7 +16,7 @@ export const plataforma: Article[] = [
       "Abra Área da plataforma › Organizações. Use a busca (nome ou e-mail do responsável) e os filtros de situação e plano.",
       "Clique em Abrir para ver o responsável, o plano, as datas, quantos usuários têm acesso e as empresas e lojas.",
       "Em Ajustar a assinatura, mude a situação, o plano, o fim do teste ou a data de atraso e clique em Salvar ajuste.",
-      "A mudança vale na hora, em todas as lojas da organização. Ao marcar \"Pagamento em atraso\", a data de atraso é preenchida com hoje (a carência de 5 dias conta a partir dela).",
+      'A mudança vale na hora, em todas as lojas da organização. Ao marcar "Pagamento em atraso", a data de atraso é preenchida com hoje (a carência de 5 dias conta a partir dela).',
     ],
     problems: [
       {

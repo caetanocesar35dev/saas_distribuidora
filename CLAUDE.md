@@ -29,14 +29,14 @@ os campos é a extensão do Prisma).
   refresh tokens).
 - **Backend implementado** (`plano_implementacao_backend.md`, status e relatório nele):
   fundação, autenticação, empresas/lojas/membros, catálogo, vasilhames, clientes/fiado,
-  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 392
+  caixa, vendas, comandas, dashboard, auditoria, plataforma e notificações, com 408
   testes. **Só a cobrança com Asaas (Fase 10) não foi feita**, por decisão do usuário:
   hoje o status da assinatura é ajustado manualmente por `PATCH /api/platform/organizations/:id`.
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 78
-  testes unitários e 34 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 90
+  testes unitários e 38 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
@@ -111,6 +111,64 @@ os campos é a extensão do Prisma).
   comanda), acima do limite o atendente é barrado (403) e gerente/dono só passam com
   `allowOverCreditLimit: true` (sem isso, 409). A conferência é `assertCreditLimit`
   (`src/customers/credit-limit.ts`), dentro da transação da venda.
+- **Autorização do gerente no balcão (decidido pelo usuário):** o atendente não sai da conta. O
+  gerente/dono digita e-mail e senha na tela do atendente e a venda vai com `managerApproval`
+  (`src/customers/manager-approval.ts`): confere a senha e o papel ≥ MANAGER **nesta loja**, e a
+  venda passa como confirmada. As credenciais nunca são gravadas (sem `<form>`, sem autocompletar);
+  5 senhas erradas por e-mail travam 15 min (em memória). A venda que passou do limite grava quem
+  autorizou em `Sale.creditApprovedById` (o próprio vendedor quando gerente/dono confirma; null =
+  não passou), mostrado no detalhe da venda.
+
+**Fiado no painel (decidido pelo usuário)**
+- Faturamento e lucro do painel contam tudo o que foi vendido, inclusive o fiado (competência), mas
+  **separado sem esconder**: cada período traz `fiado` (quanto do faturamento/lucro foi no fiado) e
+  `fiadoReceived` (pagamentos de fiado recebidos na loja no período). Venda cancelada não conta.
+
+**Venda antiga lançada depois (decidido pelo usuário)**
+- `POST /stores/:storeId/sales/late` (só MANAGER ou mais): venda que aconteceu sem o sistema
+  (internet caiu). `createdAt` = quando aconteceu (sem limite para trás, nunca no futuro);
+  `registeredAt` = quando foi lançada (`null` nas vendas normais). Estoque baixa agora; à vista,
+  o dinheiro entra no **caixa aberto agora** e o resumo do caixa conta a venda pelo
+  `registeredAt`; fiado e limite de crédito valem igual. Tela: item "Lançar venda antiga" do menu, abaixo de Histórico de vendas (`/loja/[storeId]/lancar-venda-antiga`, decidido pelo usuário)
+  (o PDV em modo `late`).
+
+**Venda em lote (decidido pelo usuário)**
+- Itens de venda e de comanda aceitam `packs` (fardos) além de `quantity` (unidades avulsas); o
+  backend converte com o `packQuantity` do produto (`toUnits` em `src/sales/packs.ts`). Preço do
+  fardo = preço da unidade × unidades do fardo (sem preço próprio). Estoque, preço e vasilhames
+  continuam em unidades; o item grava `quantity` (total), `packs` e `packSize`. Na tela, o botão
+  "+ fardo (N)" no rodapé do cartão do produto na busca e os contadores Fardos/Unidades do carrinho.
+
+**Endereço do cliente (decidido pelo usuário)**
+- `Customer` tem endereço opcional em campos separados (`zipCode`, `street`, `number`,
+  `complement`, `neighborhood`, `city`, `state`), como a loja. No create/update, campo ausente não
+  mexe e texto vazio apaga. Na tela, o CEP completo busca rua, bairro, cidade e UF na **ViaCEP**
+  pelo navegador (`src/lib/cep-lookup.ts`), só como sugestão; nunca troca o que foi digitado.
+
+**Nome de pessoa (decidido pelo usuário)**
+- O nome de **pessoa** (cadastro da conta, "Minha conta" e convite de equipe) só aceita letras
+  (com acento), espaço, apóstrofo, hífen e ponto: **sem números**. Regra única em
+  `backend/src/common/utils/person-name.ts` (DTOs `SignupDto`, `UpdateProfileDto`,
+  `InviteMemberDto`) e `frontend/src/lib/format.ts` (`PersonNameInput` descarta o que não vale ao
+  digitar ou colar). Nome de loja, empresa, produto e cliente **pode** ter número.
+
+**Caixa que abre e fecha sozinho (decidido pelo usuário)**
+- Nenhuma operação exige abrir o caixa à mão: venda (inclusive antiga), fechamento de comanda,
+  recebimento de fiado, cancelamento e entrada/sangria chamam `ensureOpenCash`
+  (`src/cash-register/cash-auto.ts`), que abre o caixa com o saldo do último fechamento. Operação
+  nova com dinheiro: chame-o também, ANTES da transação (ele usa a trava exclusiva).
+- O job `cash-auto-close` (a cada 5 min) fecha o caixa esquecido aberto no horário da loja
+  (`Store.cashAutoCloseTime`, padrão `00:00`, o dono muda em Lojas), marcando `autoClosed`.
+  Abrir e fechar à mão continuam funcionando.
+
+**Cadastro e primeiros passos (decidido pelo usuário)**
+- O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,
+  `src/common/utils/phone.ts`); editável em Minha conta. O endereço da primeira loja **não** é
+  perguntado: vai em `storeAddress` com o que a consulta do CNPJ trouxe. No Início, o dono vê
+  "Primeiros passos" (`GET /stores/:storeId/onboarding`: endereço, produtos, caixa, equipe).
+- **Endereço da loja é obrigatório** ao criar e editar (CEP, rua, número, bairro, cidade e UF;
+  complemento, telefone e CNPJ opcionais), no `CreateStoreDto` e na tela. A primeira loja do
+  cadastro é a exceção: pode ficar sem endereço se a consulta do CNPJ falhar.
 
 **LGPD (decidido pelo usuário)**
 - O cadastro público exige `acceptTerms: true` e grava `User.termsAcceptedAt` e `termsVersion`.

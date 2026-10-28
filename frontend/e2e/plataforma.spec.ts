@@ -9,6 +9,9 @@ test("quem é da plataforma e não tem loja entra direto na área dela", async (
   await page.fill("#password", PASSWORD);
   await page.click("button[type=submit]");
   await page.waitForURL(/\/plataforma\/organizacoes/, { timeout: 20_000 });
+  // A lista é paginada e cada rodada do teste de cadastro cria mais uma organização: busca pelo
+  // nome para a do seed não sair da primeira página.
+  await page.getByLabel("Buscar organizações").fill("Distribuidora Exemplo");
   await expect(page.getByText("Distribuidora Exemplo").first()).toBeVisible();
 });
 

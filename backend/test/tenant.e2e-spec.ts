@@ -126,10 +126,36 @@ describe('Isolamento de tenant, papéis e assinatura (e2e)', () => {
       await t.http
         .post(`${base}/stores`)
         .set(s.owner)
-        .send({ name: 'Loja C' })
+        .send({
+          name: 'Loja C',
+          zipCode: '50030-230',
+          street: 'Rua da Aurora',
+          number: '100',
+          neighborhood: 'Boa Vista',
+          city: 'Recife',
+          state: 'PE',
+        })
         .expect(201);
       const list = await t.http.get(`${base}/members`).set(s.owner).expect(200);
       expect(list.body).toHaveLength(3);
+    });
+
+    it('convite: o nome do convidado não aceita números', async () => {
+      const s = await scenario();
+      const base = `/api/companies/${s.a.company.id}`;
+      const storeA = s.a.storeA.id;
+      const invite = (name: string) =>
+        t.http
+          .post(`${base}/members`)
+          .set(s.owner)
+          .send({
+            email: 'novo@dist.com',
+            name,
+            stores: [{ storeId: storeA, role: 'EMPLOYEE' }],
+          });
+      const res = await invite('Atendente 2').expect(400);
+      expect(JSON.stringify(res.body)).toContain('só letras');
+      await invite("Joana D'Arc").expect(201);
     });
 
     it('só o responsável pela cobrança cria empresa na organização', async () => {

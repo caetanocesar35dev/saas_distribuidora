@@ -21,6 +21,7 @@ import {
 } from "@/lib/api/hooks/catalog";
 import { errorMessage } from "@/lib/api/client";
 import type { Store } from "@/lib/api/types";
+import { moneyToInput } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
 
 const NO_BOTTLE = "none";
@@ -41,6 +42,7 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
   const [code, setCode] = useState("");
   const [pack, setPack] = useState<number | undefined>(1);
   const [bottleTypeId, setBottleTypeId] = useState(NO_BOTTLE);
+  const [defaultPrice, setDefaultPrice] = useState<number | undefined>();
   const [defaultCost, setDefaultCost] = useState<number | undefined>();
   // A loja onde a pessoa está já vem marcada: é o caso mais comum.
   const [offers, setOffers] = useState<Record<string, Offer>>({
@@ -50,7 +52,8 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
   const [restorableId, setRestorableId] = useState<string | null>(null);
 
   const chosen = Object.entries(offers);
-  const everyPriceFilled = chosen.every(([, o]) => o.price !== undefined);
+  // Loja sem preço próprio usa o preço padrão.
+  const everyPriceFilled = chosen.every(([, o]) => (o.price ?? defaultPrice) !== undefined);
   const valid = name.trim() !== "" && !!pack && pack >= 1 && everyPriceFilled;
 
   function toggle(id: string, checked: boolean) {
@@ -79,7 +82,7 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
         stores: chosen.length
           ? chosen.map(([id, o]) => ({
               storeId: id,
-              price: o.price as number,
+              price: (o.price ?? defaultPrice) as number,
               costPrice: o.cost,
             }))
           : undefined,
@@ -154,14 +157,22 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
             mercadoria em Estoque.
           </p>
         </div>
-        <FormField
-          label="Custo padrão (opcional)"
-          htmlFor="default-cost"
-          hint="Vale para as lojas marcadas, mas cada loja pode ter o seu custo."
-          className="max-w-xs"
-        >
-          <MoneyInput id="default-cost" value={defaultCost} onChange={setDefaultCost} />
-        </FormField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Preço de venda padrão"
+            htmlFor="default-price"
+            hint="Vale para as lojas marcadas, mas cada loja pode ter o seu preço."
+          >
+            <MoneyInput id="default-price" value={defaultPrice} onChange={setDefaultPrice} />
+          </FormField>
+          <FormField
+            label="Custo padrão (opcional)"
+            htmlFor="default-cost"
+            hint="Vale para as lojas marcadas, mas cada loja pode ter o seu custo."
+          >
+            <MoneyInput id="default-cost" value={defaultCost} onChange={setDefaultCost} />
+          </FormField>
+        </div>
         <ul className="space-y-2">
           {companyStores.map((store) => {
             const offer = offers[store.id];
@@ -180,6 +191,7 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
                       <MoneyInput
                         id={`price-${store.id}`}
                         value={offer.price}
+                        placeholder={defaultPrice === undefined ? "0,00" : moneyToInput(defaultPrice)}
                         onChange={(price) => patchOffer(store.id, { price })}
                       />
                     </FormField>
@@ -187,7 +199,7 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
                       <MoneyInput
                         id={`cost-${store.id}`}
                         value={offer.cost}
-                        placeholder={defaultCost === undefined ? "0,00" : String(defaultCost).replace(".", ",")}
+                        placeholder={defaultCost === undefined ? "0,00" : moneyToInput(defaultCost)}
                         onChange={(cost) => patchOffer(store.id, { cost })}
                       />
                     </FormField>

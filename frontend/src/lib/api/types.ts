@@ -20,10 +20,7 @@ export type BottleMovementType =
   | "SUPPLIER_SEND"
   | "SUPPLIER_RECEIVE"
   | "MANUAL_ADJUSTMENT";
-export type ManualBottleMovementType =
-  | "SUPPLIER_SEND"
-  | "SUPPLIER_RECEIVE"
-  | "MANUAL_ADJUSTMENT";
+export type ManualBottleMovementType = "SUPPLIER_SEND" | "SUPPLIER_RECEIVE" | "MANUAL_ADJUSTMENT";
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
 export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT";
 export type AccessMode = "FULL" | "GRACE" | "READ_ONLY";
@@ -62,6 +59,8 @@ export interface SessionUser {
 }
 
 export interface Profile extends SessionUser {
+  /** Celular (WhatsApp), só dígitos; null em contas antigas ou por convite. */
+  phone: string | null;
   createdAt: string;
 }
 
@@ -86,6 +85,19 @@ export interface SignupBody {
   planId?: string;
   /** Aceite dos termos de uso e da política de privacidade (obrigatório). */
   acceptTerms: boolean;
+  /** Celular (WhatsApp) do dono, obrigatório; só dígitos com DDD. */
+  phone: string;
+  /** Endereço e telefone da primeira loja: o que a consulta pública do CNPJ trouxe (opcional). */
+  storeAddress?: {
+    phone?: string;
+    zipCode?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  };
 }
 
 export interface ChangePasswordBody {
@@ -160,6 +172,8 @@ export interface Store {
   neighborhood: string | null;
   city: string | null;
   state: string | null;
+  /** Horário (HH:mm) em que o caixa esquecido aberto fecha sozinho; padrão "00:00". */
+  cashAutoCloseTime: string;
   createdAt: string;
 }
 
@@ -174,6 +188,7 @@ export interface StoreBody {
   neighborhood?: string;
   city?: string;
   state?: string;
+  cashAutoCloseTime?: string;
 }
 
 export interface Member {
@@ -240,6 +255,8 @@ export interface Product {
   bottleTypeId: string | null;
   bottleType: BottleTypeRef | null;
   createdAt: string;
+  /** Só vem na listagem (`GET /products`); preenchido nos excluídos (`deleted=true`). */
+  deletedAt?: string | null;
 }
 
 export interface ProductOfferSummary {
@@ -364,6 +381,8 @@ export interface CashRegister {
   initialBalance: number;
   finalBalance: number | null;
   status: CashStatus;
+  /** Fechado sozinho no horário da loja (tinha ficado aberto), e não por uma pessoa. */
+  autoClosed: boolean;
 }
 
 export interface CurrentCashRegister extends CashRegister {
@@ -397,7 +416,12 @@ export interface CashMovementBody {
 export interface SaleItem {
   id: string;
   storeProductId: string;
+  /** Total em unidades (já com os fardos). */
   quantity: number;
+  /** Venda em lote: quantos fardos estão em `quantity`. */
+  packs: number;
+  /** Unidades por fardo na hora da venda (null = vendido só por unidade). */
+  packSize: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   storeProduct: { product: { code: string; name: string } };
@@ -420,9 +444,14 @@ export interface Sale {
   discount: number;
   paymentMethod: PaymentMethod;
   status: SaleStatus;
+  /** Quando a venda aconteceu. */
   createdAt: string;
+  /** Venda antiga lançada depois: quando foi lançada. null = lançada na hora. */
+  registeredAt: string | null;
   userId: string;
   user: { id: string; name: string };
+  /** Venda fiada acima do limite de crédito: gerente ou dono que autorizou. null = não passou. */
+  creditApprovedBy: { id: string; name: string } | null;
   customerId: string | null;
   customer: { id: string; name: string; phone: string | null } | null;
   commandTabId: string | null;
@@ -445,10 +474,24 @@ export interface CreateSaleBody {
   paymentMethod: PaymentMethod;
   customerId?: string;
   discount?: number;
-  items: { storeProductId: string; quantity: number }[];
+  /** `quantity` = unidades avulsas; `packs` = fardos (o backend converte em unidades). */
+  items: { storeProductId: string; quantity: number; packs?: number }[];
   bottleReturns?: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
+  /** Atendente: e-mail e senha do gerente/dono que autorizou passar do limite (nunca guardados). */
+  managerApproval?: ManagerApproval;
+}
+
+export interface ManagerApproval {
+  email: string;
+  password: string;
+}
+
+/** Venda antiga lançada depois (só gerente e dono): o mesmo corpo, mais quando ela aconteceu. */
+export interface CreateLateSaleBody extends CreateSaleBody {
+  /** Data e hora da venda (ISO). Não pode ser no futuro. */
+  soldAt: string;
 }
 
 export interface SalesQuery extends PageQuery {
@@ -464,7 +507,10 @@ export interface SalesQuery extends PageQuery {
 export interface CommandItem {
   id: string;
   storeProductId: string;
+  /** Total em unidades (já com os fardos). */
   quantity: number;
+  packs: number;
+  packSize: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   addedAt: string;
@@ -489,6 +535,7 @@ export interface CloseCommandTabBody {
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
   allowOverCreditLimit?: boolean;
+  managerApproval?: ManagerApproval;
 }
 
 // ---- Clientes e fiado ------------------------------------------------------------------------
@@ -500,6 +547,14 @@ export interface Customer {
   phone: string | null;
   /** Limite de crédito do fiado (soma de todas as lojas); null = sem limite. */
   creditLimit: number | null;
+  /** Endereço (opcional), no mesmo formato do endereço da loja. */
+  zipCode: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
   createdAt: string;
 }
 
@@ -513,6 +568,14 @@ export interface CustomerBody {
   phone?: string;
   /** Só gerente e dono podem enviar. null tira o limite. */
   creditLimit?: number | null;
+  /** Endereço opcional; texto vazio apaga o campo, ausente não mexe. */
+  zipCode?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
 }
 
 export interface CustomerBalances {
@@ -558,9 +621,22 @@ export interface CreatePaymentBody {
 // ---- Painéis ---------------------------------------------------------------------------------
 
 export interface PeriodStats {
+  /** Tudo o que foi vendido (inclusive no fiado). */
   revenue: number;
   profit: number;
   count: number;
+  /** Parte do faturamento e do lucro vendida no fiado. */
+  fiado: { revenue: number; profit: number };
+  /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
+  fiadoReceived: number;
+}
+
+/** "Primeiros passos" do Início (só o dono): true = já feito. */
+export interface Onboarding {
+  address: boolean;
+  products: boolean;
+  cashOpened: boolean;
+  team: boolean;
 }
 
 export interface Dashboard {
@@ -616,19 +692,10 @@ export interface AuditHistory {
 }
 
 export type StoreAuditEntity =
-  | "store-products"
-  | "sales"
-  | "command-tabs"
-  | "cash-registers"
-  | "bottle-movements";
+  "store-products" | "sales" | "command-tabs" | "cash-registers" | "bottle-movements";
 
 export type CompanyAuditEntity =
-  | "products"
-  | "customers"
-  | "bottle-types"
-  | "stores"
-  | "memberships"
-  | "membership-stores";
+  "products" | "customers" | "bottle-types" | "stores" | "memberships" | "membership-stores";
 
 // ---- Notificações ----------------------------------------------------------------------------
 

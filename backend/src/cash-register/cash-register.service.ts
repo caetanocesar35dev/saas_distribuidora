@@ -12,6 +12,7 @@ import {
 import { fromCents, roundMoney, toCents } from '../common/utils/money';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
+import { openCashIfNeeded } from './cash-auto';
 import { lockCashExclusive } from './cash-lock';
 import { CashMovementDto } from './dto/cash-register.dto';
 
@@ -134,10 +135,43 @@ export class CashRegisterService {
     });
   }
 
-  /** Entrada ou saída manual. A saída não pode deixar o saldo do caixa negativo. */
+  /**
+   * Fecha sozinho o caixa esquecido aberto (job `CashAutoCloseJob`, no horário da loja). Mesmo
+   * cálculo do fechamento à mão, marcado `autoClosed`. Devolve false se ele já foi fechado.
+   */
+  async closeAutomatically(storeId: string, registerId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      await lockCashExclusive(tx, storeId);
+      const register = await tx.cashRegister.findFirst({
+        where: { id: registerId, storeId, status: 'OPEN' },
+      });
+      if (!register) return false;
+      const finalBalance = await computeCashBalance(
+        tx,
+        register.id,
+        register.initialBalance,
+      );
+      await tx.cashRegister.update({
+        where: { id: register.id },
+        data: {
+          status: 'CLOSED',
+          closedAt: new Date(),
+          finalBalance,
+          autoClosed: true,
+        },
+      });
+      return true;
+    });
+  }
+
+  /**
+   * Entrada ou saída manual. A saída não pode deixar o saldo do caixa negativo. Sem caixa aberto,
+   * abre um sozinho (com o saldo do último fechamento).
+   */
   async addMovement(storeId: string, dto: CashMovementDto) {
     return this.prisma.$transaction(async (tx) => {
       await lockCashExclusive(tx, storeId);
+      await openCashIfNeeded(tx, storeId);
       const register = await tx.cashRegister.findFirst({
         where: { storeId, status: 'OPEN' },
       });
@@ -220,12 +254,18 @@ export class CashRegisterService {
     from: Date,
     until?: Date,
   ): Promise<PaymentSummaryLine[]> {
+    const period = { gte: from, ...(until ? { lte: until } : {}) };
     const rows = await db.sale.groupBy({
       by: ['paymentMethod'],
       where: {
         storeId,
         status: 'COMPLETED',
-        createdAt: { gte: from, ...(until ? { lte: until } : {}) },
+        // Venda antiga lançada depois conta no caixa em que foi lançada (o dinheiro entrou nele),
+        // não no dia em que aconteceu.
+        OR: [
+          { registeredAt: null, createdAt: period },
+          { registeredAt: period },
+        ],
       },
       _sum: { total: true },
       _count: { _all: true },

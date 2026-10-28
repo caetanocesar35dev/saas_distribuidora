@@ -112,6 +112,9 @@ model User {
   passwordHash    String
   platformRole    PlatformRole? // null = usuário comum (dono/funcionário de alguma distribuidora)
   isActive        Boolean       @default(true)
+  /// Celular (WhatsApp) da pessoa, só dígitos com DDD (ex.: 81999990000). Obrigatório no cadastro
+  /// público; null em contas antigas, por convite ou do seed.
+  phone           String?
   // Aceite dos termos de uso e da política de privacidade (LGPD), gravado no cadastro público.
   // null = conta criada antes da exigência, por convite ou pelo seed.
   termsAcceptedAt DateTime?
@@ -121,7 +124,8 @@ model User {
 
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
-  sales                Sale[]
+  sales                Sale[]             @relation("SaleSeller")
+  creditApprovedSales  Sale[]             @relation("SaleCreditApprover")
   organizations        Organization[]
   notificationsCreated Notification[]     @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
@@ -267,6 +271,10 @@ model Store {
   neighborhood String?
   city         String?
   state        String?
+
+  /// Horário (HH:mm, fuso da aplicação) em que o caixa esquecido aberto fecha sozinho. O dono muda
+  /// em Lojas (decisão do usuário; padrão meia-noite).
+  cashAutoCloseTime String @default("00:00")
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -445,6 +453,15 @@ model Customer {
   /// null = sem limite. Só gerente e dono definem; acima dele o atendente não vende no fiado.
   creditLimit Float?
 
+  /// Endereço (opcional), no mesmo formato do endereço da loja.
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
   storeBalances   CustomerStoreBalance[]
@@ -573,12 +590,22 @@ model Sale {
   discount      Float         @default(0)
   paymentMethod PaymentMethod
   status        SaleStatus    @default(COMPLETED)
+  /// Data e hora em que a venda aconteceu (é a que conta em relatórios e painéis).
   createdAt     DateTime      @default(now())
+  /// Venda antiga lançada depois (ex.: internet caiu): quando foi lançada. null = venda normal,
+  /// lançada na hora. No caixa, a venda antiga conta neste momento (o dinheiro entra no caixa
+  /// aberto quando é lançada).
+  registeredAt  DateTime?
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Restrict)
 
   userId String?
-  user   User?   @relation(fields: [userId], references: [id])
+  user   User?   @relation("SaleSeller", fields: [userId], references: [id])
+
+  /// Venda fiada que passou do limite de crédito: gerente ou dono que autorizou (ele mesmo ao
+  /// confirmar, ou quem digitou e-mail e senha na tela do atendente). null = não passou do limite.
+  creditApprovedById String?
+  creditApprovedBy   User?   @relation("SaleCreditApprover", fields: [creditApprovedById], references: [id], onDelete: Restrict)
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id])
@@ -605,6 +632,10 @@ model SaleItem {
   saleId         String
   storeProductId String
   quantity       Int
+  /// Venda em lote: quantos fardos estão em `quantity` (que é sempre o total em unidades) e
+  /// quantas unidades tinha o fardo na hora. 0 / null = vendido só por unidade.
+  packs          Int    @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float  @default(0)
 
@@ -630,6 +661,8 @@ model CashRegister {
   initialBalance Float      @default(0)
   finalBalance   Float?
   status         CashStatus @default(OPEN)
+  /// Fechado pelo sistema no horário da loja (o caixa tinha ficado aberto), e não por uma pessoa.
+  autoClosed     Boolean    @default(false)
 
   store     Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
   movements CashMovement[]
@@ -695,6 +728,9 @@ model CommandItem {
   commandTabId   String
   storeProductId String
   quantity       Int
+  /// Venda em lote (igual a SaleItem): fardos contidos em `quantity` e unidades por fardo.
+  packs          Int      @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float    @default(0)
   addedAt        DateTime @default(now())
@@ -869,6 +905,7 @@ model UserHistory {
   email           String
   platformRole    PlatformRole?
   isActive        Boolean
+  phone           String?
   createdAt       DateTime
   termsAcceptedAt DateTime?
   termsVersion    String?
@@ -968,20 +1005,21 @@ model PlanHistory {
 }
 
 model StoreHistory {
-  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id           String
-  companyId    String
-  name         String
-  cnpj         String?
-  phone        String?
-  zipCode      String?
-  street       String?
-  number       String?
-  complement   String?
-  neighborhood String?
-  city         String?
-  state        String?
-  createdAt    DateTime
+  historyId         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                String
+  companyId         String
+  name              String
+  cnpj              String?
+  phone             String?
+  zipCode           String?
+  street            String?
+  number            String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  cashAutoCloseTime String   @default("00:00")
+  createdAt         DateTime
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1087,13 +1125,20 @@ model StoreBottleTypeHistory {
 }
 
 model CustomerHistory {
-  historyId   String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id          String
-  companyId   String
-  name        String
-  phone       String?
-  creditLimit Float?
-  createdAt   DateTime
+  historyId    String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id           String
+  companyId    String
+  name         String
+  phone        String?
+  creditLimit  Float?
+  zipCode      String?
+  street       String?
+  number       String?
+  complement   String?
+  neighborhood String?
+  city         String?
+  state        String?
+  createdAt    DateTime
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1177,18 +1222,20 @@ model CustomerStoreBottleBalanceHistory {
 }
 
 model SaleHistory {
-  historyId     String        @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id            String
-  storeId       String
-  total         Float
-  totalCost     Float
-  discount      Float
-  paymentMethod PaymentMethod
-  status        SaleStatus
-  createdAt     DateTime
-  userId        String?
-  customerId    String?
-  commandTabId  String?
+  historyId          String        @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                 String
+  storeId            String
+  total              Float
+  totalCost          Float
+  discount           Float
+  paymentMethod      PaymentMethod
+  status             SaleStatus
+  createdAt          DateTime
+  registeredAt       DateTime?
+  userId             String?
+  creditApprovedById String?
+  customerId         String?
+  commandTabId       String?
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1206,6 +1253,8 @@ model SaleItemHistory {
   saleId         String
   storeProductId String
   quantity       Int
+  packs          Int    @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float
 
@@ -1228,6 +1277,7 @@ model CashRegisterHistory {
   initialBalance Float
   finalBalance   Float?
   status         CashStatus
+  autoClosed     Boolean    @default(false)
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1283,6 +1333,8 @@ model CommandItemHistory {
   commandTabId   String
   storeProductId String
   quantity       Int
+  packs          Int      @default(0)
+  packSize       Int?
   price          Float
   costPrice      Float
   addedAt        DateTime

@@ -30,6 +30,15 @@ test.describe("atendente", () => {
     await expect(page.getByRole("button", { name: /Saída \(sangria\)/ })).toHaveCount(0);
   });
 
+  test("não lança venda antiga (nem pelo menu, nem pela URL)", async ({ page }) => {
+    const storeId = await openStore(page, "Loja Norte");
+    await goToStore(page, storeId, "/vendas");
+    await expect(page.getByRole("heading", { name: "Histórico de vendas" })).toBeVisible();
+    expect(await page.locator("aside").innerText()).not.toContain("Lançar venda antiga");
+    await goToStore(page, storeId, "/lancar-venda-antiga");
+    await expect(page.getByText("Você não tem permissão para ver esta página")).toBeVisible();
+  });
+
   test("vê a dívida da loja na lista de clientes, mas não a dívida total", async ({ page }) => {
     const storeId = await openStore(page, "Loja Norte");
     await goToStore(page, storeId, "/clientes");
@@ -44,7 +53,10 @@ test.describe("gerente", () => {
   test("vê Produtos, painel da loja e sangria, mas não a empresa", async ({ page }) => {
     // gerente de uma loja só: a seleção já o leva direto para ela
     await page.goto("/selecionar?trocar=1");
-    await page.getByRole("link", { name: /Loja Centro/ }).first().click();
+    await page
+      .getByRole("link", { name: /Loja Centro/ })
+      .first()
+      .click();
     await page.waitForURL(/\/loja\/([0-9a-f-]+)/);
     const storeId = page.url().match(/\/loja\/([0-9a-f-]+)/)![1];
     await goToStore(page, storeId);
@@ -82,13 +94,17 @@ test.describe("dono", () => {
       await expect(page.getByText(nome).first()).toBeVisible();
     }
     await page.getByRole("button", { name: "Convidar pessoa" }).click();
-    await expect(page.getByRole("dialog").getByText("Em quais lojas e com qual papel?")).toBeVisible();
+    await expect(
+      page.getByRole("dialog").getByText("Em quais lojas e com qual papel?"),
+    ).toBeVisible();
   });
 
   test("quem não é da plataforma é barrado em /plataforma (tela e API)", async ({ page }) => {
     await page.goto("/plataforma/organizacoes");
     await expect(page.getByText("Área restrita")).toBeVisible();
-    const status = await page.evaluate(async () => (await fetch("/api/platform/organizations")).status);
+    const status = await page.evaluate(
+      async () => (await fetch("/api/platform/organizations")).status,
+    );
     expect(status).toBe(403);
   });
 });

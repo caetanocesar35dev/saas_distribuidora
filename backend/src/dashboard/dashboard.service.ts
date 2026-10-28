@@ -12,14 +12,31 @@ import { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface PeriodStats {
+  /** Tudo o que foi vendido (inclusive no fiado). */
   revenue: number;
   profit: number;
   count: number;
+  /** Parte do faturamento e do lucro que foi vendida no fiado. */
+  fiado: { revenue: number; profit: number };
+  /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
+  fiadoReceived: number;
 }
 
 export interface DashboardStore {
   id: string;
   name: string;
+}
+
+/** "Primeiros passos" do Início: true = já feito. */
+export interface Onboarding {
+  /** A loja tem rua e cidade. */
+  address: boolean;
+  /** Há produto à venda na loja. */
+  products: boolean;
+  /** O caixa da loja já foi aberto alguma vez. */
+  cashOpened: boolean;
+  /** A empresa tem mais alguém além do dono. */
+  team: boolean;
 }
 
 export interface Dashboard {
@@ -54,7 +71,13 @@ export interface Dashboard {
   }[];
 }
 
-const EMPTY: PeriodStats = { revenue: 0, profit: 0, count: 0 };
+const EMPTY: PeriodStats = {
+  revenue: 0,
+  profit: 0,
+  count: 0,
+  fiado: { revenue: 0, profit: 0 },
+  fiadoReceived: 0,
+};
 
 /**
  * Painéis. Tudo é agregado no banco (groupBy/SQL), nunca somado trazendo as vendas para a memória.
@@ -66,6 +89,28 @@ export class DashboardService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Env, true>,
   ) {}
+
+  /**
+   * "Primeiros passos" do Início (para o dono): o que já foi feito nesta loja. Cada item é
+   * conferido no banco a cada chamada, então marca sozinho quando a pessoa faz a tarefa.
+   */
+  async onboarding(storeId: string, companyId: string): Promise<Onboarding> {
+    const [store, products, cashRegisters, members] = await Promise.all([
+      this.prisma.store.findFirst({
+        where: { id: storeId },
+        select: { street: true, city: true },
+      }),
+      this.prisma.storeProduct.count({ where: { storeId } }),
+      this.prisma.cashRegister.count({ where: { storeId } }),
+      this.prisma.membership.count({ where: { companyId } }),
+    ]);
+    return {
+      address: !!(store?.street && store.city),
+      products: products > 0,
+      cashOpened: cashRegisters > 0,
+      team: members > 1,
+    };
+  }
 
   async forStore(storeId: string, now = new Date()): Promise<Dashboard> {
     const store = await this.prisma.store.findFirst({
@@ -147,43 +192,87 @@ export class DashboardService {
     return result;
   }
 
-  /** Receita, lucro e nº de vendas desde `since`, no total e por loja (uma consulta). */
+  /**
+   * Receita, lucro e nº de vendas desde `since`, no total e por loja. O fiado entra no faturamento
+   * e no lucro (o que foi vendido), mas sai separado em `fiado` (quanto disso foi vendido no
+   * fiado) e `fiadoReceived` (pagamentos de fiado recebidos na loja no período), decisão do
+   * usuário: separar sem esconder.
+   */
   private async periodStats(storeIds: string[], since: Date) {
-    const rows = await this.prisma.sale.groupBy({
-      by: ['storeId'],
-      where: {
-        storeId: { in: storeIds },
-        status: 'COMPLETED',
-        createdAt: { gte: since },
-      },
-      _sum: { total: true, totalCost: true },
-      _count: { _all: true },
-    });
+    const [rows, received] = await Promise.all([
+      this.prisma.sale.groupBy({
+        by: ['storeId', 'paymentMethod'],
+        where: {
+          storeId: { in: storeIds },
+          status: 'COMPLETED',
+          createdAt: { gte: since },
+        },
+        _sum: { total: true, totalCost: true },
+        _count: { _all: true },
+      }),
+      this.prisma.customerPayment.groupBy({
+        by: ['storeId'],
+        where: { storeId: { in: storeIds }, createdAt: { gte: since } },
+        _sum: { amount: true },
+      }),
+    ]);
 
-    const byStore = new Map<string, PeriodStats>();
-    let revenue = 0;
-    let cost = 0;
-    let count = 0;
+    // Somas em centavos por loja; `null` = total da empresa.
+    type Acc = {
+      revenue: number;
+      cost: number;
+      count: number;
+      fiado: number;
+      fiadoCost: number;
+      received: number;
+    };
+    const acc = new Map<string | null, Acc>();
+    const at = (key: string | null) => {
+      let a = acc.get(key);
+      if (!a) {
+        a = {
+          revenue: 0,
+          cost: 0,
+          count: 0,
+          fiado: 0,
+          fiadoCost: 0,
+          received: 0,
+        };
+        acc.set(key, a);
+      }
+      return a;
+    };
     for (const row of rows) {
       const r = toCents(row._sum.total ?? 0);
       const c = toCents(row._sum.totalCost ?? 0);
-      byStore.set(row.storeId, {
-        revenue: fromCents(r),
-        profit: fromCents(r - c),
-        count: row._count._all,
-      });
-      revenue += r;
-      cost += c;
-      count += row._count._all;
+      for (const a of [at(row.storeId), at(null)]) {
+        a.revenue += r;
+        a.cost += c;
+        a.count += row._count._all;
+        if (row.paymentMethod === 'CREDIT_STORE') {
+          a.fiado += r;
+          a.fiadoCost += c;
+        }
+      }
     }
-    return {
-      total: {
-        revenue: fromCents(revenue),
-        profit: fromCents(revenue - cost),
-        count,
+    for (const row of received) {
+      const r = toCents(row._sum.amount ?? 0);
+      for (const a of [at(row.storeId), at(null)]) a.received += r;
+    }
+
+    const toStats = (a: Acc): PeriodStats => ({
+      revenue: fromCents(a.revenue),
+      profit: fromCents(a.revenue - a.cost),
+      count: a.count,
+      fiado: {
+        revenue: fromCents(a.fiado),
+        profit: fromCents(a.fiado - a.fiadoCost),
       },
-      byStore,
-    };
+      fiadoReceived: fromCents(a.received),
+    });
+    const byStore = new Map<string, PeriodStats>();
+    for (const [key, a] of acc) if (key !== null) byStore.set(key, toStats(a));
+    return { total: toStats(at(null)), byStore };
   }
 
   /** Top 5 produtos mais vendidos (por quantidade) desde `since`. Soma as lojas pelo produto do catálogo. */

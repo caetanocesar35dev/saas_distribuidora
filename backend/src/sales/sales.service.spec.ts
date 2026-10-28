@@ -9,7 +9,11 @@ import {
   ServiceTestContext,
 } from '../../test/helpers/service-module';
 import { Role } from '@prisma/client';
-import { World } from '../../test/helpers/factory';
+import { DEFAULT_PASSWORD, World } from '../../test/helpers/factory';
+import {
+  resetManagerApprovalFailures,
+  verifyManagerApproval,
+} from '../customers/manager-approval';
 import { SalesService } from './sales.service';
 
 describe('SalesService', () => {
@@ -47,7 +51,7 @@ describe('SalesService', () => {
 
   const sell = (
     dto: Partial<Parameters<SalesService['create']>[3]> & {
-      items: { storeProductId: string; quantity: number }[];
+      items: { storeProductId: string; quantity: number; packs?: number }[];
     },
     storeId = w.storeA.id,
     role: Role = 'OWNER',
@@ -206,15 +210,21 @@ describe('SalesService', () => {
       ).toEqual(['SALE', 'SALE']);
     });
 
-    it('exige caixa aberto na PRÓPRIA loja', async () => {
+    it('sem caixa aberto, a venda abre um sozinha na PRÓPRIA loja', async () => {
       const other = await ctx.factory.storeProduct(w.storeB.id, w.company.id);
-      await expect(
-        sell(
-          { items: [{ storeProductId: other.id, quantity: 1 }] },
-          w.storeB.id,
-        ),
-      ).rejects.toThrow(/caixa aberto/);
-      expect(await stockOf(other.id)).toBe(100);
+      await sell(
+        { items: [{ storeProductId: other.id, quantity: 1 }] },
+        w.storeB.id,
+      );
+      expect(await stockOf(other.id)).toBe(99);
+      const registers = await ctx.prisma.cashRegister.findMany({
+        where: { status: 'OPEN' },
+        select: { storeId: true },
+      });
+      // a loja B ganhou o caixa dela; o da loja A continua o mesmo
+      expect(registers.map((r) => r.storeId).sort()).toEqual(
+        [w.storeA.id, w.storeB.id].sort(),
+      );
     });
 
     it('registra autor e rota na venda, nos itens e no estoque', async () => {
@@ -359,6 +369,161 @@ describe('SalesService', () => {
     });
   });
 
+  describe('venda em lote (fardos)', () => {
+    let fardo: { id: string };
+    beforeEach(async () => {
+      // Fardo de 12 litrões: unidade R$ 5, cada unidade leva 1 vasilhame
+      fardo = await ctx.factory.storeProduct(w.storeA.id, w.company.id, {
+        name: 'Litrão',
+        price: 5,
+        costPrice: 3,
+        stock: 100,
+        packQuantity: 12,
+        bottleTypeId: litrao.id,
+      });
+    });
+
+    it('2 fardos + 3 unidades = 27 unidades: preço, estoque, vasilhames e o item guarda os fardos', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: fardo.id, quantity: 3, packs: 2 }],
+        bottleReturns: [{ bottleTypeId: litrao.id, quantity: 27 }],
+      });
+      expect(sale.total).toBe(135); // 27 × R$ 5 (preço do fardo = unidade × 12)
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 27, packs: 2, packSize: 12 }),
+      ]);
+      const stock = await ctx.prisma.storeProduct.findUniqueOrThrow({
+        where: { id: fardo.id },
+      });
+      expect(stock.stock).toBe(73);
+      const borrowed = await ctx.prisma.bottleMovement.findFirstOrThrow({
+        where: { saleId: sale.id, type: 'CUSTOMER_BORROW' },
+      });
+      expect(borrowed.quantity).toBe(-27);
+    });
+
+    it('junta linhas repetidas do mesmo produto somando fardos e unidades', async () => {
+      const sale = await sell({
+        items: [
+          { storeProductId: fardo.id, quantity: 2, packs: 1 },
+          { storeProductId: fardo.id, quantity: 0, packs: 1 },
+        ],
+        bottleReturns: [{ bottleTypeId: litrao.id, quantity: 26 }],
+      });
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 26, packs: 2, packSize: 12 }),
+      ]);
+    });
+
+    it('venda só por unidade continua igual (sem fardos)', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: beer.id, quantity: 2 }],
+      });
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 2, packs: 0, packSize: null }),
+      ]);
+    });
+
+    it('recusa fardo de produto sem tamanho de fardo e quantidade zerada', async () => {
+      await expect(
+        sell({ items: [{ storeProductId: beer.id, quantity: 0, packs: 1 }] }),
+      ).rejects.toThrow(/não é vendido em fardo/);
+      await expect(
+        sell({ items: [{ storeProductId: fardo.id, quantity: 0, packs: 0 }] }),
+      ).rejects.toThrow(/deve ser maior que zero/);
+    });
+
+    it('estoque insuficiente conta os fardos em unidades', async () => {
+      await expect(
+        sell({ items: [{ storeProductId: fardo.id, quantity: 0, packs: 9 }] }),
+      ).rejects.toThrow(/Disponível: 100, solicitado: 108/);
+    });
+  });
+
+  describe('venda antiga lançada depois', () => {
+    const late = (
+      soldAt: string,
+      dto: Partial<Parameters<SalesService['createLate']>[3]> = {},
+    ) =>
+      ctx.asRequest(
+        () =>
+          sales.createLate(
+            w.storeA.id,
+            w.company.id,
+            w.owner.id,
+            {
+              paymentMethod: 'MONEY',
+              items: [{ storeProductId: beer.id, quantity: 2 }],
+              soldAt,
+              ...dto,
+            },
+            'MANAGER',
+          ),
+        {
+          userId: w.owner.id,
+          endpoint: 'POST /api/stores/:storeId/sales/late',
+        },
+      );
+
+    it('fica com a data em que aconteceu, marca quando foi lançada e o dinheiro entra no caixa aberto agora', async () => {
+      const before = Date.now();
+      const sale = await late('2026-03-10T15:30:00.000Z');
+      expect(sale.createdAt.toISOString()).toBe('2026-03-10T15:30:00.000Z');
+      expect(sale.registeredAt!.getTime()).toBeGreaterThanOrEqual(
+        before - 1000,
+      );
+      expect(sale.total).toBe(20);
+
+      const stock = await ctx.prisma.storeProduct.findUniqueOrThrow({
+        where: { id: beer.id },
+      });
+      expect(stock.stock).toBe(98);
+
+      const movement = await ctx.prisma.cashMovement.findFirstOrThrow({
+        where: { type: 'SALE' },
+      });
+      expect(movement.amount).toBe(20);
+      expect(movement.description).toMatch(
+        /^Venda #\w+ lançada depois \(de 10\/03\/2026 12:30\)$/,
+      );
+
+      // aparece no dia em que aconteceu
+      const day = await sales.list(w.storeA.id, {
+        page: 1,
+        limit: 20,
+        startDate: '2026-03-10',
+        endDate: '2026-03-10',
+      });
+      expect(day.data.map((s) => s.id)).toEqual([sale.id]);
+    });
+
+    it('venda normal não tem registeredAt', async () => {
+      const sale = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(sale.registeredAt).toBeNull();
+    });
+
+    it('recusa data no futuro; sem limite para trás', async () => {
+      const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
+      await expect(late(tomorrow)).rejects.toThrow(
+        'A data da venda não pode ser no futuro.',
+      );
+      const old = await late('2020-01-01T12:00:00.000Z');
+      expect(old.createdAt.getUTCFullYear()).toBe(2020);
+    });
+
+    it('no fiado soma na dívida e não mexe no caixa', async () => {
+      const customer = await ctx.factory.customer(w.company.id);
+      await late('2026-03-10T15:30:00.000Z', {
+        paymentMethod: 'CREDIT_STORE',
+        customerId: customer.id,
+      });
+      expect(await fiado(customer.id)).toBe(20);
+      expect(await ctx.prisma.cashMovement.count()).toBe(0);
+    });
+  });
+
   describe('venda a prazo (fiado)', () => {
     it('aumenta a dívida do cliente NA LOJA da venda e não mexe no caixa', async () => {
       const customer = await ctx.factory.customer(w.company.id);
@@ -417,9 +582,18 @@ describe('SalesService', () => {
       expect(await fiado(customer.id)).toBe(35);
       expect(await ctx.prisma.sale.count()).toBe(1);
 
-      // gerente confirmando: vende
-      await fiadoSale('MANAGER', { allowOverCreditLimit: true });
+      // venda dentro do limite não registra quem autorizou
+      expect(
+        (await ctx.prisma.sale.findFirstOrThrow()).creditApprovedById,
+      ).toBeNull();
+
+      // gerente confirmando: vende, e fica gravado que ele mesmo autorizou
+      const over = await fiadoSale('MANAGER', { allowOverCreditLimit: true });
       expect(await fiado(customer.id)).toBe(45);
+      expect(over.creditApprovedBy).toEqual({
+        id: w.owner.id,
+        name: w.owner.name,
+      });
 
       // venda à vista não olha o limite
       await sell(
@@ -430,6 +604,91 @@ describe('SalesService', () => {
         w.storeA.id,
         'EMPLOYEE',
       );
+    });
+
+    it('limite de crédito: atendente passa com o e-mail e a senha de um gerente da loja', async () => {
+      resetManagerApprovalFailures();
+      const customer = await ctx.factory.customer(w.company.id);
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.customer.update({
+          where: { id: customer.id },
+          data: { creditLimit: 5 },
+        }),
+      );
+      const employee = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'EMPLOYEE' },
+      ]);
+      const managerOfB = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeB.id, role: 'MANAGER' },
+      ]);
+      const fiadoSale = (managerApproval?: {
+        email: string;
+        password: string;
+      }) =>
+        sell(
+          {
+            paymentMethod: 'CREDIT_STORE',
+            customerId: customer.id,
+            items: [{ storeProductId: beer.id, quantity: 1 }], // R$ 10
+            managerApproval,
+          },
+          w.storeA.id,
+          'EMPLOYEE',
+        );
+
+      await expect(fiadoSale()).rejects.toBeInstanceOf(ForbiddenException);
+      // senha errada
+      await expect(
+        fiadoSale({ email: w.owner.email, password: 'errada' }),
+      ).rejects.toThrow(/incorretos/);
+      // o próprio atendente não autoriza
+      await expect(
+        fiadoSale({ email: employee.user.email, password: DEFAULT_PASSWORD }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      // gerente de OUTRA loja não autoriza nesta
+      await expect(
+        fiadoSale({ email: managerOfB.user.email, password: DEFAULT_PASSWORD }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(await ctx.prisma.sale.count()).toBe(0);
+
+      // gerente da loja autoriza: vende, sem precisar confirmar de novo, e fica gravado quem
+      // autorizou (não quem vendeu)
+      const managerOfA = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'MANAGER' },
+      ]);
+      const sale = await fiadoSale({
+        email: managerOfA.user.email,
+        password: DEFAULT_PASSWORD,
+      });
+      expect(await fiado(customer.id)).toBe(10);
+      expect(sale.creditApprovedBy?.id).toBe(managerOfA.user.id);
+      expect(sale.user?.id).toBe(w.owner.id);
+    });
+
+    it('autorização do gerente: trava o e-mail depois de 5 senhas erradas', async () => {
+      resetManagerApprovalFailures();
+      const approval = { email: w.owner.email, password: 'errada' };
+      for (let i = 0; i < 5; i++) {
+        await expect(
+          verifyManagerApproval(ctx.prisma, w.storeA.id, approval),
+        ).rejects.toThrow(/incorretos/);
+      }
+      await expect(
+        verifyManagerApproval(ctx.prisma, w.storeA.id, {
+          ...approval,
+          password: DEFAULT_PASSWORD,
+        }),
+      ).rejects.toThrow(/Muitas tentativas/);
+      // passada a janela, volta a aceitar
+      await expect(
+        verifyManagerApproval(
+          ctx.prisma,
+          w.storeA.id,
+          { ...approval, password: DEFAULT_PASSWORD },
+          Date.now() + 16 * 60_000,
+        ),
+      ).resolves.toMatchObject({ role: 'OWNER' });
+      resetManagerApprovalFailures();
     });
 
     it('cria o saldo na primeira venda a prazo do cliente', async () => {
@@ -800,7 +1059,7 @@ describe('SalesService', () => {
       expect(movements.reduce((sum, m) => sum + m.quantity, 0)).toBe(0); // somam zero: estoque líquido inalterado
     });
 
-    it('não cancela duas vezes, nem venda de outra loja, nem sem caixa aberto', async () => {
+    it('não cancela duas vezes nem venda de outra loja; sem caixa aberto, abre um sozinho', async () => {
       const sale = await sell({
         items: [{ storeProductId: beer.id, quantity: 1 }],
       });
@@ -821,12 +1080,8 @@ describe('SalesService', () => {
           data: { status: 'CLOSED' },
         }),
       );
-      await expect(cancel(second.id)).rejects.toThrow(
-        /caixa precisa estar aberto/,
-      );
-      expect((await sales.get(w.storeA.id, second.id)).status).toBe(
-        'COMPLETED',
-      );
+      await cancel(second.id);
+      expect((await sales.get(w.storeA.id, second.id)).status).toBe('CANCELED');
     });
 
     it('dois cancelamentos simultâneos: só um vence e o estoque volta uma vez só', async () => {

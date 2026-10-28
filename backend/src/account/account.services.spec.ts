@@ -16,6 +16,16 @@ import { MembershipsService } from './memberships.service';
 import { OrganizationsService } from './organizations.service';
 import { StoresService } from './stores.service';
 
+/** Endereço obrigatório da loja (decisão do usuário): usado nos testes que criam loja. */
+const ADDRESS = {
+  zipCode: '50030-230',
+  street: 'Rua da Aurora',
+  number: '100',
+  neighborhood: 'Boa Vista',
+  city: 'Recife',
+  state: 'PE',
+};
+
 describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
   let ctx: ServiceTestContext;
   let organizations: OrganizationsService;
@@ -165,7 +175,11 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ]);
 
       const store = await as(w.owner.id, () =>
-        stores.create(w.company.id, { name: 'Loja C', city: 'Recife' }),
+        stores.create(w.company.id, {
+          ...ADDRESS,
+          name: 'Loja C',
+          city: 'Recife',
+        }),
       );
 
       const access = await ctx.prisma.membershipStore.findMany({
@@ -184,6 +198,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
     it('confere o CNPJ opcional da loja e grava sem máscara, em maiúsculas', async () => {
       const store = await as(w.owner.id, () =>
         stores.create(w.company.id, {
+          ...ADDRESS,
           name: 'Loja C',
           cnpj: '12.abc.345/01de-35',
         }),
@@ -196,7 +211,11 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
       await expect(
         as(w.owner.id, () =>
-          stores.create(w.company.id, { name: 'Loja D', cnpj: 'qualquer' }),
+          stores.create(w.company.id, {
+            ...ADDRESS,
+            name: 'Loja D',
+            cnpj: 'qualquer',
+          }),
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
       const updated = await as(w.owner.id, () =>
@@ -213,10 +232,18 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         }),
       );
       await as(w.owner.id, () =>
-        stores.create(w.company.id, { name: 'Loja C' }),
+        stores.create(w.company.id, {
+          ...ADDRESS,
+          name: 'Loja C',
+        }),
       );
       await expect(
-        as(w.owner.id, () => stores.create(w.company.id, { name: 'Loja D' })),
+        as(w.owner.id, () =>
+          stores.create(w.company.id, {
+            ...ADDRESS,
+            name: 'Loja D',
+          }),
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 

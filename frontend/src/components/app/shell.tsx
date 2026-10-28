@@ -9,6 +9,7 @@ import {
   ClipboardListIcon,
   ContainerIcon,
   CreditCardIcon,
+  HistoryIcon,
   HomeIcon,
   MegaphoneIcon,
   MenuIcon,
@@ -229,21 +230,20 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
     { href: `${base}/pdv`, label: "Vender (PDV)", icon: ShoppingCartIcon },
     { href: `${base}/comandas`, label: "Comandas", icon: ClipboardListIcon },
     { href: `${base}/caixa`, label: "Caixa", icon: WalletIcon },
-    { href: `${base}/vendas`, label: "Vendas", icon: ReceiptIcon },
+    { href: `${base}/vendas`, label: "Histórico de vendas", icon: ReceiptIcon },
+    // Venda antiga lançada depois (internet caiu etc.): só gerente e dono.
+    ...(manager
+      ? [{ href: `${base}/lancar-venda-antiga`, label: "Lançar venda antiga", icon: HistoryIcon }]
+      : []),
     { href: `${base}/clientes`, label: "Clientes e fiado", icon: UsersIcon },
   ];
   const stock: NavItem[] = [
     { href: `${base}/estoque`, label: "Estoque", icon: BoxesIcon },
-    ...(manager
-      ? [{ href: `${base}/produtos`, label: "Produtos", icon: PackageIcon }]
-      : []),
+    ...(manager ? [{ href: `${base}/produtos`, label: "Produtos", icon: PackageIcon }] : []),
     { href: `${base}/vasilhames`, label: "Vasilhames", icon: ContainerIcon },
   ];
 
-  const groups: NavGroup[] = [
-    { items: operation },
-    { title: "Mercadoria", items: stock },
-  ];
+  const groups: NavGroup[] = [{ items: operation }, { title: "Mercadoria", items: stock }];
   if (store.isCompanyOwner) {
     groups.push({
       title: "Empresa",
@@ -305,10 +305,7 @@ export function CompanyShell({ children }: { children: React.ReactNode }) {
     <Frame
       groups={groups}
       switcher={
-        <ScopeSwitcher
-          currentLabel={company.companyName}
-          currentHint="Administração da empresa"
-        />
+        <ScopeSwitcher currentLabel={company.companyName} currentHint="Administração da empresa" />
       }
     >
       {children}

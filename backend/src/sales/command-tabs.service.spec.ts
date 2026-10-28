@@ -219,6 +219,58 @@ describe('CommandTabsService', () => {
     });
   });
 
+  describe('venda em lote (fardos)', () => {
+    it('fardo na comanda baixa o estoque em unidades e a venda mantém os fardos ao fechar', async () => {
+      const fardo = await ctx.factory.storeProduct(w.storeA.id, w.company.id, {
+        name: 'Long neck',
+        price: 4,
+        costPrice: 2,
+        stock: 30,
+        packQuantity: 6,
+      });
+      const tab = await open();
+      const item = await as(() =>
+        tabs.addItem(w.storeA.id, tab.id, {
+          storeProductId: fardo.id,
+          quantity: 1,
+          packs: 2,
+        }),
+      );
+      expect(item).toMatchObject({ quantity: 13, packs: 2, packSize: 6 });
+      const stock = await ctx.prisma.storeProduct.findUniqueOrThrow({
+        where: { id: fardo.id },
+      });
+      expect(stock.stock).toBe(17);
+
+      const sale = await close(tab.id);
+      expect(sale.total).toBe(52); // 13 × R$ 4
+      expect(sale.items).toEqual([
+        expect.objectContaining({ quantity: 13, packs: 2, packSize: 6 }),
+      ]);
+      // fechar não baixa o estoque de novo
+      expect(
+        (
+          await ctx.prisma.storeProduct.findUniqueOrThrow({
+            where: { id: fardo.id },
+          })
+        ).stock,
+      ).toBe(17);
+    });
+
+    it('recusa fardo de produto vendido só por unidade', async () => {
+      const tab = await open();
+      await expect(
+        as(() =>
+          tabs.addItem(w.storeA.id, tab.id, {
+            storeProductId: beer.id,
+            quantity: 0,
+            packs: 1,
+          }),
+        ),
+      ).rejects.toThrow(/não é vendido em fardo/);
+    });
+  });
+
   describe('fechar', () => {
     it('gera a venda com os preços da comanda, SEM baixar o estoque de novo, e fecha a comanda', async () => {
       const tab = await open();
@@ -305,7 +357,7 @@ describe('CommandTabsService', () => {
       expect(debt.balance).toBe(1);
     });
 
-    it('comanda vazia: 400; comanda já fechada: 409; sem caixa aberto: 409 e a comanda continua aberta', async () => {
+    it('comanda vazia: 400; comanda já fechada: 409; sem caixa aberto, o fechamento abre um sozinho', async () => {
       const empty = await open('Vazia');
       await expect(close(empty.id)).rejects.toBeInstanceOf(BadRequestException);
 
@@ -317,23 +369,12 @@ describe('CommandTabsService', () => {
           data: { status: 'CLOSED' },
         }),
       );
-      await expect(close(tab.id)).rejects.toThrow(/caixa aberto/);
-      expect(
-        (
-          await ctx.prisma.commandTab.findUniqueOrThrow({
-            where: { id: tab.id },
-          })
-        ).status,
-      ).toBe('OPEN');
-      expect(await ctx.prisma.sale.count()).toBe(0);
-
-      await ctx.audit.runAsSystem('seed', () =>
-        ctx.prisma.cashRegister.updateMany({
-          where: { storeId: w.storeA.id },
-          data: { status: 'OPEN' },
-        }),
-      );
       await close(tab.id);
+      expect(
+        await ctx.prisma.cashRegister.count({
+          where: { storeId: w.storeA.id, status: 'OPEN' },
+        }),
+      ).toBe(1);
       await expect(close(tab.id)).rejects.toBeInstanceOf(ConflictException);
     });
 

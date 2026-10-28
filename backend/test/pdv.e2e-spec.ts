@@ -131,6 +131,86 @@ describe('PDV: caixa, vendas, comandas e fiado pela API (e2e)', () => {
       .expect(200);
   });
 
+  it('cliente com endereço opcional pela API: valida a UF e devolve o endereço', async () => {
+    const s = await scenario();
+    const url = `/api/companies/${s.w.company.id}/customers`;
+    await t.http
+      .post(url)
+      .set(s.employee)
+      .send({ name: 'Zé', state: 'Pernambuco' })
+      .expect(400);
+    const ok = await t.http
+      .post(url)
+      .set(s.employee)
+      .send({
+        name: 'Zé',
+        street: 'Rua A',
+        number: '10',
+        city: 'Recife',
+        state: 'pe',
+      })
+      .expect(201);
+    expect(ok.body).toMatchObject({
+      street: 'Rua A',
+      city: 'Recife',
+      state: 'PE',
+    });
+    const sem = await t.http
+      .post(url)
+      .set(s.employee)
+      .send({ name: 'Ana' })
+      .expect(201);
+    expect(sem.body.street).toBeNull();
+  });
+
+  it('venda antiga: só gerente/dono lançam e ela conta no caixa aberto agora', async () => {
+    const s = await scenario();
+    await t.http
+      .post(`${s.base}/cash-register/open`)
+      .set(s.manager)
+      .send({ initialBalance: 100 })
+      .expect(201);
+    const body = {
+      paymentMethod: 'PIX',
+      items: [{ storeProductId: s.beer.id, quantity: 3 }],
+      soldAt: '2026-01-15T13:00:00.000Z',
+    };
+
+    await t.http
+      .post(`${s.base}/sales/late`)
+      .set(s.employee)
+      .send(body)
+      .expect(403);
+    await t.http
+      .post(`${s.base}/sales/late`)
+      .set(s.manager)
+      .send({ ...body, soldAt: 'ontem' })
+      .expect(400);
+
+    const sale = await t.http
+      .post(`${s.base}/sales/late`)
+      .set(s.manager)
+      .send(body)
+      .expect(201);
+    expect(sale.body.createdAt).toBe('2026-01-15T13:00:00.000Z');
+    expect(sale.body.registeredAt).toEqual(expect.any(String));
+
+    // o dinheiro entrou no caixa de agora, e o resumo do caixa conta a venda (pela hora do
+    // lançamento, não pela data de janeiro)
+    const current = await t.http
+      .get(`${s.base}/cash-register/current`)
+      .set(s.manager)
+      .expect(200);
+    expect(current.body.currentBalance).toBe(130);
+    const detail = await t.http
+      .get(`${s.base}/cash-register/${current.body.id}`)
+      .set(s.manager)
+      .expect(200);
+    expect(detail.body.summary).toEqual([
+      { paymentMethod: 'PIX', count: 1, total: 30 },
+    ]);
+  });
+
   it('o atendente nunca recebe custo nem lucro; gerente e dono recebem', async () => {
     const s = await scenario();
     await t.http

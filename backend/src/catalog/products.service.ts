@@ -46,15 +46,21 @@ export class ProductsService {
           }
         : {}),
     };
-    const [data, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        select: PRODUCT_SELECT,
-        orderBy: { name: 'asc' },
-        ...pageArgs(query),
-      }),
-      this.prisma.product.count({ where }),
-    ]);
+    const read = () =>
+      Promise.all([
+        this.prisma.product.findMany({
+          where,
+          select: { ...PRODUCT_SELECT, deletedAt: true },
+          orderBy: { name: 'asc' },
+          ...pageArgs(query),
+        }),
+        this.prisma.product.count({ where }),
+      ]);
+    // Excluídos: a extensão esconde quem tem deletedAt, então a leitura sai do filtro padrão.
+    if (query.deleted) where.deletedAt = { not: null };
+    const [data, total] = query.deleted
+      ? await this.audit.withDeleted(read)
+      : await read();
     return paginate(data, total, query.page, query.limit);
   }
 
@@ -154,7 +160,10 @@ export class ProductsService {
     return { message: 'Produto excluído.' };
   }
 
-  /** Reativa um produto excluído (o código dele continua reservado). */
+  /**
+   * Reativa um produto excluído (o código dele continua reservado). As ofertas que saíram junto
+   * com ele (mesmo `deletedAt`) voltam com o preço e o estoque de antes, nas lojas ativas.
+   */
   async restore(companyId: string, id: string) {
     const product = await this.audit.withDeleted(() =>
       this.prisma.product.findFirst({ where: { id, companyId } }),
@@ -162,9 +171,20 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Produto não encontrado.');
     if (!product.deletedAt)
       throw new ConflictException('O produto não está excluído.');
+    const deletedAt = product.deletedAt;
 
     await this.audit.withDeleted(() =>
-      this.prisma.product.update({ where: { id }, data: { deletedAt: null } }),
+      this.prisma.$transaction(async (tx) => {
+        await tx.storeProduct.updateMany({
+          where: {
+            productId: id,
+            deletedAt,
+            store: { deletedAt: null },
+          },
+          data: { deletedAt: null },
+        });
+        await tx.product.update({ where: { id }, data: { deletedAt: null } });
+      }),
     );
     return this.get(companyId, id);
   }

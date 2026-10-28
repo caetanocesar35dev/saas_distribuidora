@@ -11,7 +11,7 @@ export const acesso: Article[] = [
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
       "Abra o endereço do sistema no navegador.",
-      "Digite o e-mail e a senha da sua conta.",
+      "Digite o e-mail e a senha da sua conta. Para conferir o que digitou, clique no olho no fim do campo da senha (clique de novo para esconder).",
       "Clique em Entrar.",
       "Se você trabalha em mais de uma loja, escolha a loja. Se tiver só uma, o sistema já abre nela.",
     ],
@@ -43,11 +43,11 @@ export const acesso: Article[] = [
     audience: ["OWNER"],
     steps: [
       "Na tela de entrada, clique em Criar conta.",
-      "Preencha seu nome, e-mail e uma senha de pelo menos 8 caracteres.",
+      "Preencha seu nome (só letras: números e símbolos não entram no campo), o e-mail, o celular (WhatsApp, obrigatório: é por onde o suporte e os avisos da assinatura falam com você) e uma senha de pelo menos 8 caracteres.",
       "Digite o CNPJ da distribuidora. Ele pode ter letras e números (CNPJ alfanumérico); a pontuação entra sozinha.",
       "Ao completar o CNPJ, o sistema busca os dados públicos da empresa e preenche a razão social e o nome fantasia. Confira e corrija se precisar. O que você já tiver digitado não é trocado.",
       "Se a busca não encontrar a empresa ou estiver fora do ar, preencha a razão social e o nome fantasia você mesmo.",
-      "Informe o nome da primeira loja e escolha o plano.",
+      "Informe o nome da primeira loja e escolha o plano. O endereço e o telefone da loja vêm da consulta do CNPJ e aparecem abaixo do nome; você pode mudar depois em Painel da empresa › Lojas.",
       "Leia os Termos de uso e a Política de privacidade (os links abrem em outra aba) e marque Li e aceito. Sem esse aceite a conta não é criada.",
       "Clique em Criar conta e começar.",
     ],
@@ -188,7 +188,7 @@ export const acesso: Article[] = [
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
       "Clique no círculo com as suas iniciais, no canto do topo, e escolha Minha conta.",
-      "Para mudar o nome, edite o campo e clique em Salvar nome.",
+      "Para mudar o nome ou o celular (WhatsApp), edite os campos e clique em Salvar dados. Deixe o celular em branco para apagá-lo.",
       "Para trocar a senha, digite a atual e a nova duas vezes. Você continua conectado neste aparelho e é desconectado dos outros.",
       "Para sair de todos os aparelhos (por exemplo, se perdeu o celular), clique em Sair de todos os aparelhos.",
     ],

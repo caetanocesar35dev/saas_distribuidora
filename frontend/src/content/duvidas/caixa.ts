@@ -5,14 +5,14 @@ export const caixa: Article[] = [
     id: "caixa-abrir",
     category: "caixa",
     title: "Abrir o caixa",
-    purpose: "Começar o dia com o caixa aberto. Sem ele não é possível vender, nem no fiado.",
+    purpose:
+      "Começar o dia com o caixa aberto. Não é obrigatório: a primeira venda abre o caixa sozinha.",
     where: "Menu › Caixa › Caixa atual › Abrir caixa",
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE"],
     steps: [
-      "Abra Menu › Caixa.",
-      "Conte o dinheiro que está na gaveta e digite o valor em Saldo inicial.",
-      "Clique em Abrir caixa. Pronto: o PDV já libera as vendas.",
+      "Você não precisa abrir o caixa à mão: a primeira venda (ou recebimento de fiado, entrada ou sangria) abre o caixa sozinha, com o saldo inicial igual ao saldo do último fechamento.",
+      "Para começar com outro valor (o dinheiro contado na gaveta), abra Menu › Caixa, digite o valor em Saldo inicial e clique em Abrir caixa.",
       "Só existe um caixa aberto por loja de cada vez.",
     ],
     problems: [
@@ -22,7 +22,7 @@ export const caixa: Article[] = [
       },
       {
         message: "O caixa está fechado",
-        fix: "Abra o caixa em Menu › Caixa.",
+        fix: "Não precisa fazer nada: a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       },
     ],
     related: ["caixa-entrada", "caixa-fechar"],
@@ -84,7 +84,8 @@ export const caixa: Article[] = [
       "Abra Menu › Caixa e clique em Fechar caixa.",
       "Confirme. O sistema mostra o saldo final e a tabela de vendas por forma de pagamento (dinheiro, PIX, cartões e fiado).",
       "Para conferir o dinheiro da gaveta, olhe o total em Dinheiro dessa tabela. O saldo do caixa soma todas as formas, sem separar.",
-      "Depois de fechado, só é possível vender abrindo um caixa novo.",
+      "Depois de fechado, a próxima venda abre um caixa novo sozinha, com o saldo final deste.",
+      "Esqueceu de fechar? O caixa fecha sozinho todo dia no horário da loja (padrão meia-noite; o dono muda em Painel da empresa › Lojas › Editar › Fechamento automático do caixa). Em Caixas anteriores ele aparece com a marca automático.",
     ],
     problems: [
       {

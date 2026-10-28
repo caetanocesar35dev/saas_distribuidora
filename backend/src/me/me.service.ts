@@ -23,6 +23,7 @@ const PROFILE_SELECT = {
   id: true,
   name: true,
   email: true,
+  phone: true,
   platformRole: true,
   createdAt: true,
 } as const;
@@ -46,7 +47,11 @@ export class MeService {
   updateProfile(userId: string, dto: UpdateProfileDto) {
     return this.prisma.user.update({
       where: { id: userId },
-      data: { name: dto.name },
+      data: {
+        name: dto.name,
+        // celular: ausente não mexe; vazio apaga
+        ...(dto.phone === undefined ? {} : { phone: dto.phone || null }),
+      },
       select: PROFILE_SELECT,
     });
   }

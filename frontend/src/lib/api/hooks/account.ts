@@ -8,7 +8,7 @@ import { sessionKeys } from "@/lib/session/queries";
 export function useUpdateProfile() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string }) => api.patch<Profile>("/me", body),
+    mutationFn: (body: { name: string; phone?: string }) => api.patch<Profile>("/me", body),
     onSuccess: (profile) => client.setQueryData(sessionKeys.me, profile),
   });
 }

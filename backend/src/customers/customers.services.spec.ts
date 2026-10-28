@@ -212,6 +212,67 @@ describe('Serviços de clientes e fiado', () => {
       expect(cleared).toMatchObject({ name: 'Zé Silva', creditLimit: null });
     });
 
+    it('endereço é opcional: grava, edita campo a campo e texto vazio apaga', async () => {
+      const semEndereco = await as(() =>
+        customers.create(w.company.id, { name: 'Sem endereço' }, 'EMPLOYEE'),
+      );
+      expect(semEndereco).toMatchObject({
+        zipCode: null,
+        street: null,
+        state: null,
+      });
+
+      const c = await as(() =>
+        customers.create(
+          w.company.id,
+          {
+            name: 'Com endereço',
+            zipCode: '50030-230',
+            street: ' Rua da Aurora ',
+            number: '100',
+            neighborhood: 'Boa Vista',
+            city: 'Recife',
+            state: 'pe',
+          },
+          'EMPLOYEE',
+        ),
+      );
+      expect(c).toMatchObject({
+        zipCode: '50030-230',
+        street: 'Rua da Aurora',
+        number: '100',
+        complement: null,
+        neighborhood: 'Boa Vista',
+        city: 'Recife',
+        state: 'PE',
+      });
+
+      // editar só o número não mexe no resto; vazio apaga o complemento e a rua
+      await as(() =>
+        customers.update(
+          w.company.id,
+          c.id,
+          { number: '200', complement: 'Sala 3' },
+          'EMPLOYEE',
+        ),
+      );
+      const apagado = await as(() =>
+        customers.update(
+          w.company.id,
+          c.id,
+          { complement: '', street: '   ' },
+          'EMPLOYEE',
+        ),
+      );
+      expect(apagado).toMatchObject({
+        number: '200',
+        complement: null,
+        street: null,
+        city: 'Recife',
+        state: 'PE',
+      });
+    });
+
     it('atualiza nome e telefone', async () => {
       const c = await as(() =>
         customers.create(w.company.id, { name: 'Antigo' }, 'EMPLOYEE'),
@@ -541,13 +602,16 @@ describe('Serviços de clientes e fiado', () => {
       expect(await debtOf(customer.id, w.storeA.id)).toBe(30);
     });
 
-    it('exige caixa aberto na loja que recebe', async () => {
+    it('sem caixa aberto na loja que recebe, abre um sozinho e recebe', async () => {
       await ctx.factory.debt(customer.id, w.storeA.id, 30);
       // a loja A não tem caixa aberto; a B tem
-      await expect(pay({ amount: 10 }, w.storeA.id)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
-      expect(await debtOf(customer.id, w.storeA.id)).toBe(30);
+      await pay({ amount: 10 }, w.storeA.id);
+      expect(await debtOf(customer.id, w.storeA.id)).toBe(20);
+      expect(
+        await ctx.prisma.cashRegister.count({
+          where: { storeId: w.storeA.id, status: 'OPEN' },
+        }),
+      ).toBe(1);
     });
 
     it('não aceita CREDIT_STORE como forma de pagamento', async () => {

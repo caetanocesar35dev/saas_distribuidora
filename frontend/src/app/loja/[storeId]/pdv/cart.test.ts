@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { StoreProduct } from "@/lib/api/types";
-import { cartBottles, cartReducer, cartSubtotal, type CartLine } from "./cart";
+import { cartBottles, cartReducer, cartSubtotal, lineUnits, type CartLine } from "./cart";
 
 function product(
   id: string,
   price: number,
   bottle?: { id: string; name: string },
+  packQuantity = 1,
 ): StoreProduct {
   return {
     id,
@@ -18,7 +19,7 @@ function product(
     product: {
       code: id,
       name: `Produto ${id}`,
-      packQuantity: 1,
+      packQuantity,
       bottleTypeId: bottle?.id ?? null,
       bottleType: bottle ?? null,
     },
@@ -44,6 +45,30 @@ describe("carrinho do PDV", () => {
     expect(cart[0].quantity).toBe(6);
     cart = cartReducer(cart, { type: "remove", id: "a" });
     expect(cart).toEqual([]);
+  });
+
+  it("venda em lote: fardos e unidades na mesma linha, total em unidades", () => {
+    const litrao = { id: "lit", name: "Litrão" };
+    const fardo = product("f", 5, litrao, 12);
+    let cart = cartReducer([], { type: "addPack", item: fardo });
+    expect(cart[0]).toMatchObject({ quantity: 0, packs: 1 });
+    expect(lineUnits(cart[0])).toBe(12);
+
+    cart = cartReducer(cart, { type: "addPack", item: fardo });
+    cart = cartReducer(cart, { type: "add", item: fardo });
+    expect(cart).toHaveLength(1);
+    expect(cart[0]).toMatchObject({ quantity: 1, packs: 2 });
+    expect(lineUnits(cart[0])).toBe(25);
+    expect(cartSubtotal(cart)).toBe(125); // fardo = unidade × 12
+    expect(cartBottles(cart)).toEqual([{ bottleTypeId: "lit", name: "Litrão", taken: 25 }]);
+
+    // com fardos, as unidades avulsas podem ir a zero; sem fardos, volta a 1 unidade
+    cart = cartReducer(cart, { type: "set", id: "f", quantity: 0 });
+    expect(cart[0]).toMatchObject({ quantity: 0, packs: 2 });
+    cart = cartReducer(cart, { type: "setPacks", id: "f", packs: 0 });
+    expect(cart[0]).toMatchObject({ quantity: 1, packs: 0 });
+    cart = cartReducer(cart, { type: "setPacks", id: "f", packs: -3 });
+    expect(cart[0].packs).toBe(0);
   });
 
   it("limpar esvazia o carrinho", () => {

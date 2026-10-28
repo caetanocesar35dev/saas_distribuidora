@@ -24,6 +24,7 @@ import {
   BOTTLE_MOVEMENT_LABEL,
   formatDateTime,
   formatInt,
+  formatItemQuantity,
   hasMinRole,
   PAYMENT_METHOD_LABEL,
   roundMoney,
@@ -41,7 +42,15 @@ function SaleBody({ sale }: { sale: Sale }) {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total" value={<Money value={sale.total} />} />
         <StatCard label="Pagamento" value={PAYMENT_METHOD_LABEL[sale.paymentMethod]} />
-        <StatCard label="Data" value={formatDateTime(sale.createdAt)} />
+        <StatCard
+          label="Data"
+          value={formatDateTime(sale.createdAt)}
+          hint={
+            sale.registeredAt
+              ? `Venda antiga, lançada depois em ${formatDateTime(sale.registeredAt)}.`
+              : undefined
+          }
+        />
         <StatCard label="Vendedor" value={sale.user.name} />
       </div>
 
@@ -52,8 +61,15 @@ function SaleBody({ sale }: { sale: Sale }) {
         ) : (
           <Badge variant="secondary">{SALE_STATUS_LABEL.COMPLETED}</Badge>
         )}
-        {sale.customer && <span className="text-muted-foreground">· Cliente: {sale.customer.name}</span>}
+        {sale.customer && (
+          <span className="text-muted-foreground">· Cliente: {sale.customer.name}</span>
+        )}
         {sale.commandTabId && <span className="text-muted-foreground">· Veio de uma comanda</span>}
+        {sale.creditApprovedBy && (
+          <Badge variant="outline" title="A venda fiada passou do limite de crédito do cliente.">
+            Acima do limite, autorizado por {sale.creditApprovedBy.name}
+          </Badge>
+        )}
       </div>
 
       <section>
@@ -74,9 +90,18 @@ function SaleBody({ sale }: { sale: Sale }) {
                 <TableRow key={item.id}>
                   <TableCell>
                     <p className="font-medium">{item.storeProduct.product.name}</p>
-                    <p className="text-xs text-muted-foreground">{item.storeProduct.product.code}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {item.storeProduct.product.code}
+                    </p>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatInt(item.quantity)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {formatInt(item.quantity)}
+                    {item.packs > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatItemQuantity(item.quantity, item.packs, item.packSize)}
+                      </p>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <Money value={item.price} />
                   </TableCell>
@@ -105,7 +130,9 @@ function SaleBody({ sale }: { sale: Sale }) {
                   <TableCell colSpan={manager ? 4 : 3} className="text-right text-muted-foreground">
                     Desconto
                   </TableCell>
-                  <TableCell className="text-right">- <Money value={sale.discount} /></TableCell>
+                  <TableCell className="text-right">
+                    - <Money value={sale.discount} />
+                  </TableCell>
                 </TableRow>
               )}
               <TableRow>
@@ -167,7 +194,11 @@ export function SaleDetailView({ saleId }: { saleId: string }) {
             />
             <RequireRole min="MANAGER">
               {sale.data?.status === "COMPLETED" && (
-                <ActionButton variant="destructive" minRole="MANAGER" onClick={() => setConfirming(true)}>
+                <ActionButton
+                  variant="destructive"
+                  minRole="MANAGER"
+                  onClick={() => setConfirming(true)}
+                >
                   <BanIcon /> Cancelar venda
                 </ActionButton>
               )}
