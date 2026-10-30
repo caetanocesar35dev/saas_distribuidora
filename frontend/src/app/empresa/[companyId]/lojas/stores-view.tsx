@@ -11,8 +11,8 @@ import { EmptyState, PageHeader, QueryBoundary } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
 import {
   ActionButton,
+  RequireCompanyAdminPage,
   RequireCompanyOwner,
-  RequireCompanyOwnerPage,
 } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -402,9 +402,16 @@ function StoresList({
                   <ActionButton variant="outline" size="sm" onClick={() => setEditing(store)}>
                     <PencilIcon /> Editar
                   </ActionButton>
-                  <ActionButton variant="destructive" size="sm" onClick={() => setDeleting(store)}>
-                    <Trash2Icon /> Excluir
-                  </ActionButton>
+                  {/* Excluir é só do dono; o gerente geral edita. */}
+                  <RequireCompanyOwner>
+                    <ActionButton
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleting(store)}
+                    >
+                      <Trash2Icon /> Excluir
+                    </ActionButton>
+                  </RequireCompanyOwner>
                 </li>
               ))}
             </ul>
@@ -535,14 +542,16 @@ export function StoresView() {
           </RequireCompanyOwner>
         }
       />
-      <RequireCompanyOwnerPage>
+      <RequireCompanyAdminPage>
         <StoresList
           companyId={companyId}
           creating={creating}
           onCloseCreate={() => setCreating(false)}
         />
-        <DeletedStores companyId={companyId} />
-      </RequireCompanyOwnerPage>
+        <RequireCompanyOwner>
+          <DeletedStores companyId={companyId} />
+        </RequireCompanyOwner>
+      </RequireCompanyAdminPage>
     </div>
   );
 }

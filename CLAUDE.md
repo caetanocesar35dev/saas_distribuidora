@@ -3,7 +3,7 @@
 SaaS multi-tenant para distribuidoras de bebidas: PDV, estoque, caixa, comandas,
 vasilhames e fiado. Hierarquia: `Organization` (cobrança) → `Company` (distribuidora)
 → `Store` (loja). O acesso é por papel em cada loja (`OWNER` > `MANAGER` > `EMPLOYEE`;
-não existe `ADMIN`).
+não existe `ADMIN`), mais o **gerente geral** da empresa (`Membership.isGeneralManager`, ver abaixo).
 
 - `backend/`: NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16.
 - `frontend/`: **Next.js (App Router) + React + TypeScript (strict) + Tailwind CSS +
@@ -76,6 +76,20 @@ os campos é a extensão do Prisma).
 - **Mudança de schema exige aprovação do usuário.** Coluna nova vai também no
   `*History`; tabela nova ganha os dois triggers. Sempre por migration, nunca SQL
   manual. Detalhes em `docs/BANCO_DE_DADOS.md` §7.
+
+**Gerente geral (decidido pelo usuário, 2026-10-30)**
+- Papel da **empresa**, não da loja: `Membership.isGeneralManager`. Hierarquia: dono > gerente geral
+  > gerente > atendente. Só o dono marca e desmarca (`PUT .../members/:membershipId/general-manager`,
+  tela Equipe › "Tornar gerente geral"); dono não pode ser marcado.
+- O acesso fica nas linhas de `MembershipStore` como o de todo mundo: o gerente geral é **MANAGER em
+  todas as lojas ativas**, e as lojas criadas ou reativadas depois já entram para ele
+  (`src/account/general-manager.ts`). O papel dele numa loja não muda nem é revogado enquanto for
+  gerente geral (409: desmarque antes). Desmarcar não tira acessos.
+- Pode o que o dono pode, **menos**: dados da empresa, assinatura/plano, nova empresa, criar/excluir/
+  reativar loja, ver e reativar removidos da equipe e mexer em donos ou outro gerente geral (403) ou
+  dar o papel de dono (403). Rotas "dono ou gerente geral" usam `@CompanyAdmin()` (painel e histórico
+  da empresa, editar loja, equipe); o que ele não pode dentro da equipe o `MembershipsService` confere.
+  No frontend: `isCompanyAdmin` no `useAccess()` e `RequireCompanyAdmin(Page)`.
 
 **Multi-tenancy**
 - Os ids da company/loja vêm na rota (`/companies/:companyId/...`,

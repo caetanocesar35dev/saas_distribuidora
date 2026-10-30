@@ -132,6 +132,8 @@ export interface Membership {
   companyName: string;
   organizationId: string;
   isCompanyOwner: boolean;
+  /** Gerente geral: gerente em todas as lojas, com o painel da empresa, a equipe e as lojas. */
+  isGeneralManager: boolean;
   isBillingOwner: boolean;
   subscription: SubscriptionAccess;
   stores: MembershipStoreView[];
@@ -200,6 +202,7 @@ export interface StoreBody {
 
 export interface Member {
   membershipId: string;
+  isGeneralManager: boolean;
   user: { id: string; name: string; email: string; isActive: boolean };
   stores: MembershipStoreView[];
 }

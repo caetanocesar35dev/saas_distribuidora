@@ -12,9 +12,11 @@ import { Env } from '../../config/env';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   BILLING_OWNER_KEY,
+  COMPANY_ADMIN_KEY,
   COMPANY_ROLE_KEY,
   CompanyTenant,
   IS_PUBLIC_KEY,
+  isCompanyAdmin,
   OrgTenant,
   PLATFORM_ROLE_KEY,
   STORE_ROLE_KEY,
@@ -80,7 +82,16 @@ export class TenantGuard implements CanActivate {
       const min =
         this.reflector.getAllAndOverride<Role>(COMPANY_ROLE_KEY, targets) ??
         Role.EMPLOYEE;
-      request.tenant = await this.resolveCompany(userId, companyId, min);
+      const tenant = await this.resolveCompany(userId, companyId, min);
+      if (
+        this.reflector.getAllAndOverride<boolean>(COMPANY_ADMIN_KEY, targets) &&
+        !isCompanyAdmin(tenant)
+      ) {
+        throw new ForbiddenException(
+          'Só o dono ou o gerente geral da empresa pode fazer isto.',
+        );
+      }
+      request.tenant = tenant;
     } else {
       const billingOwnerOnly = !!this.reflector.getAllAndOverride<boolean>(
         BILLING_OWNER_KEY,
@@ -121,6 +132,7 @@ export class TenantGuard implements CanActivate {
       select: {
         role: true,
         membershipId: true,
+        membership: { select: { isGeneralManager: true } },
         store: {
           select: {
             companyId: true,
@@ -153,6 +165,7 @@ export class TenantGuard implements CanActivate {
       companyId,
       role: access.role,
       membershipId: access.membershipId,
+      isGeneralManager: access.membership.isGeneralManager,
       storeIds: stores.map((s) => s.storeId),
       storeId,
     };
@@ -179,6 +192,7 @@ export class TenantGuard implements CanActivate {
         membershipId: true,
         membership: {
           select: {
+            isGeneralManager: true,
             company: { select: { organization: { select: ORG_SELECT } } },
           },
         },
@@ -202,6 +216,7 @@ export class TenantGuard implements CanActivate {
       companyId,
       role,
       membershipId: rows[0].membershipId,
+      isGeneralManager: rows[0].membership.isGeneralManager,
       storeIds: rows.map((r) => r.storeId),
     };
   }

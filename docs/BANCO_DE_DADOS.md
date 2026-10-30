@@ -145,7 +145,7 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `phone` (celular/WhatsApp, só dígitos; obrigatório no cadastro público, null em contas por convite ou do seed), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
 | `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha. `cashAutoCloseTime`: horário em que o caixa esquecido aberto fecha sozinho (padrão `00:00`, o dono muda) |
-| `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`) |
+| `tb_memberships` | Vínculo usuário ↔ company | Único por (`userId`, `companyId`). `isGeneralManager` (padrão `false`): **gerente geral** (decisão do usuário, 2026-10-30), papel da empresa; a pessoa tem `MANAGER` em todas as lojas ativas em `tb_membership_stores` (as lojas novas e reativadas entram sozinhas) e acessa o painel da empresa, a equipe e a edição de lojas |
 | `tb_membership_stores` | Papel do vínculo em cada loja | PK composta (`membershipId`, `storeId`); `role`: `OWNER`, `MANAGER`, `EMPLOYEE`. Sem `id`, `createdAt` e `updatedAt` |
 
 ### 3.1.1 Sessão (refresh tokens)
@@ -407,6 +407,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261026020000_cash_auto_close` | Adiciona `cashAutoCloseTime` (HH:mm, padrão 00:00) em `tb_stores` e `autoClosed` em `tb_cash_registers` (e nos históricos): caixa que abre e fecha sozinho |
 | `20261027000000_sale_credit_approver` | Adiciona `creditApprovedById` (FK para `tb_users`, `Restrict`) em `tb_sales` (e no histórico): gerente ou dono que autorizou a venda fiada acima do limite de crédito (null = não passou do limite) |
 | `20261030000000_referrals` | Programa de indicação: enums `ReferralStatus`/`DiscountReason`, `referralCode` em `tb_organizations` (e no histórico), `tb_sales_representatives`, `tb_referrals` e `tb_subscription_discounts` com os históricos e os 6 triggers |
+| `20261030010000_general_manager` | Adiciona `isGeneralManager` (padrão `false`) em `tb_memberships` (e no histórico): gerente geral da empresa |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

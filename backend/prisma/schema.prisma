@@ -188,6 +188,11 @@ model Membership {
   user    User    @relation(fields: [userId], references: [id], onDelete: Restrict)
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
+  /// Gerente geral (decisão do usuário, 2026-10-30): gerente em TODAS as lojas da empresa (também
+  /// nas criadas depois), com o painel da empresa, a equipe (só atendentes e gerentes) e a edição
+  /// das lojas. Só o dono marca e desmarca.
+  isGeneralManager Boolean @default(false)
+
   stores MembershipStore[]
 
   createdAt DateTime @default(now())
@@ -1063,11 +1068,12 @@ model CompanyHistory {
 }
 
 model MembershipHistory {
-  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
-  id        String
-  userId    String
-  companyId String
-  createdAt DateTime
+  historyId        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id               String
+  userId           String
+  companyId        String
+  isGeneralManager Boolean  @default(false)
+  createdAt        DateTime
 
   modifierId       String?
   modifiedEndpoint String?

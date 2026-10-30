@@ -29,6 +29,8 @@ export interface CompanyTenant extends OrgTenant {
   /** Maior papel do usuário nas lojas da company. */
   role: Role;
   membershipId: string;
+  /** Gerente geral da company (gerente em todas as lojas, com o painel e a equipe). */
+  isGeneralManager: boolean;
   /** Lojas da company às quais o usuário tem acesso. */
   storeIds: string[];
 }
@@ -64,6 +66,7 @@ export function maxRole(roles: Role[]): Role {
 export const IS_PUBLIC_KEY = 'isPublic';
 export const STORE_ROLE_KEY = 'storeRole';
 export const COMPANY_ROLE_KEY = 'companyRole';
+export const COMPANY_ADMIN_KEY = 'companyAdmin';
 export const BILLING_OWNER_KEY = 'billingOwner';
 export const PLATFORM_ROLE_KEY = 'platformRoles';
 export const ALLOW_READ_ONLY_KEY = 'allowWhenReadOnly';
@@ -79,6 +82,17 @@ export const CompanyRole = (min: Role) => SetMetadata(COMPANY_ROLE_KEY, min);
 
 /** OWNER da company (OWNER em pelo menos uma loja dela). */
 export const CompanyOwner = () => SetMetadata(COMPANY_ROLE_KEY, Role.OWNER);
+
+/**
+ * Dono OU gerente geral da company: painel da empresa, equipe e edição de lojas. O que o gerente
+ * geral não pode fazer dentro dessas rotas (mexer em donos, dar papel de dono) o service confere.
+ */
+export const CompanyAdmin = () => SetMetadata(COMPANY_ADMIN_KEY, true);
+
+/** Dono ou gerente geral (a regra do `CompanyAdmin`). */
+export function isCompanyAdmin(tenant: CompanyTenant): boolean {
+  return tenant.role === Role.OWNER || tenant.isGeneralManager;
+}
 
 /** Responsável pela cobrança da organização (/organizations/:organizationId/...). */
 export const BillingOwner = () => SetMetadata(BILLING_OWNER_KEY, true);

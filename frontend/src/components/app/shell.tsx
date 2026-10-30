@@ -248,7 +248,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
   ];
 
   const groups: NavGroup[] = [{ items: operation }, { title: "Mercadoria", items: stock }];
-  if (store.isCompanyOwner) {
+  if (store.isCompanyAdmin) {
     groups.push({
       title: "Empresa",
       items: [
@@ -285,7 +285,10 @@ export function CompanyShell({ children }: { children: React.ReactNode }) {
     { href: base, label: "Painel da empresa", icon: HomeIcon, exact: true },
     { href: `${base}/lojas`, label: "Lojas", icon: StoreIcon },
     { href: `${base}/equipe`, label: "Equipe", icon: UsersIcon },
-    { href: `${base}/dados`, label: "Dados da empresa", icon: BuildingIcon },
+    // Dados da empresa são só do dono (o gerente geral não vê o item).
+    ...(company.isCompanyOwner
+      ? [{ href: `${base}/dados`, label: "Dados da empresa", icon: BuildingIcon }]
+      : []),
     { href: `${base}/assinatura`, label: "Assinatura", icon: CreditCardIcon },
   ];
   if (company.isBillingOwner) {

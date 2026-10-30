@@ -163,6 +163,14 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     indicação e a cobrança aplicar o desconto no valor (avançando os meses usados). Cupons avulsos
     de campanha não foram pedidos.
 
+24. [x] **Gerente geral** (pedido do usuário, 2026-10-30: dar gerente loja por loja não mostra o
+    painel da empresa). **Decidido pelo usuário:** papel da empresa, só o dono nomeia; gerente em
+    todas as lojas (também as novas), com painel da empresa, equipe (convida, muda papéis e remove
+    atendentes e gerentes, sem mexer em donos nem dar o papel de dono) e edição de lojas; sem dados
+    da empresa, assinatura, criar/excluir loja nem removidos. **Feito (2026-10-30):** migration
+    `20261030010000_general_manager` (`Membership.isGeneralManager`), botão "Tornar gerente geral"
+    na Equipe e as telas da empresa liberadas para ele.
+
 ### Lacunas menores já conhecidas
 
 19. [x] **Ver e reativar excluídos pela tela.** "Cliente" aqui era o **cliente da distribuidora**

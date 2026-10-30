@@ -15,6 +15,7 @@ import { Role } from '@prisma/client';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -183,4 +184,9 @@ export class InviteMemberDto {
 export class SetRoleDto {
   @IsEnum(Role)
   role: Role;
+}
+
+export class SetGeneralManagerDto {
+  @IsBoolean()
+  isGeneralManager: boolean;
 }

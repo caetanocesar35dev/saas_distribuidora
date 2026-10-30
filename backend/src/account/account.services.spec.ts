@@ -3,8 +3,10 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { AuthService } from '../auth/auth.service';
 import { TokenService } from '../auth/token.service';
+import type { CompanyTenant } from '../common/decorators/access.decorators';
 import { buildCnpj } from '../common/utils/document';
 import {
   createServiceTest,
@@ -427,10 +429,30 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
 
   describe('MembershipsService', () => {
     const inviter = () => ({ id: w.owner.id, name: 'Dono' });
+    /** Contexto que o TenantGuard montaria para quem faz a ação. */
+    const tenantOf = (
+      membershipId: string,
+      role: Role,
+      isGeneralManager = false,
+    ): CompanyTenant => ({
+      organizationId: w.organization.id,
+      isBillingOwner: false,
+      subscription: {
+        accessMode: 'FULL',
+        reason: null,
+      } as CompanyTenant['subscription'],
+      companyId: w.company.id,
+      role,
+      membershipId,
+      isGeneralManager,
+      storeIds: [],
+    });
+    const ownerTenant = (membershipId = 'dono') =>
+      tenantOf(membershipId, 'OWNER');
 
     it('convida usuário novo: cria conta sem senha utilizável e envia link de 7 dias', async () => {
       const result = await as(w.owner.id, () =>
-        members.invite(w.company.id, inviter(), {
+        members.invite(ownerTenant(), inviter(), {
           email: 'novo@teste.com',
           name: 'Novo Funcionário',
           stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
@@ -469,7 +491,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
     it('convida usuário que já existe sem duplicá-lo', async () => {
       const existing = await ctx.factory.user({ email: 'ja@teste.com' });
       const result = await as(w.owner.id, () =>
-        members.invite(w.company.id, inviter(), {
+        members.invite(ownerTenant(), inviter(), {
           email: 'ja@teste.com',
           name: 'Qualquer',
           stores: [{ storeId: w.storeB.id, role: 'MANAGER' }],
@@ -488,7 +510,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       const other = await ctx.factory.world();
       const invite = (stores: { storeId: string; role: 'MANAGER' }[]) =>
         as(w.owner.id, () =>
-          members.invite(w.company.id, inviter(), {
+          members.invite(ownerTenant(), inviter(), {
             email: 'x@x.com',
             name: 'X',
             stores,
@@ -518,8 +540,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
 
       await as(w.owner.id, () =>
         members.setRole(
-          w.company.id,
-          actor.id,
+          ownerTenant(actor.id),
           m.membership.id,
           w.storeB.id,
           'EMPLOYEE',
@@ -534,7 +555,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ]);
 
       await as(w.owner.id, () =>
-        members.removeFromStore(w.company.id, m.membership.id, w.storeB.id),
+        members.removeFromStore(ownerTenant(), m.membership.id, w.storeB.id),
       );
       view = (await members.list(w.company.id)).find(
         (x) => x.membershipId === m.membership.id,
@@ -549,7 +570,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         { storeId: w.storeA.id, role: 'EMPLOYEE' },
       ]);
       await as(w.owner.id, () =>
-        members.removeFromStore(w.company.id, m.membership.id, w.storeA.id),
+        members.removeFromStore(ownerTenant(), m.membership.id, w.storeA.id),
       );
       expect(
         (await members.list(w.company.id)).some(
@@ -558,7 +579,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ).toBe(false);
 
       const result = await as(w.owner.id, () =>
-        members.invite(w.company.id, inviter(), {
+        members.invite(ownerTenant(), inviter(), {
           email: m.user.email,
           name: m.user.name,
           stores: [{ storeId: w.storeB.id, role: 'MANAGER' }],
@@ -579,8 +600,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await expect(
         as(w.owner.id, () =>
           members.setRole(
-            w.company.id,
-            actor.id,
+            ownerTenant(actor.id),
             actor.id,
             w.storeA.id,
             'EMPLOYEE',
@@ -592,8 +612,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await expect(
         as(w.owner.id, () =>
           members.setRole(
-            w.company.id,
-            'outro-membro',
+            ownerTenant('outro-membro'),
             actor.id,
             w.storeA.id,
             'MANAGER',
@@ -603,8 +622,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await expect(
         as(w.owner.id, () =>
           members.setRole(
-            w.company.id,
-            'outro-membro',
+            ownerTenant('outro-membro'),
             actor.id,
             w.storeB.id,
             'MANAGER',
@@ -612,7 +630,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         ),
       ).rejects.toBeInstanceOf(ConflictException);
       await expect(
-        as(w.owner.id, () => members.remove(w.company.id, actor.id)),
+        as(w.owner.id, () => members.remove(ownerTenant(), actor.id)),
       ).rejects.toBeInstanceOf(ConflictException);
 
       const roles = await ctx.prisma.membershipStore.findMany({
@@ -627,14 +645,16 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         { storeId: w.storeA.id, role: 'MANAGER' },
         { storeId: w.storeB.id, role: 'EMPLOYEE' },
       ]);
-      await as(w.owner.id, () => members.remove(w.company.id, m.membership.id));
+      await as(w.owner.id, () =>
+        members.remove(ownerTenant(), m.membership.id),
+      );
       expect(
         await ctx.prisma.membershipStore.count({
           where: { membershipId: m.membership.id },
         }),
       ).toBe(0);
       await expect(
-        as(w.owner.id, () => members.remove(w.company.id, 'nao-existe')),
+        as(w.owner.id, () => members.remove(ownerTenant(), 'nao-existe')),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -643,7 +663,9 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         { storeId: w.storeA.id, role: 'MANAGER' },
         { storeId: w.storeB.id, role: 'EMPLOYEE' },
       ]);
-      await as(w.owner.id, () => members.remove(w.company.id, m.membership.id));
+      await as(w.owner.id, () =>
+        members.remove(ownerTenant(), m.membership.id),
+      );
 
       const removed = await members.listRemoved(w.company.id);
       expect(removed).toHaveLength(1);
@@ -680,7 +702,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ]);
       // Loja B revogada um dia antes da remoção.
       await as(w.owner.id, () =>
-        members.removeFromStore(w.company.id, m.membership.id, w.storeB.id),
+        members.removeFromStore(ownerTenant(), m.membership.id, w.storeB.id),
       );
       await ctx.audit.runAsSystem('seed', () =>
         ctx.audit.withDeleted(() =>
@@ -690,7 +712,9 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
           }),
         ),
       );
-      await as(w.owner.id, () => members.remove(w.company.id, m.membership.id));
+      await as(w.owner.id, () =>
+        members.remove(ownerTenant(), m.membership.id),
+      );
       expect(
         (await members.listRemoved(w.company.id))[0].stores.map(
           (s) => s.storeName,
@@ -714,8 +738,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await ctx.asRequest(
         () =>
           members.setRole(
-            w.company.id,
-            'actor',
+            ownerTenant('actor'),
             m.membership.id,
             w.storeA.id,
             'MANAGER',
@@ -735,6 +758,200 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         modifierId: w.owner.id,
         modifiedEndpoint:
           'PUT /api/companies/:companyId/members/:membershipId/stores/:targetStoreId',
+      });
+    });
+
+    describe('gerente geral', () => {
+      const rolesOf = async (membershipId: string) =>
+        (await members.list(w.company.id))
+          .find((x) => x.membershipId === membershipId)!
+          .stores.map((s) => `${s.storeName}:${s.role}`);
+      const ownerMembership = () =>
+        ctx.prisma.membership.findFirstOrThrow({
+          where: { userId: w.owner.id, companyId: w.company.id },
+        });
+      const makeGeneralManager = async () => {
+        const m = await ctx.factory.member(w.company.id, [
+          { storeId: w.storeA.id, role: 'EMPLOYEE' },
+        ]);
+        await as(w.owner.id, () =>
+          members.setGeneralManager(
+            w.company.id,
+            'dono',
+            m.membership.id,
+            true,
+          ),
+        );
+        return m;
+      };
+
+      it('marcar dá gerente em todas as lojas, inclusive nas criadas e reativadas depois', async () => {
+        const gm = await makeGeneralManager();
+        expect(await rolesOf(gm.membership.id)).toEqual([
+          'Loja A:MANAGER',
+          'Loja B:MANAGER',
+        ]);
+        expect(
+          (await members.list(w.company.id)).find(
+            (x) => x.membershipId === gm.membership.id,
+          )!.isGeneralManager,
+        ).toBe(true);
+
+        await as(w.owner.id, () =>
+          stores.create(w.company.id, { ...ADDRESS, name: 'Loja C' }),
+        );
+        expect(await rolesOf(gm.membership.id)).toEqual([
+          'Loja A:MANAGER',
+          'Loja B:MANAGER',
+          'Loja C:MANAGER',
+        ]);
+      });
+
+      it('desmarcar mantém os acessos de gerente; dono e a própria pessoa não podem ser marcados', async () => {
+        const gm = await makeGeneralManager();
+        await as(w.owner.id, () =>
+          members.setGeneralManager(
+            w.company.id,
+            'dono',
+            gm.membership.id,
+            false,
+          ),
+        );
+        expect(await rolesOf(gm.membership.id)).toEqual([
+          'Loja A:MANAGER',
+          'Loja B:MANAGER',
+        ]);
+
+        const owner = await ownerMembership();
+        const other = await ctx.factory.member(w.company.id, [
+          { storeId: w.storeA.id, role: 'OWNER' },
+        ]);
+        await expect(
+          as(w.owner.id, () =>
+            members.setGeneralManager(
+              w.company.id,
+              owner.id,
+              other.membership.id,
+              true,
+            ),
+          ),
+        ).rejects.toThrow(/dona/);
+        await expect(
+          as(w.owner.id, () =>
+            members.setGeneralManager(w.company.id, owner.id, owner.id, true),
+          ),
+        ).rejects.toThrow(/próprio/);
+      });
+
+      it('o papel do gerente geral numa loja não muda sem desmarcá-lo antes', async () => {
+        const gm = await makeGeneralManager();
+        await expect(
+          as(w.owner.id, () =>
+            members.setRole(
+              ownerTenant(),
+              gm.membership.id,
+              w.storeA.id,
+              'EMPLOYEE',
+            ),
+          ),
+        ).rejects.toThrow(/desmarque/);
+        await expect(
+          as(w.owner.id, () =>
+            members.removeFromStore(
+              ownerTenant(),
+              gm.membership.id,
+              w.storeB.id,
+            ),
+          ),
+        ).rejects.toThrow(/desmarque/);
+      });
+
+      it('gerente geral cuida de atendentes e gerentes, mas não de donos nem de outro gerente geral', async () => {
+        const gm = await makeGeneralManager();
+        const actor = tenantOf(gm.membership.id, 'MANAGER', true);
+        const employee = await ctx.factory.member(w.company.id, [
+          { storeId: w.storeA.id, role: 'EMPLOYEE' },
+        ]);
+
+        // pode: promover atendente a gerente, convidar atendente e remover
+        await as(gm.user.id, () =>
+          members.setRole(
+            actor,
+            employee.membership.id,
+            w.storeB.id,
+            'MANAGER',
+          ),
+        );
+        await as(gm.user.id, () =>
+          members.invite(
+            actor,
+            { id: gm.user.id, name: 'GG' },
+            {
+              email: 'atendente@teste.com',
+              name: 'Atendente',
+              stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
+            },
+          ),
+        );
+        await as(gm.user.id, () =>
+          members.remove(actor, employee.membership.id),
+        );
+
+        // não pode: dar papel de dono, mexer no dono, remover outro gerente geral
+        const another = await makeGeneralManager();
+        const owner = await ownerMembership();
+        await expect(
+          as(gm.user.id, () =>
+            members.invite(
+              actor,
+              { id: gm.user.id, name: 'GG' },
+              {
+                email: 'socio@teste.com',
+                name: 'Sócio',
+                stores: [{ storeId: w.storeA.id, role: 'OWNER' }],
+              },
+            ),
+          ),
+        ).rejects.toThrow(/Só o dono/);
+        await expect(
+          as(gm.user.id, () =>
+            members.setRole(actor, owner.id, w.storeA.id, 'MANAGER'),
+          ),
+        ).rejects.toThrow(/não pode alterar donos/);
+        await expect(
+          as(gm.user.id, () => members.remove(actor, another.membership.id)),
+        ).rejects.toThrow(/não pode alterar donos/);
+        await expect(
+          as(gm.user.id, () =>
+            members.invite(
+              actor,
+              { id: gm.user.id, name: 'GG' },
+              {
+                email: w.owner.email,
+                name: 'Dono',
+                stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
+              },
+            ),
+          ),
+        ).rejects.toThrow(/não pode alterar donos/);
+      });
+
+      it('gerente geral removido e reativado volta gerente em todas as lojas', async () => {
+        const gm = await makeGeneralManager();
+        await as(w.owner.id, () =>
+          members.remove(ownerTenant(), gm.membership.id),
+        );
+        await as(w.owner.id, () =>
+          stores.create(w.company.id, { ...ADDRESS, name: 'Loja C' }),
+        );
+        await as(w.owner.id, () =>
+          members.restore(w.company.id, gm.membership.id),
+        );
+        expect(await rolesOf(gm.membership.id)).toEqual([
+          'Loja A:MANAGER',
+          'Loja B:MANAGER',
+          'Loja C:MANAGER',
+        ]);
       });
     });
   });

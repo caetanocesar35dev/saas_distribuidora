@@ -269,6 +269,13 @@ funciona.
    - Revogar uma loja (`DELETE .../stores/:targetStoreId`) ou o membro inteiro
      (`DELETE .../members/:membershipId`). O backend recusa (409) alterar o próprio papel
      e deixar a empresa sem nenhum dono: mostrar a mensagem.
+   - ✅ **Gerente geral (decisão do usuário, 2026-10-30):** no cartão da pessoa, o dono usa
+     "Tornar gerente geral" / "Tirar de gerente geral" (selo "Gerente geral"). O gerente geral vê
+     Painel da empresa, Lojas (só editar) e Equipe (convida, muda papéis e remove atendentes e
+     gerentes; não vê "Dono" nas opções, não mexe em donos nem em outro gerente geral, não vê os
+     removidos). `isCompanyAdmin` no `useAccess()` e `RequireCompanyAdmin`/`RequireCompanyAdminPage`
+     em `guards.tsx`; Dados da empresa continua só do dono. Ponta a ponta em
+     `e2e/gerente-geral.spec.ts`; artigos `gestao-equipe`, `gestao-lojas` e `gestao-painel`.
 4. **Nova empresa na organização** (`POST /api/organizations/:organizationId/companies`,
    só o responsável pela cobrança; `GET /api/organizations/mine` lista as organizações),
    respeitando o limite de empresas do plano.

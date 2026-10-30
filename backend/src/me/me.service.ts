@@ -14,6 +14,8 @@ export interface MembershipView {
   companyName: string;
   organizationId: string;
   isCompanyOwner: boolean;
+  /** Gerente geral da empresa: painel, equipe (sem donos) e edição das lojas. */
+  isGeneralManager: boolean;
   isBillingOwner: boolean;
   subscription: SubscriptionAccess;
   stores: { storeId: string; storeName: string; role: Role }[];
@@ -64,6 +66,7 @@ export class MeService {
     const rows = await this.prisma.membership.findMany({
       where: { userId, company: { deletedAt: null } },
       select: {
+        isGeneralManager: true,
         company: {
           select: {
             id: true,
@@ -101,6 +104,7 @@ export class MeService {
           companyName: m.company.nomeFantasia || m.company.razaoSocial,
           organizationId: org.id,
           isCompanyOwner: m.stores.some((s) => s.role === 'OWNER'),
+          isGeneralManager: m.isGeneralManager,
           isBillingOwner: org.ownerUserId === userId,
           subscription: resolveAccessMode(org, now, graceDays),
           stores: m.stores

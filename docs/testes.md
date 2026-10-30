@@ -153,8 +153,15 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   não pode ter `costPrice`, `totalCost` nem `totalProfit`.
   
   
-  --MELHORIA TER UM "GERENTE GERAL"
 - [x] Gerente (`gerente@exemplo.com`): vê produtos e sangria, mas não a empresa.
+- [ ] Gerente geral: como dono, em Equipe, clicar em "Tornar gerente geral" no cartão do gerente. Ele
+  ganha o selo "Gerente geral" e fica gerente em todas as lojas (o papel dele nas lojas fica travado).
+- [ ] Entrar como esse gerente: aparece "Painel da empresa" no menu; vê o painel, Lojas (Editar sim;
+  Nova loja e Excluir não) e Equipe; não vê "Dados da empresa" nem "Mostrar quem foi removido".
+- [ ] Como gerente geral, em Equipe: convidar um atendente e mudar o papel dele funcionam; a opção
+  "Dono" não aparece; no cartão do dono não há botões.
+- [ ] Como dono, criar uma loja nova: o gerente geral já aparece nela como gerente. Depois, "Tirar de
+  gerente geral": ele continua gerente nas lojas, mas perde o painel da empresa.
 
 
 - [x] Digitar na URL uma página proibida para o papel: deve aparecer "sem permissão".

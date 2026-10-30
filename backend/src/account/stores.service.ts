@@ -8,6 +8,7 @@ import { AuditContext } from '../audit/audit-context';
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/account.dto';
+import { grantStoreToGeneralManagers } from './general-manager';
 
 /** O CNPJ da loja é opcional; quando vem, é conferido e gravado sem máscara, em maiúsculas. */
 function withValidCnpj<T extends { cnpj?: string }>(dto: T): T {
@@ -60,7 +61,7 @@ export class StoresService {
 
   /**
    * Cria a loja respeitando o limite do plano e dá OWNER nela a todos os donos da empresa
-   * (quem já é OWNER em alguma loja).
+   * (quem já é OWNER em alguma loja) e MANAGER aos gerentes gerais.
    */
   async create(companyId: string, input: CreateStoreDto) {
     const dto = withValidCnpj(input);
@@ -107,6 +108,7 @@ export class StoresService {
           })),
         });
       }
+      await grantStoreToGeneralManagers(tx, companyId, store.id);
       return store;
     });
   }
@@ -218,6 +220,7 @@ export class StoresService {
             update: { role: 'OWNER', deletedAt: null },
           });
         }
+        await grantStoreToGeneralManagers(tx, companyId, id);
       }),
     );
     return this.get(companyId, id);

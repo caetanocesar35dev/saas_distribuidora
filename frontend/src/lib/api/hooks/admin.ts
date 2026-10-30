@@ -149,6 +149,22 @@ export function useSetMemberRole(companyId: string) {
   });
 }
 
+/** Marca ou desmarca o gerente geral (só o dono). Marcar dá gerente em todas as lojas. */
+export function useSetGeneralManager(companyId: string) {
+  const client = useQueryClient();
+  const refresh = useRefreshAccess();
+  return useMutation({
+    mutationFn: (v: { membershipId: string; isGeneralManager: boolean }) =>
+      companyApi(companyId).put<MessageResponse>(`/members/${v.membershipId}/general-manager`, {
+        isGeneralManager: v.isGeneralManager,
+      }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: adminKeys.members(companyId) });
+      await refresh();
+    },
+  });
+}
+
 export function useRevokeMemberStore(companyId: string) {
   const client = useQueryClient();
   const refresh = useRefreshAccess();

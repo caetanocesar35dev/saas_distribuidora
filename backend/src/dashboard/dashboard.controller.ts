@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import {
-  CompanyOwner,
+  CompanyAdmin,
   StoreRole,
   Tenant,
 } from '../common/decorators/access.decorators';
@@ -31,7 +31,7 @@ export class DashboardController {
     return this.dashboard.onboarding(tenant.storeId, tenant.companyId);
   }
 
-  @CompanyOwner()
+  @CompanyAdmin()
   @Get('companies/:companyId/dashboard')
   company(@Tenant() tenant: CompanyTenant) {
     return this.dashboard.forCompany(tenant.companyId);

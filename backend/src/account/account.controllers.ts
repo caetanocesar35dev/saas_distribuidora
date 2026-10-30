@@ -13,6 +13,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   AllowWhenReadOnly,
   BillingOwner,
+  CompanyAdmin,
   CompanyOwner,
   CurrentUser,
   Tenant,
@@ -28,6 +29,7 @@ import {
   CreateCompanyDto,
   CreateStoreDto,
   InviteMemberDto,
+  SetGeneralManagerDto,
   SetRoleDto,
   UpdateCompanyDto,
   UpdateStoreDto,
@@ -123,7 +125,8 @@ export class StoresController {
     return this.stores.create(tenant.companyId, dto);
   }
 
-  @CompanyOwner()
+  /** Editar a loja: dono ou gerente geral. Criar, excluir e reativar continuam só do dono. */
+  @CompanyAdmin()
   @Patch(':id')
   update(
     @Tenant() tenant: CompanyTenant,
@@ -147,9 +150,13 @@ export class StoresController {
   }
 }
 
+/**
+ * Equipe: dono ou gerente geral. O gerente geral só mexe em atendentes e gerentes e não dá o papel
+ * de dono (o service confere); ver e reativar removidos e marcar gerente geral são só do dono.
+ */
 @ApiTags('members')
 @ApiBearerAuth()
-@CompanyOwner()
+@CompanyAdmin()
 @Controller('companies/:companyId/members')
 export class MembershipsController {
   constructor(private readonly memberships: MembershipsService) {}
@@ -160,11 +167,13 @@ export class MembershipsController {
   }
 
   /** Pessoas removidas da empresa, com as lojas e papéis que tinham. */
+  @CompanyOwner()
   @Get('removed')
   listRemoved(@Tenant() tenant: CompanyTenant) {
     return this.memberships.listRemoved(tenant.companyId);
   }
 
+  @CompanyOwner()
   @HttpCode(200)
   @Post(':membershipId/restore')
   restore(
@@ -174,13 +183,29 @@ export class MembershipsController {
     return this.memberships.restore(tenant.companyId, membershipId);
   }
 
+  /** Marca ou desmarca o gerente geral (só o dono). */
+  @CompanyOwner()
+  @Put(':membershipId/general-manager')
+  setGeneralManager(
+    @Tenant() tenant: CompanyTenant,
+    @Param('membershipId') membershipId: string,
+    @Body() dto: SetGeneralManagerDto,
+  ) {
+    return this.memberships.setGeneralManager(
+      tenant.companyId,
+      tenant.membershipId,
+      membershipId,
+      dto.isGeneralManager,
+    );
+  }
+
   @Post()
   invite(
     @Tenant() tenant: CompanyTenant,
     @CurrentUser() user: AuthUser,
     @Body() dto: InviteMemberDto,
   ) {
-    return this.memberships.invite(tenant.companyId, user, dto);
+    return this.memberships.invite(tenant, user, dto);
   }
 
   @Put(':membershipId/stores/:targetStoreId')
@@ -191,8 +216,7 @@ export class MembershipsController {
     @Body() dto: SetRoleDto,
   ) {
     return this.memberships.setRole(
-      tenant.companyId,
-      tenant.membershipId,
+      tenant,
       membershipId,
       targetStoreId,
       dto.role,
@@ -206,7 +230,7 @@ export class MembershipsController {
     @Param('targetStoreId') targetStoreId: string,
   ) {
     return this.memberships.removeFromStore(
-      tenant.companyId,
+      tenant,
       membershipId,
       targetStoreId,
     );
@@ -217,6 +241,6 @@ export class MembershipsController {
     @Tenant() tenant: CompanyTenant,
     @Param('membershipId') membershipId: string,
   ) {
-    return this.memberships.remove(tenant.companyId, membershipId);
+    return this.memberships.remove(tenant, membershipId);
   }
 }

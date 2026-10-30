@@ -479,7 +479,8 @@ do signup tem `modifierId` = id do novo usuário; o rate limit (se aprovado) ret
 
    | Ação | Mínimo |
    |---|---|
-   | Dados da company, criar/editar/excluir lojas, membros e papéis | OWNER da company |
+   | Dados da company, criar/excluir lojas | OWNER da company |
+   | Painel da empresa, editar lojas, membros e papéis (sem mexer em donos) | OWNER ou gerente geral (2026-10-30) |
    | Cobrança (Fase 10) | Responsável pela cobrança |
    | Catálogo (`Product`, `BottleType`): criar/editar/excluir | MANAGER em alguma loja |
    | `StoreProduct`: preço, custo, ativo, entrada e ajuste de estoque | MANAGER na loja |
@@ -557,6 +558,16 @@ funcionam.
      devolve exatamente esses acessos (os revogados até 5 s antes da remoção; a remoção agora grava
      a mesma data no vínculo e nos acessos). Lojas revogadas antes, uma a uma, não voltam; se
      todas foram excluídas, 409 (convidar de novo).
+   - **Gerente geral (decisão do usuário, 2026-10-30; migration `20261030010000_general_manager`):**
+     `Membership.isGeneralManager`. `PUT .../members/:membershipId/general-manager`
+     `{ isGeneralManager }` (só OWNER; 409 para dono ou a própria pessoa) marca e dá MANAGER em todas
+     as lojas ativas (`grantGeneralManagerAccess`); criar e reativar loja dão MANAGER aos gerentes
+     gerais (`grantStoreToGeneralManagers`); reativar um gerente geral removido também. Desmarcar
+     não tira acesso. O decorator `@CompanyAdmin()` (OWNER ou gerente geral) vale para o painel e
+     o histórico da empresa, `PATCH .../stores/:id` e o `MembershipsController` (removidos e
+     reativar continuam `@CompanyOwner()`). No service: o gerente geral não mexe em donos nem em
+     outro gerente geral e não dá OWNER (403, também por convite); papel ou revogação de loja de
+     um gerente geral → 409. `GET /me/memberships` e a lista de membros trazem `isGeneralManager`.
    - Invalidar o cache de acesso (se P3).
    - `User.isActive` é global (o usuário pode estar em outras companies): o dono da
      company **revoga acesso**, não desativa o usuário. Desativar é ação da plataforma

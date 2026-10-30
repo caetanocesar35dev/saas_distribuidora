@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsDate, IsOptional } from 'class-validator';
 import {
-  CompanyOwner,
+  CompanyAdmin,
   StoreRole,
   Tenant,
 } from '../common/decorators/access.decorators';
@@ -45,7 +45,7 @@ export class AuditLogController {
       : this.auditLog.history('store', tenant.storeId, entity, id);
   }
 
-  @CompanyOwner()
+  @CompanyAdmin()
   @Get('companies/:companyId/audit/:entity/:id')
   forCompany(
     @Tenant() tenant: CompanyTenant,

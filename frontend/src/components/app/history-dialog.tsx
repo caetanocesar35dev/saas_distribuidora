@@ -108,12 +108,12 @@ export function HistoryButton({
   size?: "sm" | "xs" | "default";
   label?: string;
 }) {
-  const { role, isCompanyOwner } = useAccess();
+  const { role, isCompanyAdmin } = useAccess();
   const [open, setOpen] = useState(false);
 
-  // Histórico da loja: gerente ou mais. Histórico da empresa: dono.
+  // Histórico da loja: gerente ou mais. Histórico da empresa: dono ou gerente geral.
   const allowed =
-    target.scope === "store" ? hasMinRole(role, "MANAGER") : isCompanyOwner;
+    target.scope === "store" ? hasMinRole(role, "MANAGER") : isCompanyAdmin;
   if (!allowed) return null;
 
   return (

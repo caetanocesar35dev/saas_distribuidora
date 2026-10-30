@@ -1,6 +1,12 @@
 "use client";
 
-import { MailPlusIcon, RotateCcwIcon, Trash2Icon, UserMinusIcon } from "lucide-react";
+import {
+  MailPlusIcon,
+  RotateCcwIcon,
+  ShieldIcon,
+  Trash2Icon,
+  UserMinusIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -8,8 +14,9 @@ import { EmptyState, PageHeader, QueryBoundary } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
 import {
   ActionButton,
+  RequireCompanyAdmin,
+  RequireCompanyAdminPage,
   RequireCompanyOwner,
-  RequireCompanyOwnerPage,
 } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
 import { PersonNameInput, SelectField, type Option } from "@/components/app/inputs";
@@ -32,6 +39,7 @@ import {
   useRemoveMember,
   useRestoreMember,
   useRevokeMemberStore,
+  useSetGeneralManager,
   useSetMemberRole,
 } from "@/lib/api/hooks/admin";
 import type { Member, Role } from "@/lib/api/types";
@@ -44,12 +52,22 @@ const ROLE_OPTIONS: Option<Role>[] = [
   { value: "MANAGER", label: ROLE_LABEL.MANAGER },
   { value: "OWNER", label: ROLE_LABEL.OWNER },
 ];
+/** O gerente geral não dá o papel de dono. */
+const NON_OWNER_OPTIONS = ROLE_OPTIONS.filter((o) => o.value !== "OWNER");
 
 const ROLE_HELP: Record<Role, string> = {
   EMPLOYEE: "Vende, abre e fecha o caixa, atende comandas e clientes.",
   MANAGER: "Tudo do atendente, mais estoque, preços, sangria e cancelar vendas.",
   OWNER: "Tudo da loja, mais equipe, lojas e painéis da empresa.",
 };
+
+const GENERAL_MANAGER_HELP =
+  "Gerente em todas as lojas (também nas criadas depois), com o painel da empresa, a equipe (atendentes e gerentes) e a edição das lojas. Não mexe em donos, dados da empresa nem assinatura.";
+
+/** Opções de papel para quem está usando a tela (o gerente geral não vê "Dono"). */
+function useRoleOptions() {
+  return useCompany().isCompanyOwner ? ROLE_OPTIONS : NON_OWNER_OPTIONS;
+}
 
 // ---- Convite ---------------------------------------------------------------------------------
 
@@ -63,6 +81,7 @@ function InviteDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { stores } = useCompany();
+  const roleOptions = useRoleOptions();
   const invite = useInviteMember(companyId);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -154,7 +173,7 @@ function InviteDialog({
                   {role && (
                     <SelectField
                       value={role}
-                      options={ROLE_OPTIONS}
+                      options={roleOptions}
                       className="w-36"
                       size="sm"
                       onChange={(value) =>
@@ -166,11 +185,15 @@ function InviteDialog({
               );
             })}
             <ul className="space-y-0.5 pt-1 text-xs text-muted-foreground">
-              {ROLE_OPTIONS.map((o) => (
+              {roleOptions.map((o) => (
                 <li key={o.value}>
                   <strong>{o.label}:</strong> {ROLE_HELP[o.value]}
                 </li>
               ))}
+              <li>
+                <strong>Gerente geral:</strong> convide como gerente e depois, na lista da equipe, o
+                dono marca &quot;Tornar gerente geral&quot;.
+              </li>
             </ul>
           </fieldset>
 
@@ -199,14 +222,23 @@ function MemberCard({
   companyId: string;
   isSelf: boolean;
 }) {
-  const { stores: allStores } = useCompany();
+  const { stores: allStores, isCompanyOwner: viewerIsOwner } = useCompany();
+  const roleOptions = useRoleOptions();
   const setRole = useSetMemberRole(companyId);
   const revoke = useRevokeMemberStore(companyId);
   const remove = useRemoveMember(companyId);
+  const setGeneralManager = useSetGeneralManager(companyId);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [confirmGeneral, setConfirmGeneral] = useState(false);
   const [revoking, setRevoking] = useState<{ storeId: string; storeName: string } | null>(null);
 
   const missing = allStores.filter((s) => !member.stores.some((ms) => ms.storeId === s.storeId));
+  const memberIsOwner = member.stores.some((s) => s.role === "OWNER");
+  // O gerente geral não mexe em donos nem em outros gerentes gerais.
+  const outOfReach = !viewerIsOwner && (memberIsOwner || member.isGeneralManager);
+  const canEdit = !isSelf && !outOfReach;
+  // O papel do gerente geral nas lojas fica fixo (gerente) até desmarcá-lo.
+  const canEditStores = canEdit && !member.isGeneralManager;
 
   return (
     <article className="rounded-xl border bg-card p-4">
@@ -215,6 +247,11 @@ function MemberCard({
           <p className="font-medium">
             {member.user.name}
             {isSelf && <span className="ml-2 text-xs text-muted-foreground">(você)</span>}
+            {member.isGeneralManager && (
+              <Badge className="ml-2" title={GENERAL_MANAGER_HELP}>
+                Gerente geral
+              </Badge>
+            )}
             {!member.user.isActive && (
               <Badge variant="destructive" className="ml-2">
                 Conta desativada
@@ -223,12 +260,21 @@ function MemberCard({
           </p>
           <p className="truncate text-sm text-muted-foreground">{member.user.email}</p>
         </div>
-        {!isSelf && (
+        {viewerIsOwner && !isSelf && !memberIsOwner && (
+          <ActionButton variant="outline" size="sm" onClick={() => setConfirmGeneral(true)}>
+            <ShieldIcon />
+            {member.isGeneralManager ? "Tirar de gerente geral" : "Tornar gerente geral"}
+          </ActionButton>
+        )}
+        {canEdit && (
           <ActionButton variant="destructive" size="sm" onClick={() => setConfirmRemove(true)}>
             <UserMinusIcon /> Remover da empresa
           </ActionButton>
         )}
       </header>
+      {member.isGeneralManager && (
+        <p className="mt-2 text-xs text-muted-foreground">{GENERAL_MANAGER_HELP}</p>
+      )}
 
       <ul className="mt-3 divide-y rounded-lg border">
         {member.stores.map((s) => (
@@ -236,10 +282,10 @@ function MemberCard({
             <span className="min-w-0 flex-1 text-sm font-medium">{s.storeName}</span>
             <SelectField
               value={s.role}
-              options={ROLE_OPTIONS}
+              options={canEditStores ? roleOptions : ROLE_OPTIONS}
               size="sm"
               className="w-36"
-              disabled={isSelf || setRole.isPending}
+              disabled={!canEditStores || setRole.isPending}
               onChange={(role) =>
                 setRole.mutate(
                   { membershipId: member.membershipId, storeId: s.storeId, role },
@@ -257,7 +303,7 @@ function MemberCard({
               }}
               title={`Histórico de ${member.user.name} em ${s.storeName}`}
             />
-            {!isSelf && (
+            {canEditStores && (
               <ActionButton
                 variant="ghost"
                 size="icon-sm"
@@ -272,7 +318,7 @@ function MemberCard({
         ))}
       </ul>
 
-      {!isSelf && missing.length > 0 && (
+      {canEditStores && missing.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="text-sm text-muted-foreground">Dar acesso também a:</span>
           {missing.map((s) => (
@@ -313,6 +359,33 @@ function MemberCard({
               onSuccess: () => {
                 toast.success("Acesso revogado.");
                 setRevoking(null);
+              },
+            },
+          )
+        }
+      />
+      <ConfirmDialog
+        open={confirmGeneral}
+        onOpenChange={setConfirmGeneral}
+        title={
+          member.isGeneralManager
+            ? `Tirar ${member.user.name} de gerente geral?`
+            : `Tornar ${member.user.name} gerente geral?`
+        }
+        description={
+          member.isGeneralManager
+            ? "A pessoa perde o painel da empresa, a equipe e a edição das lojas, mas continua como gerente nas lojas. Depois você pode ajustar o papel em cada loja."
+            : `${GENERAL_MANAGER_HELP} Onde a pessoa é atendente, ela passa a ser gerente.`
+        }
+        confirmLabel={member.isGeneralManager ? "Tirar de gerente geral" : "Tornar gerente geral"}
+        pending={setGeneralManager.isPending}
+        onConfirm={() =>
+          setGeneralManager.mutate(
+            { membershipId: member.membershipId, isGeneralManager: !member.isGeneralManager },
+            {
+              onSuccess: (result) => {
+                toast.success(result.message);
+                setConfirmGeneral(false);
               },
             },
           )
@@ -452,18 +525,21 @@ export function TeamView() {
         description="Quem trabalha na empresa e com qual papel em cada loja. O papel pode ser diferente em cada loja."
         help="gestao-equipe"
         actions={
-          <RequireCompanyOwner>
+          <RequireCompanyAdmin>
             <ActionButton onClick={() => setInviting(true)}>
               <MailPlusIcon /> Convidar pessoa
             </ActionButton>
-          </RequireCompanyOwner>
+          </RequireCompanyAdmin>
         }
       />
-      <RequireCompanyOwnerPage>
+      <RequireCompanyAdminPage>
         <TeamList companyId={companyId} />
-        <RemovedMembers companyId={companyId} />
+        {/* Ver e reativar quem foi removido é só do dono. */}
+        <RequireCompanyOwner>
+          <RemovedMembers companyId={companyId} />
+        </RequireCompanyOwner>
         <InviteDialog companyId={companyId} open={inviting} onOpenChange={setInviting} />
-      </RequireCompanyOwnerPage>
+      </RequireCompanyAdminPage>
     </div>
   );
 }
