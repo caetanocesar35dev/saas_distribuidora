@@ -15,6 +15,10 @@ import { Env } from '../config/env';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  registerSignupReferral,
+  resolveReferralCode,
+} from '../referrals/referral-rewards';
+import {
   ChangePasswordDto,
   LoginDto,
   ResetPasswordDto,
@@ -116,6 +120,11 @@ export class AuthService {
         : new ConflictException('Nenhum plano disponível para o cadastro.');
     }
 
+    // Indicação: código desconhecido é recusado antes de criar qualquer coisa.
+    const referral = dto.referralCode
+      ? await resolveReferralCode(this.prisma, dto.referralCode)
+      : null;
+
     const passwordHash = await this.hashPassword(dto.password);
     const userId = randomUUID();
     const trialDays = this.config.get('TRIAL_DAYS', { infer: true });
@@ -180,6 +189,8 @@ export class AuthService {
             role: 'OWNER',
           },
         });
+        if (referral)
+          await registerSignupReferral(tx, organization.id, referral);
         return created;
       }),
     );

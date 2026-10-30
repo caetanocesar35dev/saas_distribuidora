@@ -58,6 +58,55 @@ export async function refillStock(token: string, storeId: string, minimum = 60) 
   }
 }
 
+/**
+ * CNPJ **alfanumérico** válido (com os dígitos verificadores) gerado na hora, para o cadastro não
+ * repetir. Cada caractere vale o código ASCII menos 48 (dígito = ele mesmo, A = 17).
+ */
+export function randomCnpj(): string {
+  const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const base = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)])
+    .concat(["A", "0", "0", "1"])
+    .join("");
+  const digit = (text: string) => {
+    let factor = text.length - 7;
+    let sum = 0;
+    for (const ch of text) {
+      sum += (ch.charCodeAt(0) - 48) * factor--;
+      if (factor < 2) factor = 9;
+    }
+    const mod = sum % 11;
+    return mod < 2 ? 0 : 11 - mod;
+  };
+  const d1 = digit(base);
+  return `${base}${d1}${digit(`${base}${d1}`)}`;
+}
+
+/**
+ * Conta nova pelo cadastro público (sem passar pela tela), opcionalmente com código de indicação.
+ * Devolve a organização criada.
+ */
+export async function signupByApi(name: string, referralCode?: string) {
+  const stamp = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+  const auth = await backend<{ access_token: string }>("POST", "/auth/signup", {
+    body: {
+      name: "Pessoa Indicada",
+      email: `indicado${stamp}@exemplo-teste.com`,
+      password: "Senha@123",
+      cnpj: randomCnpj(),
+      razaoSocial: `${name} LTDA`,
+      nomeFantasia: name,
+      storeName: "Matriz",
+      acceptTerms: true,
+      phone: "81999990000",
+      referralCode,
+    },
+  });
+  const [org] = await backend<{ id: string; name: string }[]>("GET", "/organizations/mine", {
+    token: auth.access_token,
+  });
+  return org;
+}
+
 /** Ajuste manual da assinatura pela plataforma (é como se simula atraso e somente leitura). */
 export async function setSubscription(
   organizationId: string,

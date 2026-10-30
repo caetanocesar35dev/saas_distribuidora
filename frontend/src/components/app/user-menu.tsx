@@ -1,6 +1,13 @@
 "use client";
 
-import { CircleHelpIcon, LogOutIcon, MonitorOffIcon, ShieldCheckIcon, UserIcon } from "lucide-react";
+import {
+  CircleHelpIcon,
+  GiftIcon,
+  LogOutIcon,
+  MonitorOffIcon,
+  ShieldCheckIcon,
+  UserIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -14,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useOrganizations } from "@/lib/api/hooks/admin";
 import { useLogout, useLogoutAll } from "@/lib/session/actions";
 import { useMe } from "@/lib/session/queries";
 
@@ -25,6 +33,7 @@ function initials(name: string | undefined) {
 
 export function UserMenu() {
   const me = useMe();
+  const organizations = useOrganizations();
   const logout = useLogout();
   const logoutAll = useLogoutAll();
   const [confirmAll, setConfirmAll] = useState(false);
@@ -50,6 +59,12 @@ export function UserMenu() {
           <DropdownMenuItem render={<Link href="/conta" />}>
             <UserIcon /> Minha conta
           </DropdownMenuItem>
+          {/* O código de indicação é do responsável pela assinatura (quem recebe o desconto). */}
+          {organizations.data?.some((o) => o.isBillingOwner) && (
+            <DropdownMenuItem render={<Link href="/indique" />}>
+              <GiftIcon /> Indique e ganhe
+            </DropdownMenuItem>
+          )}
           {me.data?.platformRole && (
             <DropdownMenuItem render={<Link href="/plataforma/organizacoes" />}>
               <ShieldCheckIcon /> Área da plataforma

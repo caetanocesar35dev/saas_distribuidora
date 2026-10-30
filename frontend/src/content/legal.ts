@@ -13,8 +13,8 @@
  */
 import { formatCnpj } from "@/lib/format";
 
-export const TERMS_VERSION = "2026-10-26";
-export const TERMS_UPDATED_AT = "26/10/2026";
+export const TERMS_VERSION = "2026-10-30";
+export const TERMS_UPDATED_AT = "30/10/2026";
 
 export interface LegalOperator {
   name: string;
@@ -68,6 +68,8 @@ export function termsSections(op = legalOperator()): LegalSection[] {
         "A conta começa com 14 dias de teste grátis, sem cartão. Depois, o uso depende do pagamento da assinatura do plano escolhido.",
         "Se o teste acabar ou a mensalidade ficar em atraso por mais de 5 dias, o sistema não é bloqueado: passa a funcionar somente para consulta. Continua sendo possível ver todos os dados, fechar o caixa já aberto e pagar a assinatura. O acesso completo volta assim que o pagamento for confirmado.",
         "Os valores e limites de cada plano (quantidade de empresas e de lojas) são os informados no momento da contratação.",
+        "Programa de indicação: quem se cadastra com um código de indicação ganha desconto nas primeiras mensalidades depois do teste, e quem indicou só recebe a recompensa (desconto ou comissão) quando o indicado paga a primeira mensalidade. O código só pode ser informado no cadastro. Podemos cancelar indicações feitas com contas duplicadas ou de forma fraudulenta, junto com os descontos ainda não usados.",
+        "Cada assinatura é de um mesmo titular ou grupo econômico. Os planos que permitem mais de uma empresa servem para quem tem várias empresas ou lojas; não é permitido dividir uma assinatura entre negócios de titulares diferentes, sem relação societária entre si. Constatado o compartilhamento, podemos exigir que cada negócio tenha a própria assinatura ou cancelar a conta, avisando o responsável pela assinatura.",
       ],
     },
     {
@@ -124,6 +126,7 @@ export function privacySections(op = legalOperator()): LegalSection[] {
         "Distribuidora e lojas: CNPJ, razão social, nome fantasia, endereço e telefone das lojas.",
         "Clientes da distribuidora: nome, telefone, compras, dívidas de fiado e vasilhames emprestados, cadastrados pela própria distribuidora.",
         "Operação: vendas, caixa, estoque e o histórico de alterações (quem mudou o quê e quando), usado para auditoria.",
+        "Indicação: o código usado no cadastro e quem indicou. De representantes que indicam o sistema sem usá-lo: nome, telefone, e-mail e chave Pix, usados só para pagar a comissão combinada.",
         "Dados técnicos: endereço IP e data dos acessos (para segurança e para limitar tentativas de login) e cookies de sessão.",
       ],
     },

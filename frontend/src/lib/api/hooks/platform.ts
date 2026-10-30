@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
+import { referralKeys } from "@/lib/api/hooks/referrals";
 import type {
   MessageResponse,
   NotificationBody,
@@ -101,7 +102,11 @@ export function useUpdateOrganization(id: string) {
   return useMutation({
     mutationFn: (body: UpdateOrganizationBody) =>
       api.patch<PlatformOrganization>(`/platform/organizations/${id}`, body),
-    onSuccess: () => client.invalidateQueries({ queryKey: platformKeys.organizations }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: platformKeys.organizations });
+      // Pôr em "Ativa" confirma a indicação: o painel de indicações muda junto.
+      await client.invalidateQueries({ queryKey: referralKeys.platform });
+    },
   });
 }
 

@@ -120,9 +120,12 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     sentido só o superadmin poder mudar o plano"). **Decidido pelo usuário:**
     - Planos: **Trial** R$ 0 (só para o período de teste: não dá para voltar a ele), **Essencial**
       R$ 99 (1 loja), **Básico** R$ 179 (até 3 lojas), **Profissional** R$ 349 (até 10 lojas por
-      empresa, até 3 empresas) e **Rede** R$ 599 (até 50 lojas por empresa, até 10 empresas).
+      empresa, até 3 empresas) e **Rede** R$ 599 (até 50 lojas por empresa, até 5 empresas).
       **Nenhum plano ilimitado** (decidido pelo usuário: arriscado demais); acima disso, ajuste
       manual na plataforma.
+    - **Contra dividir a conta entre comerciantes** (decidido pelo usuário): o Rede caiu de 10 para
+      5 empresas (preço ÷ empresas ≥ R$ 99, o preço do Essencial) e os Termos de Uso (versão
+      2026-10-30) proíbem dividir a assinatura entre titulares sem relação societária.
     - O dono (responsável pela assinatura) faz upgrade e downgrade sozinho e a mudança **vale na
       hora**; o valor novo vale na próxima cobrança (quando o Asaas existir). Downgrade que não cabe
       é recusado.
@@ -142,6 +145,23 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     - O suporte pode fazer ações pelo cliente (reenviar convite, destravar conta, ajustar a
       assinatura) ou isso continua só com o `SUPERADMIN`?
     - Mudar isso mexe em permissões (`TenantGuard`) e talvez no banco: exige aprovação.
+
+23. [x] **Descontos e indicação (marketing)** (pedido do usuário, 2026-10-30). **Decidido pelo
+    usuário:**
+    - Dois jeitos de indicar: **dono de distribuidora** indica outro (os dois ganham desconto) e
+      **representante** (não usa o sistema) indica um potencial cliente e recebe dinheiro por Pix,
+      pago à mão pela plataforma.
+    - Desconto **percentual** (20% por 2 meses depois do trial), **acumula** (até 12 meses); quem
+      é indicado por representante também ganha. A comissão do representante é **proporcional ao
+      plano** que o indicado assinar (para incentivar planos maiores).
+    - **Desconto de quem indicou e comissão só valem quando o indicado paga a 1ª mensalidade.**
+    - Código único por pessoa, informado só no cadastro (o link `/cadastro?ref=` já preenche).
+    **Feito (2026-10-30):** tela "Indique e ganhe" (menu do usuário), selo de desconto ao lado do
+    sino, Plataforma › Indicações (painel e lista) e › Representantes, tabelas novas (migration
+    `20261030000000_referrals`). Enquanto o Asaas não existe, "pagou" = a plataforma pôr a
+    assinatura em Ativa. **Falta (com a Fase 10, Asaas):** o webhook do pagamento confirmar a
+    indicação e a cobrança aplicar o desconto no valor (avançando os meses usados). Cupons avulsos
+    de campanha não foram pedidos.
 
 ### Lacunas menores já conhecidas
 

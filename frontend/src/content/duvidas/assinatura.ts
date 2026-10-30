@@ -84,7 +84,8 @@ export const assinatura: Article[] = [
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Assinatura. Em Planos aparecem todos os planos, com o preço por mês e quantas empresas e lojas cada um permite. O seu plano está marcado com Seu plano.",
-      "Os planos são: Essencial (1 loja), Básico (até 3 lojas), Profissional (até 10 lojas por empresa e até 3 empresas) e Rede (até 50 lojas por empresa e até 10 empresas). Precisa de mais? Fale com o suporte.",
+      "Os planos são: Essencial (1 loja), Básico (até 3 lojas), Profissional (até 10 lojas por empresa e até 3 empresas) e Rede (até 50 lojas por empresa e até 5 empresas). Precisa de mais? Fale com o suporte.",
+      "A conta é de um mesmo dono ou grupo de empresas. Dividir uma assinatura entre negócios de donos diferentes não é permitido pelos Termos de Uso e pode levar ao cancelamento.",
       "Clique em Fazer upgrade (plano maior) ou em Mudar para este plano (plano menor) e confirme. A mudança vale na hora; o valor novo vale a partir da próxima cobrança.",
       "Para ir para um plano menor, a empresa precisa caber nele: se você tem mais lojas ou empresas do que o plano permite, o botão fica apagado e o motivo aparece embaixo. Exclua as lojas que sobram (Menu › Painel da empresa › Lojas) e tente de novo.",
       "O Trial é o plano do período de teste: depois de escolher um plano pago, não dá para voltar a ele.",
@@ -106,5 +107,34 @@ export const assinatura: Article[] = [
     ],
     related: ["assinatura-regularizar", "gestao-lojas"],
     keywords: ["plano", "upgrade", "downgrade", "mudar plano", "trocar plano", "mais lojas", "preço"],
+  },
+  {
+    id: "assinatura-indique-e-ganhe",
+    category: "assinatura",
+    title: "Indique e ganhe (desconto por indicação)",
+    purpose:
+      "Indicar o sistema para outras distribuidoras e ganhar desconto na mensalidade, e ver o desconto que você já tem.",
+    where: "Menu do usuário (seu nome, no canto de cima) › Indique e ganhe",
+    minRole: "OWNER",
+    who: "O responsável pela assinatura (quem criou a conta)",
+    audience: ["OWNER"],
+    steps: [
+      "Abra o menu do usuário, no canto de cima à direita, e clique em Indique e ganhe. Lá estão o seu código e o seu link de indicação.",
+      "Clique em Compartilhar no WhatsApp para mandar uma mensagem pronta com o link, ou em Copiar link ou Copiar código para mandar como quiser.",
+      "Quem se cadastrar pelo seu link (ou digitando o seu código no cadastro) ganha 20% de desconto nos 2 primeiros meses depois do teste grátis.",
+      "Quando essa pessoa pagar a primeira mensalidade, você ganha 2 meses com 20% de desconto. Antes disso a indicação aparece como Aguardando o 1º pagamento.",
+      "Os descontos se somam (cada indicação paga dá mais 2 meses), até 12 meses guardados. Eles são usados um depois do outro, nas próximas mensalidades.",
+      "Quando você tem desconto para usar, aparece um selo verde com a porcentagem ao lado do sino de notificações, no topo da tela. Clique nele para ver quantos meses faltam.",
+      "Em Quem você indicou, veja quem se cadastrou com o seu código e se já pagou.",
+      "O código só vale no cadastro: quem já tem conta não consegue informar um código depois.",
+    ],
+    problems: [
+      {
+        message: "Só o responsável pela assinatura tem código de indicação",
+        fix: "O desconto vai para a mensalidade, então o código é de quem criou a conta da distribuidora. Peça a ele para indicar.",
+      },
+    ],
+    related: ["assinatura-mudar-plano", "acesso-criar-conta"],
+    keywords: ["indicar", "indicação", "desconto", "cupom", "código", "convidar", "ganhar"],
   },
 ];

@@ -105,15 +105,36 @@ os campos é a extensão do Prisma).
   passa pela nossa API nem pelo nosso frontend.
 - **Planos (decidido pelo usuário, 2026-10-30):** Trial R$ 0 (1 empresa, 2 lojas; só para o
   período de teste), Essencial R$ 99 (1 loja), Básico R$ 179 (até 3 lojas), Profissional R$ 349
-  (3 empresas, até 10 lojas cada) e Rede R$ 599 (10 empresas, até 50 lojas cada; **nenhum plano
+  (3 empresas, até 10 lojas cada) e Rede R$ 599 (5 empresas, até 50 lojas cada; **nenhum plano
   ilimitado**, decidido pelo usuário: arriscado demais). Ficam no seed (`syncPlans`, roda
-  sempre e atualiza pelo nome) e se editam em Plataforma › Planos.
+  sempre e atualiza pelo nome) e se editam em Plataforma › Planos. **Contra a divisão de conta
+  entre comerciantes (decidido pelo usuário):** preço ÷ empresas do plano nunca fica abaixo do
+  Essencial (R$ 99), e os Termos de Uso proíbem dividir a assinatura entre titulares diferentes.
+  Plano novo ou preço novo: confira essa conta.
 - **O dono troca de plano sozinho** (`PATCH /organizations/:id/plan`, só o responsável pela
   assinatura; tela Assinatura › Planos): upgrade e downgrade valem **na hora**, o valor novo vale
   na próxima cobrança, e a situação da assinatura não muda. Downgrade que não cabe (mais empresas,
   ou uma empresa com mais lojas, que o plano novo) → 409. Plano gratuito (`priceInCents = 0`, o
   Trial) não pode ser escolhido na troca. Liberado em somente leitura. A plataforma continua
   podendo pôr qualquer plano (ajuste manual, sem essa conferência).
+
+**Indicação e descontos (decidido pelo usuário, 2026-10-30)**
+- Dois jeitos de indicar: o **cliente** (o responsável pela assinatura, pelo código da organização,
+  na tela "Indique e ganhe" do menu do usuário, `/indique`) e o **representante** (não usa o
+  sistema e não tem login; a plataforma o cadastra em Plataforma › Representantes com contato e
+  chave Pix). O código só é informado **no cadastro** (`referralCode`; o link `/cadastro?ref=` já
+  preenche) e é único entre clientes e representantes.
+- Quem se cadastra com qualquer código ganha **20% por 2 meses** depois do trial. O cliente que
+  indicou ganha o mesmo, **acumulando até 12 meses**; o representante ganha uma comissão em
+  dinheiro, **proporcional ao plano** que o indicado assinou (`commissionPercent` % do preço mensal),
+  para incentivar planos maiores. Valores em `backend/src/referrals/referral-rules.ts`.
+- **A recompensa de quem indicou (desconto ou comissão) só vale quando o indicado paga a 1ª
+  mensalidade.** Enquanto o Asaas não existe, "pagou" = a plataforma pôr a assinatura em `ACTIVE`
+  (`confirmReferral` em `referral-rewards.ts`); na Fase 10, o webhook do pagamento chama o mesmo
+  e a cobrança aplica os descontos (`SubscriptionDiscount.monthsUsed`).
+- O desconto aparece num selo ao lado do sino (`DiscountBadge`), só para o responsável pela
+  assinatura. A plataforma vê tudo em Plataforma › Indicações (painel, lista com filtros, "Pix
+  enviado" e cancelar indicação fraudulenta).
 
 **Código**
 - Bodies tipados com classe DTO (class-validator), nunca `any` ou `Dto & {...}` (isso

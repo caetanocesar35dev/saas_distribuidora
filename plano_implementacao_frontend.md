@@ -538,6 +538,18 @@ automático e manual, e os saldos se atualizam.
    em somente leitura). O plano que não cabe (empresas ou lojas por empresa) fica apagado com o
    motivo (`planFit` em `src/lib/plans.ts`, a mesma conta do backend). Vale na hora; artigo
    `assinatura-mudar-plano` na Central de Dúvidas.
+4. ✅ **Indicação e descontos (decisão do usuário, 2026-10-30).**
+   - Cadastro: campo "Código de indicação (opcional)", preenchido pelo link `/cadastro?ref=`.
+   - "Indique e ganhe" (`/indique`, item do menu do usuário só para o responsável pela assinatura):
+     código, link, "Compartilhar no WhatsApp" (mensagem pronta), copiar, descontos e quem se
+     cadastrou com o código (situação de cada um).
+   - Selo de desconto ao lado do sino (`DiscountBadge`), com os meses a usar.
+   - Plataforma: Indicações (`/plataforma/indicacoes`: painel com totais, representantes, clientes
+     que mais indicam, descontos a usar e a lista com filtros, "Pix enviado" e cancelar) e
+     Representantes (`/plataforma/representantes`: cadastro com contato, chave Pix, código e % de
+     comissão; excluídos e reativar). O detalhe da organização ganhou a seção Indicação.
+   - Lógica pura em `src/lib/referral.ts` (teste em `referral.test.ts`); ponta a ponta em
+     `e2e/indicacao.spec.ts`. Artigos `assinatura-indique-e-ganhe` e `plataforma-indicacoes`.
 
 ### 8b. Depende da cobrança com Asaas (Fase 10 do backend, AINDA NÃO FEITA)
 🛑 **Não implementar** até o backend ter os endpoints `/api/organizations/:organizationId/billing/*`.

@@ -5,4 +5,4 @@
  * Mudou o texto das páginas `/termos` ou `/privacidade` do frontend? Troque esta versão **e**
  * `TERMS_VERSION` em `frontend/src/content/legal.ts` (as duas precisam ser iguais).
  */
-export const TERMS_VERSION = '2026-10-26';
+export const TERMS_VERSION = '2026-10-30';

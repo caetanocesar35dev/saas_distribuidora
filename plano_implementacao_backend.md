@@ -515,8 +515,10 @@ funcionam.
      confere sob as mesmas travas de criar empresa e loja). Na Fase 10, a troca precisa refletir
      na assinatura do Asaas (valor da próxima cobrança).
    - **Planos do seed (decisão do usuário):** Trial R$ 0 (1/2), Essencial R$ 99 (1/1), Básico
-     R$ 179 (1/3), Profissional R$ 349 (3/10) e Rede R$ 599 (10/50), em empresas/lojas por
-     empresa. Nenhum plano ilimitado (decisão do usuário: arriscado). `syncPlans` roda em todo `db:seed` e atualiza pelo nome.
+     R$ 179 (1/3), Profissional R$ 349 (3/10) e Rede R$ 599 (5/50), em empresas/lojas por
+     empresa. Nenhum plano ilimitado (decisão do usuário: arriscado). O Rede tinha 10 empresas e
+     caiu para 5 (decisão do usuário, 2026-10-30): com 10, cada empresa saía por R$ 60 e valia a
+     pena comerciantes diferentes dividirem uma conta; regra: preço ÷ empresas ≥ R$ 99. `syncPlans` roda em todo `db:seed` e atualiza pelo nome.
 2. **`CompanyModule`:**
    - `GET /companies/:companyId`, `PATCH` (OWNER): razão social, nome fantasia (CNPJ não
      muda (⚠️)).
@@ -847,6 +849,27 @@ versões, com autor, endpoint e diff; um usuário de outra company recebe 404.
    - Eventos de cobrança (depois da Fase 10): listagem de `tb_billing_events` com
      filtros (organização, tipo, com erro) e `POST .../reprocess` (SUPERADMIN).
    - Usuários: busca por e-mail; ativar/desativar (`isActive`).
+   - **Indicação e descontos (decisão do usuário, 2026-10-30; módulo `src/referrals/`):**
+     - Banco (migration `20261030000000_referrals`, aprovada pelo usuário): `Organization.referralCode`,
+       `tb_sales_representatives`, `tb_referrals` e `tb_subscription_discounts` (ver
+       `docs/BANCO_DE_DADOS.md` §3.8).
+     - Cadastro: `SignupDto.referralCode` (opcional; código desconhecido → 400). Grava a indicação
+       `PENDING` e o desconto de quem se cadastrou (20% por 2 meses depois do trial), na mesma
+       transação do cadastro.
+     - `GET /organizations/:organizationId/referral` (responsável pela assinatura): cria o código na
+       primeira chamada (`PREFIXO-XXX` com o começo do nome) e devolve indicações feitas e descontos.
+     - Confirmação: `confirmReferral` roda quando `PATCH /platform/organizations/:id` põe
+       `subscriptionStatus: ACTIVE` (= pagou a 1ª mensalidade, até a Fase 10). Cliente que indicou:
+       2 meses de 20%, acumulando até 12 meses a usar. Representante: `commissionInCents` =
+       preço do plano atual do indicado × `commissionPercent`. Chamar de novo não duplica.
+     - Plataforma: `/platform/representatives` (CRUD, `?deleted=true`, `restore`),
+       `GET /platform/referrals` (filtros: situação, origem, representante, comissão, busca),
+       `GET /platform/referrals/summary` (painel), `POST /platform/referrals/:id/commission-paid`
+       ("Pix enviado") e `POST /platform/referrals/:id/cancel` (motivo obrigatório; anula os meses
+       não usados; recusado se a comissão já foi paga). O detalhe da organização traz
+       `referredBy`, `referralCode`, `referralsMade` e `discountRemainingMonths`.
+     - **Na Fase 10:** o webhook `PAYMENT_CONFIRMED` chama `confirmReferral`, e a cobrança aplica os
+       descontos no valor (avançando `monthsUsed`, um mês por cobrança paga).
 2. **Notificações:**
    - `/platform/notifications`: CRUD (SUPERADMIN). `publishedAt` futuro = agendada;
      `expiresAt` opcional.

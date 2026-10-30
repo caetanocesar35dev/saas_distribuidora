@@ -58,10 +58,12 @@ const PLANS = [
     maxStoresPerCompany: 10,
   },
   // Sem "ilimitado" (decisão do usuário: arriscado demais); acima disso, ajuste à mão na plataforma.
+  // Preço ÷ empresas nunca abaixo do Essencial (R$ 99), senão vale a pena comerciantes diferentes
+  // dividirem uma conta (decisão do usuário): 599 ÷ 5 = 119,80.
   {
     name: 'Rede',
     priceInCents: 59900,
-    maxCompanies: 10,
+    maxCompanies: 5,
     maxStoresPerCompany: 50,
   },
 ];

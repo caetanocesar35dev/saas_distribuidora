@@ -130,6 +130,16 @@ export class SignupDto {
   @ValidateNested()
   @Type(() => SignupStoreAddressDto)
   storeAddress?: SignupStoreAddressDto;
+
+  /**
+   * Código de indicação (de um cliente ou representante), opcional. Só no cadastro: depois não dá
+   * para informar. Código desconhecido → 400.
+   */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(40)
+  referralCode?: string;
 }
 
 export class LoginDto {

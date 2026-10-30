@@ -169,6 +169,35 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   tem acesso, quem foi removido e as contas desativadas.
 - [ ] Em Planos, excluir um plano sem uso, marcar "Mostrar os planos excluídos" e Reativar.
 
+## 10a. Indicação e descontos
+
+- [ ] Como dono (`dono@exemplo.com`), abrir Menu do usuário › Indique e ganhe: aparecem o código, o
+  link e os botões Compartilhar no WhatsApp (abre o WhatsApp com a mensagem pronta), Copiar link e
+  Copiar código. Como gerente, o item não aparece no menu.
+- [ ] Abrir o link copiado numa janela anônima: o cadastro abre com o código já preenchido. Criar a
+  conta (nova) com ele.
+- [ ] Digitar um código que não existe no cadastro: aparece "Código de indicação não encontrado." e
+  a conta não é criada.
+- [ ] Na conta nova (a indicada), aparece o selo verde "-20%" ao lado do sino; clicando, mostra 2
+  meses com 20% de desconto.
+- [ ] De volta ao dono, em Indique e ganhe › Quem você indicou: a conta nova aparece como "Aguardando
+  o 1º pagamento", e o dono ainda não ganhou desconto.
+- [ ] Como `admin@plataforma.com`, em Organizações, abrir a conta nova (a seção Indicação mostra
+  quem indicou) e pôr a Situação em Ativa. A indicação vira "Confirmada" e o dono ganha 2 meses
+  (o selo aparece para ele).
+- [ ] Em Plataforma › Representantes, cadastrar um representante (telefone, chave Pix, código
+  próprio, comissão de 50%). Tentar repetir o código de um cliente ou de outro representante: é
+  recusado.
+- [ ] Criar uma conta com o código do representante, escolher (ou pôr pela plataforma) o plano
+  Profissional e pôr em Ativa: em Plataforma › Indicações, a comissão aparece como R$ 174,50 a
+  pagar. Clicar em Pix enviado: passa para "Pago em ..." e para Já pago no painel.
+- [ ] Cancelar uma indicação (ícone de proibido, com motivo): os meses de desconto dela somem. Uma
+  comissão já paga não pode ser cancelada.
+- [ ] Conferir o painel de Indicações: totais, representantes, clientes que mais indicam e
+  organizações com desconto a usar; filtros da lista (situação, origem, representante, comissão).
+- [ ] Excluir o representante: o código dele deixa de valer no cadastro; marcar "Mostrar os
+  representantes excluídos" e Reativar.
+
 ## 11. Geral
 
 - [ ] Usar no celular e no tablet, principalmente o PDV.

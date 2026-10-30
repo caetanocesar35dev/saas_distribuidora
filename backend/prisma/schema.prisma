@@ -100,6 +100,17 @@ enum NotificationType {
   ALERT
 }
 
+enum ReferralStatus {
+  PENDING // o indicado se cadastrou e ainda não pagou a 1ª mensalidade
+  CONFIRMED // o indicado pagou: o desconto de quem indicou e a comissão do representante valem
+  CANCELED // anulada pela plataforma (ex.: conta duplicada para ganhar desconto)
+}
+
+enum DiscountReason {
+  REFERRED // quem se cadastrou com um código de indicação
+  REFERRER // o cliente que indicou
+}
+
 // ============================================================
 // IDENTIDADE / MULTI-TENANCY
 // ============================================================
@@ -218,8 +229,15 @@ model Organization {
   billingSubscriptionId     String?          @unique // assinatura no cartão (Asaas: sub_...)
   billingPixAuthorizationId String?          @unique // autorização de Pix Automático no gateway
 
+  /// Código de indicação do cliente (ex.: DISTRI-7K2), criado na primeira vez que o responsável
+  /// abre "Indique e ganhe". Único também em relação aos códigos dos representantes.
+  referralCode String? @unique
+
   companies     Company[]
   billingEvents BillingEvent[]
+  referredBy    Referral?              @relation("ReferralReferred")
+  referralsMade Referral[]             @relation("ReferralReferrer")
+  discounts     SubscriptionDiscount[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -241,7 +259,8 @@ model Plan {
   maxCompanies        Int? // null = ilimitado
   maxStoresPerCompany Int? // null = ilimitado
 
-  organizations Organization[]
+  organizations      Organization[]
+  confirmedReferrals Referral[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -892,6 +911,109 @@ model BillingEvent {
 }
 
 // ============================================================
+// INDICAÇÃO E DESCONTOS (decisão do usuário, 2026-10-30)
+// ============================================================
+// Quem se cadastra com um código ganha desconto; quem indicou ganha desconto (cliente) ou comissão
+// em dinheiro paga por Pix pela plataforma (representante). As recompensas de quem indicou só valem
+// quando o indicado paga a 1ª mensalidade (Referral CONFIRMED).
+
+/// Representante: indica o sistema sem usá-lo. Não tem login; a plataforma paga a comissão por Pix.
+model SalesRepresentative {
+  id                String  @id @default(uuid())
+  name              String
+  phone             String // só dígitos, com DDD
+  email             String?
+  pixKey            String
+  code              String  @unique // único também em relação a Organization.referralCode
+  commissionPercent Float // % do preço mensal do plano que o indicado assinou
+  notes             String?
+
+  referrals Referral[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@map("tb_sales_representatives")
+}
+
+/// Uma indicação: a organização que se cadastrou com um código e quem indicou (um cliente OU um
+/// representante, nunca os dois).
+model Referral {
+  id   String @id @default(uuid())
+  code String // código usado no cadastro, como foi gravado
+
+  referredOrganizationId String       @unique
+  referredOrganization   Organization @relation("ReferralReferred", fields: [referredOrganizationId], references: [id], onDelete: Restrict)
+
+  referrerOrganizationId String?
+  referrerOrganization   Organization?        @relation("ReferralReferrer", fields: [referrerOrganizationId], references: [id], onDelete: Restrict)
+  representativeId       String?
+  representative         SalesRepresentative? @relation(fields: [representativeId], references: [id], onDelete: Restrict)
+
+  status      ReferralStatus @default(PENDING)
+  confirmedAt DateTime? // quando o indicado pagou a 1ª mensalidade
+  canceledAt  DateTime?
+  note        String? // motivo do cancelamento ou observação da plataforma
+
+  // Plano do indicado na confirmação (base da comissão do representante).
+  confirmedPlanId           String?
+  confirmedPlan             Plan?   @relation(fields: [confirmedPlanId], references: [id], onDelete: Restrict)
+  confirmedPlanPriceInCents Int?
+
+  // Comissão do representante (null quando quem indicou é cliente).
+  commissionInCents Int?
+  commissionPaidAt  DateTime? // quando a plataforma marcou "Pix enviado"
+  commissionNote    String?
+
+  discounts SubscriptionDiscount[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@index([referrerOrganizationId])
+  @@index([representativeId])
+  @@index([status])
+  @@map("tb_referrals")
+}
+
+/// Desconto na mensalidade, em meses: os descontos de uma organização se acumulam e são usados um
+/// depois do outro. `monthsUsed` é avançado pela cobrança (Asaas, Fase 10).
+model SubscriptionDiscount {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  referralId     String
+  referral       Referral     @relation(fields: [referralId], references: [id], onDelete: Restrict)
+
+  reason     DiscountReason
+  percent    Float
+  months     Int
+  monthsUsed Int            @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([referralId, reason])
+  @@index([organizationId])
+  @@map("tb_subscription_discounts")
+}
+
+// ============================================================
 // HISTÓRICO DE AUDITORIA (th_*) — escrito SOMENTE pelo trigger fc_auditoria
 // ============================================================
 // Cada modelo espelha as colunas da tb_ correspondente (mesmo nome e tipo, sem @default,
@@ -973,6 +1095,7 @@ model OrganizationHistory {
   billingCustomerId         String?
   billingSubscriptionId     String?
   billingPixAuthorizationId String?
+  referralCode              String?
   createdAt                 DateTime
 
   modifierId       String?
@@ -1452,4 +1575,75 @@ model RefreshTokenHistory {
 
   @@index([id, historyEnd], map: "ix_th_refresh_token_history_vigente")
   @@map("th_refresh_token_history")
+}
+
+model SalesRepresentativeHistory {
+  historyId         String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                String
+  name              String
+  phone             String
+  email             String?
+  pixKey            String
+  code              String
+  commissionPercent Float
+  notes             String?
+  createdAt         DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_sales_representative_history_vigente")
+  @@map("th_sales_representative_history")
+}
+
+model ReferralHistory {
+  historyId                 String         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id                        String
+  code                      String
+  referredOrganizationId    String
+  referrerOrganizationId    String?
+  representativeId          String?
+  status                    ReferralStatus
+  confirmedAt               DateTime?
+  canceledAt                DateTime?
+  note                      String?
+  confirmedPlanId           String?
+  confirmedPlanPriceInCents Int?
+  commissionInCents         Int?
+  commissionPaidAt          DateTime?
+  commissionNote            String?
+  createdAt                 DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_referral_history_vigente")
+  @@map("th_referral_history")
+}
+
+model SubscriptionDiscountHistory {
+  historyId      String         @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  organizationId String
+  referralId     String
+  reason         DiscountReason
+  percent        Float
+  months         Int
+  monthsUsed     Int
+  createdAt      DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_subscription_discount_history_vigente")
+  @@map("th_subscription_discount_history")
 }

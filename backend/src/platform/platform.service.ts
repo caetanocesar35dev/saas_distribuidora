@@ -7,6 +7,8 @@ import { Prisma } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { confirmReferral } from '../referrals/referral-rewards';
+import { remainingMonths } from '../referrals/referral-rules';
 import {
   CreatePlanDto,
   ListOrganizationsQuery,
@@ -207,6 +209,26 @@ export class PlatformService {
         createdAt: true,
         plan: { select: PLAN_SELECT },
         owner: { select: { id: true, name: true, email: true } },
+        referralCode: true,
+        // Quem indicou esta organização e os descontos dela (programa de indicação).
+        referredBy: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            createdAt: true,
+            confirmedAt: true,
+            referrerOrganization: { select: { id: true, name: true } },
+            representative: { select: { id: true, name: true } },
+          },
+        },
+        discounts: {
+          where: { deletedAt: null },
+          select: { months: true, monthsUsed: true, percent: true },
+        },
+        _count: {
+          select: { referralsMade: { where: { deletedAt: null } } },
+        },
         companies: {
           where: { deletedAt: null },
           select: {
@@ -262,7 +284,14 @@ export class PlatformService {
           Number(a.removedAt !== null) - Number(b.removedAt !== null) ||
           a.user.name.localeCompare(b.user.name),
       );
-    return { ...org, userCount: users.length, people };
+    const { discounts, _count, ...rest } = org;
+    return {
+      ...rest,
+      userCount: users.length,
+      people,
+      referralsMade: _count.referralsMade,
+      discountRemainingMonths: remainingMonths(discounts),
+    };
   }
 
   /**
@@ -296,7 +325,12 @@ export class PlatformService {
     }
     if (dto.pastDueSince !== undefined) data.pastDueSince = dto.pastDueSince;
 
-    await this.prisma.organization.update({ where: { id }, data });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({ where: { id }, data });
+      // Até a cobrança automática existir, pôr a assinatura em ACTIVE é o "pagou a 1ª mensalidade"
+      // que libera a recompensa de quem indicou (na Fase 10, o webhook do pagamento faz isso).
+      if (dto.subscriptionStatus === 'ACTIVE') await confirmReferral(tx, id);
+    });
     return this.getOrganization(id);
   }
 

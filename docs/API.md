@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **107 rotas**. Todas começam com `/api`.
+Total: **117 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -28,7 +28,9 @@ Total: **107 rotas**. Todas começam com `/api`.
 - `PATCH /organizations/:organizationId/plan`: o responsável pela assinatura troca de plano (vale na hora, **liberado em somente leitura**). 409 para o plano gratuito (só do período de teste), para o plano atual e para o downgrade que não cabe (mais empresas, ou uma empresa com mais lojas, que o plano novo permite).
 - `GET /companies/:companyId/customers?deleted=true`: lista só os clientes excluídos, **exige gerente** (403 para o funcionário).
 - `POST /companies/:companyId/stores/:id/restore`: reativa a loja excluída respeitando o limite de lojas do plano (409 se já estiver no limite). `POST /companies/:companyId/members/:membershipId/restore` devolve à pessoa removida as lojas e os papéis que ela tinha ao sair (409 se todas essas lojas foram excluídas).
-- `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade).
+- `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade). `referralCode` (opcional) é o código de indicação de um cliente ou representante: 400 se não existir; grava a indicação pendente e o desconto de quem se cadastrou.
+- `GET /organizations/:organizationId/referral` ("Indique e ganhe"): cria o código da organização na primeira chamada. A recompensa de quem indicou (desconto do cliente ou comissão do representante) só vale quando o indicado paga: hoje, quando `PATCH /platform/organizations/:id` põe `subscriptionStatus: ACTIVE`.
+- `POST /platform/referrals/:id/commission-paid`: só indicação de representante já confirmada e ainda não paga (409 nos outros casos). `POST /platform/referrals/:id/cancel` anula a indicação e os meses de desconto não usados (409 se a comissão já foi paga).
 - Rotas `/platform/*`: `SUPPORT` só lê; `SUPERADMIN` lê e escreve (cada escrita aparece como "Plataforma: SUPERADMIN").
 
 ## audit
@@ -161,6 +163,7 @@ Total: **107 rotas**. Todas começam com `/api`.
 |---|---|---|---|
 | POST | `/api/organizations/:organizationId/companies` | Responsável pela cobrança | Bloqueada (402) |
 | PATCH | `/api/organizations/:organizationId/plan` | Responsável pela cobrança | **Funciona (exceção)** |
+| GET | `/api/organizations/:organizationId/referral` | Responsável pela cobrança | Funciona |
 | GET | `/api/organizations/mine` | Qualquer usuário logado | — |
 
 ## plans
@@ -186,6 +189,15 @@ Total: **107 rotas**. Todas começam com `/api`.
 | PATCH | `/api/platform/plans/:id` | Plataforma: SUPERADMIN | — |
 | POST | `/api/platform/plans/:id/restore` | Plataforma: SUPERADMIN | — |
 | GET | `/api/platform/plans/deleted` | Plataforma: SUPPORT ou SUPERADMIN | — |
+| GET | `/api/platform/referrals` | Plataforma: SUPPORT ou SUPERADMIN | — |
+| POST | `/api/platform/referrals/:id/cancel` | Plataforma: SUPERADMIN | — |
+| POST | `/api/platform/referrals/:id/commission-paid` | Plataforma: SUPERADMIN | — |
+| GET | `/api/platform/referrals/summary` | Plataforma: SUPPORT ou SUPERADMIN | — |
+| GET | `/api/platform/representatives` | Plataforma: SUPPORT ou SUPERADMIN | — |
+| POST | `/api/platform/representatives` | Plataforma: SUPERADMIN | — |
+| DELETE | `/api/platform/representatives/:id` | Plataforma: SUPERADMIN | — |
+| PATCH | `/api/platform/representatives/:id` | Plataforma: SUPERADMIN | — |
+| POST | `/api/platform/representatives/:id/restore` | Plataforma: SUPERADMIN | — |
 | GET | `/api/platform/users` | Plataforma: SUPPORT ou SUPERADMIN | — |
 | PATCH | `/api/platform/users/:id/active` | Plataforma: SUPERADMIN | — |
 

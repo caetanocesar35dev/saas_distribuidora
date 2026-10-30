@@ -36,6 +36,7 @@ import {
   SUBSCRIPTION_STATUS_LABEL,
   todayString,
 } from "@/lib/format";
+import { REFERRAL_STATUS_LABEL } from "@/lib/referral";
 import { StatusBadge } from "../organizations-view";
 
 /** Data (ISO) -> dia do calendário (AAAA-MM-DD) no fuso de São Paulo, para o campo de data. */
@@ -179,6 +180,57 @@ function OrganizationBody({ org }: { org: PlatformOrganization }) {
             <dd>{org.billingProvider ? `${org.billingProvider} (${org.billingMethod ?? "sem forma"})` : "Ainda não configurada"}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="rounded-xl border bg-card p-5">
+        <h2 className="font-semibold">Indicação</h2>
+        <dl className="mt-3 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt className="text-muted-foreground">Indicada por</dt>
+            <dd>
+              {org.referredBy ? (
+                <>
+                  {org.referredBy.referrerOrganization ? (
+                    <Link
+                      href={`/plataforma/organizacoes/${org.referredBy.referrerOrganization.id}`}
+                      className="font-medium text-primary hover:underline"
+                    >
+                      {org.referredBy.referrerOrganization.name}
+                    </Link>
+                  ) : (
+                    <span className="font-medium">
+                      {org.referredBy.representative?.name} (representante)
+                    </span>
+                  )}{" "}
+                  <span className="text-muted-foreground">
+                    · código {org.referredBy.code} · {REFERRAL_STATUS_LABEL[org.referredBy.status]}
+                  </span>
+                </>
+              ) : (
+                "Ninguém (cadastro sem código)"
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Código de indicação dela</dt>
+            <dd className="font-mono">{org.referralCode ?? "Ainda não gerado"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Organizações que ela indicou</dt>
+            <dd className="font-medium tabular-nums">{org.referralsMade}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground">Meses de desconto a usar</dt>
+            <dd className="font-medium tabular-nums">{org.discountRemainingMonths}</dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Pôr a situação em &quot;Ativa&quot; conta como o primeiro pagamento: confirma a indicação
+          e libera a recompensa de quem indicou.{" "}
+          <Link href="/plataforma/indicacoes" className="text-primary hover:underline">
+            Ver todas as indicações
+          </Link>
+        </p>
       </section>
 
       <AdjustForm key={`${org.subscriptionStatus}-${org.plan.id}-${org.trialEndsAt}-${org.pastDueSince}`} org={org} />

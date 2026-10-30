@@ -27,6 +27,7 @@ import { MeModule } from './me/me.module';
 import { PlansController } from './plans/plans.controller';
 import { PlatformModule } from './platform/platform.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReferralsModule } from './referrals/referrals.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { PrismaModule } from './prisma/prisma.module';
     DashboardModule,
     AuditLogModule,
     PlatformModule,
+    ReferralsModule,
     JobsModule,
   ],
   controllers: [HealthController, PlansController],

@@ -18,7 +18,7 @@ PostgreSQL 16, acessado via Prisma 7. A fonte da verdade é o [schema.prisma](..
 
 ## 1. Visão geral
 
-São 27 tabelas de negócio (`tb_*`) e 27 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
+São 30 tabelas de negócio (`tb_*`) e 30 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
 
 | Domínio | Tabelas | Em uma frase |
 |---|---|---|
@@ -30,6 +30,7 @@ São 27 tabelas de negócio (`tb_*`) e 27 tabelas de histórico (`th_*_history`,
 | Vendas e caixa | `tb_sales`, `tb_sale_items`, `tb_command_tabs`, `tb_command_items`, `tb_cash_registers`, `tb_cash_movements` | Tudo que acontece no PDV, por loja |
 | Avisos | `tb_notifications`, `tb_notification_reads` | Comunicados do sistema e quem já leu |
 | Cobrança (Asaas) | campos `billing*` de `tb_organizations`, `tb_billing_events` | Assinatura no cartão ou Pix Automático e o registro dos webhooks do gateway |
+| Indicação e descontos | `tb_sales_representatives`, `tb_referrals`, `tb_subscription_discounts`, `tb_organizations.referralCode` | Quem indicou quem, a comissão do representante e os meses de desconto na mensalidade |
 
 ### A hierarquia multi-tenant
 
@@ -249,6 +250,25 @@ muda pelos webhooks (`PAYMENT_CONFIRMED` → `ACTIVE`, `PAYMENT_OVERDUE` → `PA
 etc.), sempre com `modifierId = system` e `modifiedEndpoint = webhook:asaas`. O fluxo
 completo está na Fase 10 do [plano do backend](../plano_implementacao_backend.md).
 
+### 3.8 Indicação e descontos (decisão do usuário, 2026-10-30)
+
+Dois jeitos de indicar: o **cliente** (o responsável pela assinatura, pelo código da organização)
+e o **representante** (não usa o sistema; a plataforma o cadastra e paga a comissão por Pix).
+Quem se cadastra com qualquer código ganha desconto. **A recompensa de quem indicou só vale
+quando o indicado paga a 1ª mensalidade** (hoje: a plataforma pôr a assinatura em `ACTIVE`; na
+Fase 10, o webhook do pagamento). Regras e valores em `backend/src/referrals/referral-rules.ts`;
+cadastro e confirmação em `referral-rewards.ts`.
+
+| Tabela / coluna | Para que serve | Colunas e regras principais |
+|---|---|---|
+| `tb_organizations.referralCode` | Código de indicação do cliente | Único; nulo até o responsável abrir "Indique e ganhe" (criado na hora, ex.: `DISTRI-7K2`). Único também em relação a `tb_sales_representatives.code` (conferido pela aplicação, inclusive contra excluídos) |
+| `tb_sales_representatives` | Representante (sem login) | `name`, `phone` (só dígitos), `email`, `pixKey`, `code` (único), `commissionPercent` (% do preço mensal do plano que o indicado assinar), `notes`. Excluído = o código deixa de valer no cadastro |
+| `tb_referrals` | Uma indicação | `code` (o usado no cadastro); `referredOrganizationId` (**único**: cada organização é indicada uma vez só, no cadastro); `referrerOrganizationId` **ou** `representativeId`; `status` (`PENDING` → `CONFIRMED` no 1º pagamento, ou `CANCELED` pela plataforma); `confirmedAt`, `canceledAt`, `note`; na confirmação, `confirmedPlanId` e `confirmedPlanPriceInCents`; do representante, `commissionInCents` (preço do plano × %), `commissionPaidAt` ("Pix enviado") e `commissionNote` |
+| `tb_subscription_discounts` | Meses de desconto na mensalidade | `organizationId`, `referralId`, `reason` (`REFERRED` = quem se cadastrou, criado no cadastro; `REFERRER` = o cliente que indicou, criado na confirmação), `percent`, `months`, `monthsUsed` (avançado pela cobrança na Fase 10). Único por (`referralId`, `reason`). Os descontos se acumulam e são usados um depois do outro; quem indica acumula até 12 meses a usar |
+
+Cancelar uma indicação marca os descontos dela ainda não usados como excluídos (os já usados
+em parte ficam com `months = monthsUsed`). Comissão já paga não pode ser cancelada.
+
 ---
 
 ## 4. Auditoria e histórico
@@ -386,6 +406,7 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261026010000_user_phone` | Adiciona `phone` (celular/WhatsApp) em `tb_users` (e no histórico) |
 | `20261026020000_cash_auto_close` | Adiciona `cashAutoCloseTime` (HH:mm, padrão 00:00) em `tb_stores` e `autoClosed` em `tb_cash_registers` (e nos históricos): caixa que abre e fecha sozinho |
 | `20261027000000_sale_credit_approver` | Adiciona `creditApprovedById` (FK para `tb_users`, `Restrict`) em `tb_sales` (e no histórico): gerente ou dono que autorizou a venda fiada acima do limite de crédito (null = não passou do limite) |
+| `20261030000000_referrals` | Programa de indicação: enums `ReferralStatus`/`DiscountReason`, `referralCode` em `tb_organizations` (e no histórico), `tb_sales_representatives`, `tb_referrals` e `tb_subscription_discounts` com os históricos e os 6 triggers |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

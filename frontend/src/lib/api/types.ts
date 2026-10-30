@@ -87,6 +87,8 @@ export interface SignupBody {
   acceptTerms: boolean;
   /** Celular (WhatsApp) do dono, obrigatório; só dígitos com DDD. */
   phone: string;
+  /** Código de indicação de um cliente ou representante (opcional; desconhecido → 400). */
+  referralCode?: string;
   /** Endereço e telefone da primeira loja: o que a consulta pública do CNPJ trouxe (opcional). */
   storeAddress?: {
     phone?: string;
@@ -794,6 +796,22 @@ export interface PlatformOrganization {
     companyName: string;
     removedAt: string | null;
   }[];
+  /** Código de indicação da organização (null = o responsável ainda não abriu "Indique e ganhe"). */
+  referralCode: string | null;
+  /** Quem indicou esta organização (null = se cadastrou sem código). */
+  referredBy: {
+    id: string;
+    code: string;
+    status: ReferralStatus;
+    createdAt: string;
+    confirmedAt: string | null;
+    referrerOrganization: { id: string; name: string } | null;
+    representative: { id: string; name: string } | null;
+  } | null;
+  /** Quantas organizações ela indicou. */
+  referralsMade: number;
+  /** Meses de desconto ainda a usar. */
+  discountRemainingMonths: number;
 }
 
 export interface UpdateOrganizationBody {
@@ -830,4 +848,139 @@ export interface NotificationBody {
   type?: NotificationType;
   publishedAt?: string;
   expiresAt?: string | null;
+}
+
+// ---- Indicação e descontos -------------------------------------------------------------------
+
+/** PENDING = indicado ainda não pagou; CONFIRMED = pagou (recompensa liberada); CANCELED = anulada. */
+export type ReferralStatus = "PENDING" | "CONFIRMED" | "CANCELED";
+/** REFERRED = desconto de quem se cadastrou com código; REFERRER = de quem indicou. */
+export type DiscountReason = "REFERRED" | "REFERRER";
+
+export interface ReferralRules {
+  discountPercent: number;
+  discountMonths: number;
+  maxMonths: number;
+}
+
+/** `GET /organizations/:organizationId/referral` ("Indique e ganhe"). */
+export interface OrganizationReferral {
+  code: string;
+  rules: ReferralRules;
+  remainingMonths: number;
+  referredBy: { code: string; status: ReferralStatus; createdAt: string } | null;
+  referrals: {
+    id: string;
+    organizationName: string;
+    status: ReferralStatus;
+    createdAt: string;
+    confirmedAt: string | null;
+  }[];
+  discounts: {
+    id: string;
+    reason: DiscountReason;
+    percent: number;
+    months: number;
+    monthsUsed: number;
+    remaining: number;
+    createdAt: string;
+    /** Quem indicou (REFERRED) ou quem foi indicado (REFERRER). */
+    from: string | null;
+  }[];
+}
+
+export interface SalesRepresentative {
+  id: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  pixKey: string;
+  code: string;
+  commissionPercent: number;
+  notes: string | null;
+  createdAt: string;
+  deletedAt: string | null;
+  referrals: number;
+  confirmed: number;
+  toPayInCents: number;
+  paidInCents: number;
+}
+
+export interface RepresentativeBody {
+  name: string;
+  phone: string;
+  email?: string | null;
+  pixKey: string;
+  code?: string;
+  commissionPercent: number;
+  notes?: string | null;
+}
+
+export interface PlatformReferral {
+  id: string;
+  code: string;
+  status: ReferralStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+  canceledAt: string | null;
+  note: string | null;
+  confirmedPlanPriceInCents: number | null;
+  commissionInCents: number | null;
+  commissionPaidAt: string | null;
+  commissionNote: string | null;
+  confirmedPlan: { id: string; name: string } | null;
+  referredOrganization: {
+    id: string;
+    name: string;
+    subscriptionStatus: SubscriptionStatus;
+    plan: { id: string; name: string; priceInCents: number };
+    owner: { name: string; email: string };
+  };
+  referrerOrganization: { id: string; name: string } | null;
+  representative: { id: string; name: string; code: string } | null;
+}
+
+export interface ReferralSummary {
+  rules: ReferralRules;
+  totals: {
+    all: number;
+    pending: number;
+    confirmed: number;
+    canceled: number;
+    fromCustomers: number;
+    fromRepresentatives: number;
+  };
+  commissions: {
+    referrals: number;
+    confirmed: number;
+    toPayInCents: number;
+    paidInCents: number;
+  };
+  representatives: {
+    id: string;
+    name: string;
+    code: string;
+    commissionPercent: number;
+    referrals: number;
+    confirmed: number;
+    toPayInCents: number;
+    paidInCents: number;
+  }[];
+  topCustomers: {
+    organizationId: string;
+    name: string;
+    code: string | null;
+    referrals: number;
+    confirmed: number;
+  }[];
+  discounts: {
+    organizationId: string;
+    name: string;
+    subscriptionStatus: SubscriptionStatus;
+    planName: string;
+    percent: number;
+    remainingMonths: number;
+    usedMonths: number;
+    discounts: number;
+  }[];
 }
