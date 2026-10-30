@@ -17,6 +17,7 @@ export const clientes: Article[] = [
       "Para mudar os dados, abra o cliente e clique em Editar.",
       "O endereço aparece embaixo do nome na tela do cliente. Para apagar, abra Editar e limpe os campos.",
       "Você também pode cadastrar um cliente na hora de uma venda, em Cadastrar novo cliente (cadastro rápido, só nome e telefone; o endereço você completa depois em Editar).",
+      "Gerente e dono: para excluir, abra o cliente e clique em Excluir. Os dados não se perdem. Para ver os excluídos (telefone, endereço e data da exclusão), marque Mostrar só os excluídos na lista; Reativar traz o cliente de volta com as vendas e os pagamentos de antes.",
     ],
     problems: [
       {

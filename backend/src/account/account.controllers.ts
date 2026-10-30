@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
+  AllowWhenReadOnly,
   BillingOwner,
   CompanyOwner,
   CurrentUser,
@@ -22,6 +24,7 @@ import type {
 } from '../common/decorators/access.decorators';
 import { CompaniesService } from './companies.service';
 import {
+  ChangePlanDto,
   CreateCompanyDto,
   CreateStoreDto,
   InviteMemberDto,
@@ -45,6 +48,17 @@ export class OrganizationsController {
   @Get('mine')
   mine(@CurrentUser() user: AuthUser) {
     return this.organizations.mine(user.id);
+  }
+
+  /**
+   * Troca de plano pelo responsável. Liberada em somente leitura: escolher o plano faz parte de
+   * regularizar a assinatura.
+   */
+  @BillingOwner()
+  @AllowWhenReadOnly()
+  @Patch(':organizationId/plan')
+  changePlan(@Tenant() tenant: OrgTenant, @Body() dto: ChangePlanDto) {
+    return this.organizations.changePlan(tenant.organizationId, dto.planId);
   }
 
   @BillingOwner()
@@ -91,6 +105,13 @@ export class StoresController {
     return this.stores.list(tenant.companyId);
   }
 
+  /** Lojas excluídas (antes de `:id`, senão "deleted" seria lido como id). */
+  @CompanyOwner()
+  @Get('deleted')
+  listDeleted(@Tenant() tenant: CompanyTenant) {
+    return this.stores.listDeleted(tenant.companyId);
+  }
+
   @Get(':id')
   get(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
     return this.stores.get(tenant.companyId, id);
@@ -117,6 +138,13 @@ export class StoresController {
   remove(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
     return this.stores.remove(tenant.companyId, id);
   }
+
+  @CompanyOwner()
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.stores.restore(tenant.companyId, id);
+  }
 }
 
 @ApiTags('members')
@@ -129,6 +157,21 @@ export class MembershipsController {
   @Get()
   list(@Tenant() tenant: CompanyTenant) {
     return this.memberships.list(tenant.companyId);
+  }
+
+  /** Pessoas removidas da empresa, com as lojas e papéis que tinham. */
+  @Get('removed')
+  listRemoved(@Tenant() tenant: CompanyTenant) {
+    return this.memberships.listRemoved(tenant.companyId);
+  }
+
+  @HttpCode(200)
+  @Post(':membershipId/restore')
+  restore(
+    @Tenant() tenant: CompanyTenant,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.memberships.restore(tenant.companyId, membershipId);
   }
 
   @Post()

@@ -20,7 +20,8 @@
     "test:e2e": "jest --runInBand --testRegex \".*\\.e2e-spec\\.ts$\"",
     "test:unit": "jest --runInBand --testRegex \".*(?<!e2e-)\\.spec\\.ts$\"",
     "db:seed": "ts-node prisma/seed.ts",
-    "docs:api": "ts-node scripts/generate-api-doc.ts"
+    "docs:api": "ts-node scripts/generate-api-doc.ts",
+    "mail:test": "ts-node scripts/send-test-emails.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

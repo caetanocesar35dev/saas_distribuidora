@@ -1,6 +1,6 @@
 "use client";
 
-import { MailPlusIcon, Trash2Icon, UserMinusIcon } from "lucide-react";
+import { MailPlusIcon, RotateCcwIcon, Trash2Icon, UserMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -28,12 +28,14 @@ import { Input } from "@/components/ui/input";
 import {
   useInviteMember,
   useMembers,
+  useRemovedMembers,
   useRemoveMember,
+  useRestoreMember,
   useRevokeMemberStore,
   useSetMemberRole,
 } from "@/lib/api/hooks/admin";
 import type { Member, Role } from "@/lib/api/types";
-import { isValidPersonName, ROLE_LABEL } from "@/lib/format";
+import { formatDateTime, isValidPersonName, ROLE_LABEL } from "@/lib/format";
 import { useCompany } from "@/lib/session/context";
 import { useMe } from "@/lib/session/queries";
 
@@ -320,7 +322,7 @@ function MemberCard({
         open={confirmRemove}
         onOpenChange={setConfirmRemove}
         title={`Remover ${member.user.name} da empresa?`}
-        description="A pessoa perde o acesso a todas as lojas da empresa. A conta dela continua existindo e o histórico das vendas e ações dela é mantido."
+        description="A pessoa perde o acesso a todas as lojas da empresa. A conta dela continua existindo, o histórico das vendas e ações dela é mantido, e dá para reativá-la (com os mesmos acessos) em Mostrar quem foi removido."
         confirmLabel="Remover da empresa"
         destructive
         pending={remove.isPending}
@@ -363,6 +365,82 @@ function TeamList({ companyId }: { companyId: string }) {
   );
 }
 
+/** Pessoas removidas da empresa, com as lojas e os papéis que tinham, para o dono reativar. */
+function RemovedMembers({ companyId }: { companyId: string }) {
+  const [open, setOpen] = useState(false);
+  const removed = useRemovedMembers(companyId, open);
+  const restore = useRestoreMember(companyId);
+
+  return (
+    <section className="mt-6 space-y-3">
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+        <Checkbox checked={open} onCheckedChange={setOpen} />
+        Mostrar quem foi removido
+      </label>
+      {open && (
+        <QueryBoundary query={removed}>
+          {(list) =>
+            list.length === 0 ? (
+              <EmptyState
+                title="Ninguém removido"
+                description="Quem você remover da empresa aparece aqui para reativar."
+              />
+            ) : (
+              <ul className="divide-y rounded-xl border bg-card">
+                {list.map((member) => (
+                  <li
+                    key={member.membershipId}
+                    className="flex flex-wrap items-center gap-3 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">
+                        {member.user.name}
+                        <Badge variant="secondary" className="ml-2">
+                          Removido em {formatDateTime(member.removedAt)}
+                        </Badge>
+                        {!member.user.isActive && (
+                          <Badge variant="destructive" className="ml-2">
+                            Conta desativada
+                          </Badge>
+                        )}
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">{member.user.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {member.stores.length > 0
+                          ? `Tinha acesso a: ${member.stores
+                              .map((s) => `${s.storeName} (${ROLE_LABEL[s.role]})`)
+                              .join(", ")}`
+                          : "As lojas que acessava foram excluídas: para voltar, convide de novo."}
+                      </p>
+                    </div>
+                    {member.stores.length > 0 && (
+                      <ActionButton
+                        variant="outline"
+                        size="sm"
+                        disabled={restore.isPending}
+                        onClick={() =>
+                          restore.mutate(member.membershipId, {
+                            onSuccess: () =>
+                              toast.success(
+                                `${member.user.name} voltou para a equipe, com os mesmos acessos de antes.`,
+                              ),
+                          })
+                        }
+                      >
+                        <RotateCcwIcon /> Reativar
+                      </ActionButton>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        </QueryBoundary>
+      )}
+    </section>
+  );
+}
+
 export function TeamView() {
   const { companyId } = useCompany();
   const [inviting, setInviting] = useState(false);
@@ -383,6 +461,7 @@ export function TeamView() {
       />
       <RequireCompanyOwnerPage>
         <TeamList companyId={companyId} />
+        <RemovedMembers companyId={companyId} />
         <InviteDialog companyId={companyId} open={inviting} onOpenChange={setInviting} />
       </RequireCompanyOwnerPage>
     </div>

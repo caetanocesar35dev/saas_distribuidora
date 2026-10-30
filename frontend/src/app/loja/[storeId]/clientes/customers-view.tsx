@@ -1,10 +1,12 @@
 "use client";
 
-import { PlusIcon, SearchIcon } from "lucide-react";
+import { PlusIcon, RotateCcwIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import { toast } from "sonner";
 import { EmptyState, ErrorState, LoadingRows, Money, PageHeader } from "@/components/app/common";
 import { ActionButton } from "@/components/app/guards";
+import { HistoryButton } from "@/components/app/history-dialog";
 import { Pagination } from "@/components/app/pagination";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -17,29 +19,93 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebounced } from "@/hooks/use-debounced";
-import { useCustomers } from "@/lib/api/hooks/customers";
+import { useCustomers, useRestoreCustomer } from "@/lib/api/hooks/customers";
+import type { CustomerListItem } from "@/lib/api/types";
 import { debtSplit } from "@/lib/credit-warning";
-import { formatPhone } from "@/lib/format";
+import { formatAddress, formatDateTime, formatPhone } from "@/lib/format";
 import { useHasRole, useStore } from "@/lib/session/context";
 import { CustomerFormDialog } from "./customer-form-dialog";
+
+/** Clientes excluídos: os dados de cadastro, a data da exclusão e o botão Reativar. */
+function DeletedCustomersTable({ customers }: { customers: CustomerListItem[] }) {
+  const { companyId } = useStore();
+  const restore = useRestoreCustomer(companyId);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Nome</TableHead>
+            <TableHead>Telefone</TableHead>
+            <TableHead>Endereço</TableHead>
+            <TableHead>Excluído em</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {customers.map((c) => (
+            <TableRow key={c.id}>
+              <TableCell className="font-medium">{c.name}</TableCell>
+              <TableCell className="text-muted-foreground">{formatPhone(c.phone) || "—"}</TableCell>
+              <TableCell className="text-muted-foreground">{formatAddress(c) || "—"}</TableCell>
+              <TableCell className="whitespace-nowrap">
+                {c.deletedAt ? formatDateTime(c.deletedAt) : "—"}
+              </TableCell>
+              <TableCell>
+                <div className="flex justify-end gap-1">
+                  <HistoryButton
+                    size="xs"
+                    label=""
+                    target={{ scope: "company", scopeId: companyId, entity: "customers", id: c.id }}
+                    title={`Histórico de ${c.name}`}
+                  />
+                  <ActionButton
+                    variant="outline"
+                    size="sm"
+                    minRole="MANAGER"
+                    disabled={restore.isPending}
+                    onClick={() =>
+                      restore.mutate(c.id, {
+                        onSuccess: (restored) =>
+                          toast.success(`${restored.name} voltou para a lista de clientes.`),
+                      })
+                    }
+                  >
+                    <RotateCcwIcon /> Reativar
+                  </ActionButton>
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 export function CustomersView() {
   const { storeId, companyId, stores } = useStore();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [onlyDebtors, setOnlyDebtors] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
   const [creating, setCreating] = useState(false);
   const debounced = useDebounced(search);
+  // Dívida total (todas as lojas da empresa): como no detalhe do cliente, só gerente e dono.
+  // Os excluídos também são só para gerente e dono (o backend recusa o atendente).
+  const isManager = useHasRole("MANAGER");
+  const deleted = showDeleted && isManager;
   const list = useCustomers(companyId, {
     search: debounced.trim() || undefined,
     page,
     limit: 20,
-    withDebt: onlyDebtors || undefined,
+    withDebt: (!deleted && onlyDebtors) || undefined,
+    deleted: deleted || undefined,
   });
   // Só faz sentido mostrar "outras lojas" para quem trabalha em mais de uma.
   const showOthers = stores.length > 1;
-  // Dívida total (todas as lojas da empresa): como no detalhe do cliente, só gerente e dono.
-  const showTotal = useHasRole("MANAGER");
+  const showTotal = isManager;
 
   return (
     <div>
@@ -68,16 +134,30 @@ export function CustomersView() {
             aria-label="Buscar clientes"
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox
-            checked={onlyDebtors}
-            onCheckedChange={(checked) => {
-              setOnlyDebtors(checked);
-              setPage(1);
-            }}
-          />
-          Só quem deve no fiado
-        </label>
+        {!deleted && (
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={onlyDebtors}
+              onCheckedChange={(checked) => {
+                setOnlyDebtors(checked);
+                setPage(1);
+              }}
+            />
+            Só quem deve no fiado
+          </label>
+        )}
+        {isManager && (
+          <label className="flex cursor-pointer items-center gap-2 text-sm">
+            <Checkbox
+              checked={showDeleted}
+              onCheckedChange={(checked) => {
+                setShowDeleted(checked);
+                setPage(1);
+              }}
+            />
+            Mostrar só os excluídos
+          </label>
+        )}
       </div>
 
       {list.isPending ? (
@@ -86,15 +166,28 @@ export function CustomersView() {
         <ErrorState error={list.error} onRetry={() => void list.refetch()} />
       ) : list.data.data.length === 0 ? (
         <EmptyState
-          title={onlyDebtors ? "Nenhum cliente devendo no fiado" : "Nenhum cliente encontrado"}
+          title={
+            deleted
+              ? "Nenhum cliente excluído"
+              : onlyDebtors
+                ? "Nenhum cliente devendo no fiado"
+                : "Nenhum cliente encontrado"
+          }
           description={
             debounced
               ? "Tente outra busca."
-              : onlyDebtors
-                ? "Ninguém deve no fiado nas suas lojas."
-                : "Cadastre o primeiro cliente."
+              : deleted
+                ? "Os clientes que você excluir aparecem aqui, com os dados de cadastro, para reativar."
+                : onlyDebtors
+                  ? "Ninguém deve no fiado nas suas lojas."
+                  : "Cadastre o primeiro cliente."
           }
         />
+      ) : deleted ? (
+        <div className="space-y-2">
+          <DeletedCustomersTable customers={list.data.data} />
+          <Pagination meta={list.data.meta} onPageChange={setPage} />
+        </div>
       ) : (
         <div className="space-y-2">
           <div className="overflow-x-auto rounded-xl border bg-card">

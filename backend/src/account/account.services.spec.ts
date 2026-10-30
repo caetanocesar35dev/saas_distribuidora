@@ -139,6 +139,82 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         ),
       ).rejects.toThrow();
     });
+
+    describe('troca de plano pelo responsável', () => {
+      const change = (planId: string) =>
+        as(w.owner.id, () =>
+          organizations.changePlan(w.organization.id, planId),
+        );
+      const planOf = async () =>
+        (
+          await ctx.prisma.organization.findUniqueOrThrow({
+            where: { id: w.organization.id },
+          })
+        ).planId;
+
+      it('a listagem traz quantas lojas cada empresa tem', async () => {
+        const [org] = await organizations.mine(w.owner.id);
+        expect(org.companies[0].storeCount).toBe(2);
+      });
+
+      it('upgrade vale na hora e não mexe na situação da assinatura', async () => {
+        const before = await ctx.prisma.organization.findUniqueOrThrow({
+          where: { id: w.organization.id },
+        });
+        const rede = await ctx.factory.plan({ priceInCents: 59900 });
+        const result = await change(rede.id);
+        expect(result.plan.id).toBe(rede.id);
+        const after = await ctx.prisma.organization.findUniqueOrThrow({
+          where: { id: w.organization.id },
+        });
+        expect(after.planId).toBe(rede.id);
+        expect(after.subscriptionStatus).toBe(before.subscriptionStatus);
+        expect(after.trialEndsAt).toEqual(before.trialEndsAt);
+
+        const history = await ctx.prisma.organizationHistory.findMany({
+          where: { id: w.organization.id },
+          orderBy: { historyStart: 'desc' },
+          take: 1,
+        });
+        expect(history[0]).toMatchObject({
+          planId: rede.id,
+          modifierId: w.owner.id,
+        });
+      });
+
+      it('downgrade é recusado se a empresa tem mais lojas que o plano novo', async () => {
+        const essencial = await ctx.factory.plan({ maxStoresPerCompany: 1 });
+        await expect(change(essencial.id)).rejects.toThrow(
+          /1 loja\(s\) por empresa .* tem 2/,
+        );
+        expect(await planOf()).toBe(w.plan.id);
+
+        await as(w.owner.id, () => stores.remove(w.company.id, w.storeB.id));
+        await change(essencial.id);
+        expect(await planOf()).toBe(essencial.id);
+      });
+
+      it('downgrade é recusado se a organização tem mais empresas que o plano novo', async () => {
+        await ctx.factory.company(w.organization.id);
+        const single = await ctx.factory.plan({ maxCompanies: 1 });
+        await expect(change(single.id)).rejects.toThrow(
+          /1 empresa\(s\) e você tem 2/,
+        );
+        expect(await planOf()).toBe(w.plan.id);
+      });
+
+      it('recusa o plano gratuito (só do teste), o mesmo plano e plano inexistente', async () => {
+        const trial = await ctx.factory.plan({ priceInCents: 0 });
+        await expect(change(trial.id)).rejects.toThrow(/período de teste/);
+        await expect(change(w.plan.id)).rejects.toBeInstanceOf(
+          ConflictException,
+        );
+        await expect(
+          change('00000000-0000-4000-8000-000000000000'),
+        ).rejects.toBeInstanceOf(NotFoundException);
+        expect(await planOf()).toBe(w.plan.id);
+      });
+    });
   });
 
   describe('CompaniesService', () => {
@@ -294,6 +370,58 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await expect(
         as(w.owner.id, () => stores.remove(w.company.id, w.storeB.id)),
       ).rejects.toThrow(/comandas/);
+    });
+
+    it('lista as lojas excluídas e reativa com os acessos de antes', async () => {
+      const m = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeB.id, role: 'MANAGER' },
+      ]);
+      await as(w.owner.id, () => stores.remove(w.company.id, w.storeB.id));
+      const deleted = await stores.listDeleted(w.company.id);
+      expect(deleted.map((s) => s.id)).toEqual([w.storeB.id]);
+      expect(deleted[0].deletedAt).toBeInstanceOf(Date);
+
+      const restored = await as(w.owner.id, () =>
+        stores.restore(w.company.id, w.storeB.id),
+      );
+      expect(restored.id).toBe(w.storeB.id);
+      expect(await stores.listDeleted(w.company.id)).toEqual([]);
+      expect((await stores.list(w.company.id)).map((s) => s.id).sort()).toEqual(
+        [w.storeA.id, w.storeB.id].sort(),
+      );
+      const view = (await members.list(w.company.id)).find(
+        (x) => x.membershipId === m.membership.id,
+      )!;
+      expect(view.stores).toEqual([
+        { storeId: w.storeB.id, storeName: 'Loja B', role: 'MANAGER' },
+      ]);
+
+      await expect(
+        as(w.owner.id, () => stores.restore(w.company.id, w.storeB.id)),
+      ).rejects.toBeInstanceOf(ConflictException);
+      const other = await ctx.factory.world();
+      await expect(
+        as(w.owner.id, () => stores.restore(w.company.id, other.storeA.id)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('reativar respeita o limite de lojas do plano', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.plan.update({
+          where: { id: w.plan.id },
+          data: { maxStoresPerCompany: 2 },
+        }),
+      );
+      await as(w.owner.id, () => stores.remove(w.company.id, w.storeB.id));
+      await as(w.owner.id, () =>
+        stores.create(w.company.id, { ...ADDRESS, name: 'Loja C' }),
+      );
+      await expect(
+        as(w.owner.id, () => stores.restore(w.company.id, w.storeB.id)),
+      ).rejects.toThrow(/plano/);
+      expect((await stores.listDeleted(w.company.id)).map((s) => s.id)).toEqual(
+        [w.storeB.id],
+      );
     });
   });
 
@@ -508,6 +636,75 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       await expect(
         as(w.owner.id, () => members.remove(w.company.id, 'nao-existe')),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('lista os removidos com os papéis de antes e reativa com os mesmos acessos', async () => {
+      const m = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'MANAGER' },
+        { storeId: w.storeB.id, role: 'EMPLOYEE' },
+      ]);
+      await as(w.owner.id, () => members.remove(w.company.id, m.membership.id));
+
+      const removed = await members.listRemoved(w.company.id);
+      expect(removed).toHaveLength(1);
+      expect(removed[0]).toMatchObject({
+        membershipId: m.membership.id,
+        user: { id: m.user.id, email: m.user.email },
+      });
+      expect(removed[0].removedAt).toBeInstanceOf(Date);
+      expect(removed[0].stores.map((s) => `${s.storeName}:${s.role}`)).toEqual([
+        'Loja A:MANAGER',
+        'Loja B:EMPLOYEE',
+      ]);
+
+      await as(w.owner.id, () =>
+        members.restore(w.company.id, m.membership.id),
+      );
+      expect(await members.listRemoved(w.company.id)).toEqual([]);
+      const view = (await members.list(w.company.id)).find(
+        (x) => x.membershipId === m.membership.id,
+      )!;
+      expect(view.stores.map((s) => `${s.storeName}:${s.role}`)).toEqual([
+        'Loja A:MANAGER',
+        'Loja B:EMPLOYEE',
+      ]);
+      await expect(
+        as(w.owner.id, () => members.restore(w.company.id, m.membership.id)),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('a reativação não devolve loja revogada antes nem loja excluída', async () => {
+      const m = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'MANAGER' },
+        { storeId: w.storeB.id, role: 'EMPLOYEE' },
+      ]);
+      // Loja B revogada um dia antes da remoção.
+      await as(w.owner.id, () =>
+        members.removeFromStore(w.company.id, m.membership.id, w.storeB.id),
+      );
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.audit.withDeleted(() =>
+          ctx.prisma.membershipStore.updateMany({
+            where: { membershipId: m.membership.id, storeId: w.storeB.id },
+            data: { deletedAt: new Date(Date.now() - 86_400_000) },
+          }),
+        ),
+      );
+      await as(w.owner.id, () => members.remove(w.company.id, m.membership.id));
+      expect(
+        (await members.listRemoved(w.company.id))[0].stores.map(
+          (s) => s.storeName,
+        ),
+      ).toEqual(['Loja A']);
+
+      // Com a loja A excluída, não sobra acesso para devolver.
+      await as(w.owner.id, () => stores.remove(w.company.id, w.storeA.id));
+      await expect(
+        as(w.owner.id, () => members.restore(w.company.id, m.membership.id)),
+      ).rejects.toThrow(/Convide/);
+      expect(
+        (await members.listRemoved(w.company.id)).map((x) => x.membershipId),
+      ).toEqual([m.membership.id]);
     });
 
     it('registra no histórico quem mudou cada papel', async () => {

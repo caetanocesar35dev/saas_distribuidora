@@ -65,11 +65,46 @@ export const assinatura: Article[] = [
     minRole: "OWNER",
     audience: ["OWNER"],
     steps: [
-      "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano.",
+      "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano. Se o teste acabou, escolha antes um plano pago em Planos, na mesma tela.",
       "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: entre em contato informando o nome da empresa.",
       'Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso "fale com o responsável".',
     ],
-    related: ["assinatura-somente-leitura"],
+    related: ["assinatura-somente-leitura", "assinatura-mudar-plano"],
     keywords: ["pagar", "pagamento", "assinar", "regularizar", "plano"],
+  },
+  {
+    id: "assinatura-mudar-plano",
+    category: "assinatura",
+    title: "Mudar de plano (upgrade ou downgrade)",
+    purpose:
+      "Trocar o plano da assinatura quando a empresa cresce (mais lojas ou empresas) ou quando quer pagar menos.",
+    where: "Menu › Painel da empresa › Assinatura › Planos",
+    minRole: "OWNER",
+    who: "O responsável pela assinatura (quem criou a conta)",
+    audience: ["OWNER"],
+    steps: [
+      "Abra Menu › Painel da empresa › Assinatura. Em Planos aparecem todos os planos, com o preço por mês e quantas empresas e lojas cada um permite. O seu plano está marcado com Seu plano.",
+      "Os planos são: Essencial (1 loja), Básico (até 3 lojas), Profissional (até 10 lojas por empresa e até 3 empresas) e Rede (até 50 lojas por empresa e até 10 empresas). Precisa de mais? Fale com o suporte.",
+      "Clique em Fazer upgrade (plano maior) ou em Mudar para este plano (plano menor) e confirme. A mudança vale na hora; o valor novo vale a partir da próxima cobrança.",
+      "Para ir para um plano menor, a empresa precisa caber nele: se você tem mais lojas ou empresas do que o plano permite, o botão fica apagado e o motivo aparece embaixo. Exclua as lojas que sobram (Menu › Painel da empresa › Lojas) e tente de novo.",
+      "O Trial é o plano do período de teste: depois de escolher um plano pago, não dá para voltar a ele.",
+      "Dá para mudar de plano mesmo com o sistema em somente leitura (teste vencido ou mensalidade atrasada).",
+    ],
+    problems: [
+      {
+        message: "O plano ... permite ... loja(s) por empresa e ... tem ...",
+        fix: "Exclua as lojas que passam do limite em Menu › Painel da empresa › Lojas, ou escolha um plano maior.",
+      },
+      {
+        message: "O plano ... permite ... empresa(s) e você tem ...",
+        fix: "A sua conta tem mais empresas do que o plano permite. Escolha um plano maior ou fale com o suporte.",
+      },
+      {
+        message: "Só o responsável pela assinatura pode mudar o plano.",
+        fix: "Peça para quem criou a conta mudar o plano.",
+      },
+    ],
+    related: ["assinatura-regularizar", "gestao-lojas"],
+    keywords: ["plano", "upgrade", "downgrade", "mudar plano", "trocar plano", "mais lojas", "preço"],
   },
 ];

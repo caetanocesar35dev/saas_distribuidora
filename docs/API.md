@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **100 rotas**. Todas começam com `/api`.
+Total: **107 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -25,6 +25,9 @@ Total: **100 rotas**. Todas começam com `/api`.
 - `POST/PATCH /companies/:companyId/customers`: o campo `creditLimit` **exige gerente** (403 para o funcionário).
 - `POST /stores/:storeId/sales` e `POST /stores/:storeId/command-tabs/:id/close` no fiado: acima do limite de crédito do cliente (soma de todas as lojas), **funcionário recebe 403**; gerente e dono recebem 409, a menos que enviem `allowOverCreditLimit: true`. O funcionário passa enviando `managerApproval: { email, password }` de um gerente ou dono **desta loja** (400 se a senha estiver errada, 403 se não for gerente da loja, 429 depois de 5 erros por e-mail em 15 min).
 - `GET /companies/:companyId/products?deleted=true`: lista só os produtos excluídos; `POST /companies/:companyId/products/:id/restore` os reativa junto com as ofertas das lojas.
+- `PATCH /organizations/:organizationId/plan`: o responsável pela assinatura troca de plano (vale na hora, **liberado em somente leitura**). 409 para o plano gratuito (só do período de teste), para o plano atual e para o downgrade que não cabe (mais empresas, ou uma empresa com mais lojas, que o plano novo permite).
+- `GET /companies/:companyId/customers?deleted=true`: lista só os clientes excluídos, **exige gerente** (403 para o funcionário).
+- `POST /companies/:companyId/stores/:id/restore`: reativa a loja excluída respeitando o limite de lojas do plano (409 se já estiver no limite). `POST /companies/:companyId/members/:membershipId/restore` devolve à pessoa removida as lojas e os papéis que ela tinha ao sair (409 se todas essas lojas foram excluídas).
 - `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade).
 - Rotas `/platform/*`: `SUPPORT` só lê; `SUPERADMIN` lê e escreve (cada escrita aparece como "Plataforma: SUPERADMIN").
 
@@ -147,14 +150,17 @@ Total: **100 rotas**. Todas começam com `/api`.
 | GET | `/api/companies/:companyId/members` | Empresa: OWNER ou mais | Funciona |
 | POST | `/api/companies/:companyId/members` | Empresa: OWNER ou mais | Bloqueada (402) |
 | DELETE | `/api/companies/:companyId/members/:membershipId` | Empresa: OWNER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/members/:membershipId/restore` | Empresa: OWNER ou mais | Bloqueada (402) |
 | PUT | `/api/companies/:companyId/members/:membershipId/stores/:targetStoreId` | Empresa: OWNER ou mais | Bloqueada (402) |
 | DELETE | `/api/companies/:companyId/members/:membershipId/stores/:targetStoreId` | Empresa: OWNER ou mais | Bloqueada (402) |
+| GET | `/api/companies/:companyId/members/removed` | Empresa: OWNER ou mais | Funciona |
 
 ## organizations
 
 | Método | Rota | Quem pode | Em somente leitura |
 |---|---|---|---|
 | POST | `/api/organizations/:organizationId/companies` | Responsável pela cobrança | Bloqueada (402) |
+| PATCH | `/api/organizations/:organizationId/plan` | Responsável pela cobrança | **Funciona (exceção)** |
 | GET | `/api/organizations/mine` | Qualquer usuário logado | — |
 
 ## plans
@@ -178,6 +184,8 @@ Total: **100 rotas**. Todas começam com `/api`.
 | POST | `/api/platform/plans` | Plataforma: SUPERADMIN | — |
 | DELETE | `/api/platform/plans/:id` | Plataforma: SUPERADMIN | — |
 | PATCH | `/api/platform/plans/:id` | Plataforma: SUPERADMIN | — |
+| POST | `/api/platform/plans/:id/restore` | Plataforma: SUPERADMIN | — |
+| GET | `/api/platform/plans/deleted` | Plataforma: SUPPORT ou SUPERADMIN | — |
 | GET | `/api/platform/users` | Plataforma: SUPPORT ou SUPERADMIN | — |
 | PATCH | `/api/platform/users/:id/active` | Plataforma: SUPERADMIN | — |
 
@@ -207,3 +215,5 @@ Total: **100 rotas**. Todas começam com `/api`.
 | GET | `/api/companies/:companyId/stores/:id` | Empresa: EMPLOYEE ou mais | Funciona |
 | DELETE | `/api/companies/:companyId/stores/:id` | Empresa: OWNER ou mais | Bloqueada (402) |
 | PATCH | `/api/companies/:companyId/stores/:id` | Empresa: OWNER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/stores/:id/restore` | Empresa: OWNER ou mais | Bloqueada (402) |
+| GET | `/api/companies/:companyId/stores/deleted` | Empresa: OWNER ou mais | Funciona |

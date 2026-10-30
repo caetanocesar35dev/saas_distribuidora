@@ -358,7 +358,7 @@ function CustomerBody({ customer }: { customer: Customer }) {
         open={dialog === "delete"}
         onOpenChange={(open) => !open && setDialog(null)}
         title={`Excluir ${customer.name}?`}
-        description="O cliente sai da lista. Não é possível excluir quem ainda deve dinheiro ou vasilhames em alguma loja."
+        description="O cliente sai da lista, mas os dados e as vendas dele ficam guardados: para trazê-lo de volta, marque Mostrar só os excluídos em Clientes e clique em Reativar. Não é possível excluir quem ainda deve dinheiro ou vasilhames em alguma loja."
         confirmLabel="Excluir cliente"
         destructive
         pending={remove.isPending}

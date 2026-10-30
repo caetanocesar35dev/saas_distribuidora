@@ -8,8 +8,17 @@ import { PageHeader, QueryBoundary } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
 import { SelectField } from "@/components/app/inputs";
 import { PlatformActionButton } from "@/components/app/platform-button";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   usePlatformOrganization,
   usePlatformPlans,
@@ -183,12 +192,60 @@ function OrganizationBody({ org }: { org: PlatformOrganization }) {
               <p className="text-xs text-muted-foreground">
                 {c.razaoSocial} · CNPJ {formatCnpj(c.cnpj)}
               </p>
-              <p className="mt-1 text-muted-foreground">
-                Lojas: {c.stores.map((s) => s.name).join(", ") || "nenhuma"}
-              </p>
+              {c.stores.length === 0 ? (
+                <p className="mt-1 text-muted-foreground">Nenhuma loja.</p>
+              ) : (
+                <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                  {c.stores.map((s) => (
+                    <li key={s.id}>
+                      <Badge variant={s.deletedAt ? "secondary" : "outline"}>
+                        {s.name}
+                        {s.deletedAt && ` (excluída em ${formatDate(s.deletedAt)})`}
+                      </Badge>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           ))}
         </ul>
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-medium">Pessoas</h2>
+        {org.people.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Ninguém com acesso.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Situação</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {org.people.map((p) => (
+                  <TableRow key={`${p.companyId}-${p.user.id}`}>
+                    <TableCell className="font-medium">{p.user.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{p.user.email}</TableCell>
+                    <TableCell>{p.companyName}</TableCell>
+                    <TableCell className="space-x-1 whitespace-nowrap">
+                      {p.removedAt ? (
+                        <Badge variant="secondary">Removida em {formatDate(p.removedAt)}</Badge>
+                      ) : (
+                        <Badge variant="outline">Com acesso</Badge>
+                      )}
+                      {!p.user.isActive && <Badge variant="destructive">Conta desativada</Badge>}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
     </div>
   );

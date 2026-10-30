@@ -15,6 +15,17 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { InviteMemberDto } from './dto/account.dto';
 
+/**
+ * Acessos revogados junto com o vínculo: a remoção grava os dois na mesma transação, mas as
+ * remoções antigas (e a revogação da última loja) usavam datas separadas por milissegundos.
+ */
+const REVOKE_WINDOW_MS = 5_000;
+
+function revokedWithMembership(storeRevokedAt: Date, removedAt: Date) {
+  const diff = removedAt.getTime() - storeRevokedAt.getTime();
+  return diff >= 0 && diff <= REVOKE_WINDOW_MS;
+}
+
 @Injectable()
 export class MembershipsService {
   constructor(
@@ -190,9 +201,10 @@ export class MembershipsService {
     await this.assertMembershipAndStore(companyId, membershipId, storeId);
 
     await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
       const revoked = await tx.membershipStore.updateMany({
         where: { membershipId, storeId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: now },
       });
       if (revoked.count === 0)
         throw new NotFoundException('O membro não tem acesso a esta loja.');
@@ -203,7 +215,7 @@ export class MembershipsService {
       if (remaining === 0) {
         await tx.membership.update({
           where: { id: membershipId },
-          data: { deletedAt: new Date() },
+          data: { deletedAt: now },
         });
       }
       await this.assertCompanyKeepsOwner(tx, companyId);
@@ -219,17 +231,105 @@ export class MembershipsService {
     if (!membership) throw new NotFoundException('Membro não encontrado.');
 
     await this.prisma.$transaction(async (tx) => {
+      // A mesma data no vínculo e nos acessos: a reativação devolve exatamente estes acessos.
+      const now = new Date();
       await tx.membershipStore.updateMany({
         where: { membershipId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: now },
       });
       await tx.membership.update({
         where: { id: membershipId },
-        data: { deletedAt: new Date() },
+        data: { deletedAt: now },
       });
       await this.assertCompanyKeepsOwner(tx, companyId);
     });
     return { message: 'Membro removido.' };
+  }
+
+  /**
+   * Pessoas removidas da empresa (as mais recentes primeiro), com as lojas e os papéis que tinham
+   * no momento da remoção (só lojas ativas), para o dono ver e reativar.
+   */
+  async listRemoved(companyId: string) {
+    const members = await this.audit.withDeleted(() =>
+      this.prisma.membership.findMany({
+        where: { companyId, deletedAt: { not: null } },
+        select: {
+          id: true,
+          deletedAt: true,
+          user: {
+            select: { id: true, name: true, email: true, isActive: true },
+          },
+          stores: {
+            where: { deletedAt: { not: null }, store: { deletedAt: null } },
+            select: {
+              storeId: true,
+              role: true,
+              deletedAt: true,
+              store: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { deletedAt: 'desc' },
+      }),
+    );
+    return members.map((m) => ({
+      membershipId: m.id,
+      user: m.user,
+      removedAt: m.deletedAt!,
+      stores: m.stores
+        .filter((s) => revokedWithMembership(s.deletedAt!, m.deletedAt!))
+        .map((s) => ({
+          storeId: s.storeId,
+          storeName: s.store.name,
+          role: s.role,
+        }))
+        .sort((a, b) => a.storeName.localeCompare(b.storeName)),
+    }));
+  }
+
+  /**
+   * Reativa uma pessoa removida com os acessos que ela tinha quando saiu (as lojas revogadas junto
+   * com o vínculo). Lojas revogadas antes, uma a uma, não voltam. Se todas essas lojas foram
+   * excluídas, não há o que reativar: o dono convida de novo.
+   */
+  async restore(companyId: string, membershipId: string) {
+    const membership = await this.audit.withDeleted(() =>
+      this.prisma.membership.findFirst({
+        where: { id: membershipId, companyId },
+        select: { deletedAt: true },
+      }),
+    );
+    if (!membership) throw new NotFoundException('Membro não encontrado.');
+    const removedAt = membership.deletedAt;
+    if (!removedAt)
+      throw new ConflictException('A pessoa já faz parte da equipe.');
+
+    await this.audit.withDeleted(() =>
+      this.prisma.$transaction(async (tx) => {
+        const restored = await tx.membershipStore.updateMany({
+          where: {
+            membershipId,
+            deletedAt: {
+              gte: new Date(removedAt.getTime() - REVOKE_WINDOW_MS),
+              lte: removedAt,
+            },
+            store: { deletedAt: null },
+          },
+          data: { deletedAt: null },
+        });
+        if (restored.count === 0) {
+          throw new ConflictException(
+            'As lojas que esta pessoa acessava foram excluídas. Convide-a de novo, escolhendo as lojas.',
+          );
+        }
+        await tx.membership.update({
+          where: { id: membershipId },
+          data: { deletedAt: null },
+        });
+      }),
+    );
+    return { message: 'Pessoa reativada na equipe.' };
   }
 
   private async assertMembershipAndStore(

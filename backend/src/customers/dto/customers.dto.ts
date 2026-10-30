@@ -85,6 +85,14 @@ export class ListCustomersQuery extends PaginationQueryDto {
   )
   @IsBoolean()
   withDebt?: boolean;
+
+  /** Só os clientes excluídos, para reativar (gerente ou dono; o service recusa o atendente). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  deleted?: boolean;
 }
 
 export class PaymentAllocationDto {

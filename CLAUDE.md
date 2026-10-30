@@ -56,6 +56,12 @@ os campos é a extensão do Prisma).
 - **Soft delete obrigatório:** o banco recusa `DELETE`. Excluir =
   `deletedAt = now()`. Consultas filtram `deletedAt: null`. Os únicos são globais:
   reative o registro em vez de recriar.
+- **Excluído tem que ser visível e reativável pela tela (decidido pelo usuário, 2026-10-30):** é
+  para isso que existe o soft delete. Hoje: produtos e clientes ("Mostrar só os excluídos",
+  gerente/dono), lojas ("Mostrar as lojas excluídas") e equipe ("Mostrar quem foi removido",
+  devolve os mesmos acessos), ambos só o dono, e planos na `/plataforma`; o detalhe da
+  organização na plataforma mostra lojas excluídas e pessoas removidas. Exclusão nova: dê também
+  a listagem (`withDeleted`) e o `restore`.
 - Sem `onDelete: Cascade`; as relações usam `Restrict`.
 - `StoreBottleType.stock` e os saldos de cliente (`CustomerStoreBalance.balance`,
   `CustomerStoreBottleBalance.balance`) **não têm histórico**: só mudam junto com o
@@ -97,6 +103,17 @@ os campos é a extensão do Prisma).
   de fiado**, até a assinatura ser paga.
 - Gateway: **Asaas** (cartão recorrente + Pix Automático). O número do cartão nunca
   passa pela nossa API nem pelo nosso frontend.
+- **Planos (decidido pelo usuário, 2026-10-30):** Trial R$ 0 (1 empresa, 2 lojas; só para o
+  período de teste), Essencial R$ 99 (1 loja), Básico R$ 179 (até 3 lojas), Profissional R$ 349
+  (3 empresas, até 10 lojas cada) e Rede R$ 599 (10 empresas, até 50 lojas cada; **nenhum plano
+  ilimitado**, decidido pelo usuário: arriscado demais). Ficam no seed (`syncPlans`, roda
+  sempre e atualiza pelo nome) e se editam em Plataforma › Planos.
+- **O dono troca de plano sozinho** (`PATCH /organizations/:id/plan`, só o responsável pela
+  assinatura; tela Assinatura › Planos): upgrade e downgrade valem **na hora**, o valor novo vale
+  na próxima cobrança, e a situação da assinatura não muda. Downgrade que não cabe (mais empresas,
+  ou uma empresa com mais lojas, que o plano novo) → 409. Plano gratuito (`priceInCents = 0`, o
+  Trial) não pode ser escolhido na troca. Liberado em somente leitura. A plataforma continua
+  podendo pôr qualquer plano (ajuste manual, sem essa conferência).
 
 **Código**
 - Bodies tipados com classe DTO (class-validator), nunca `any` ou `Dto & {...}` (isso
@@ -242,7 +259,12 @@ npm run lint                       # formata (Prettier) e confere; deve terminar
 npm test                           # todos os testes (unitários, de service e e2e)
 npm run db:seed                    # dados de demonstração (dev; não duplica)
 npm run docs:api                   # regenera docs/API.md
+npm run mail:test -- dest@x.com    # envia de verdade os 3 e-mails de exemplo (confere o SMTP)
 ```
+
+- **E-mail (configurado pelo usuário em 2026-10-30, Gmail com senha de app):** textos em
+  `src/mail/templates.ts` (HTML de e-mail em tabelas com estilos inline + texto puro). E-mail novo:
+  crie a função lá e use-a no `MailService` e no `FakeMailService` dos testes.
 
 - `prisma migrate dev` **não funciona em sessão não interativa**. Para criar uma
   migration: alterar o schema, gerar o SQL com

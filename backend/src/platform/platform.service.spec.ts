@@ -108,6 +108,27 @@ describe('PlatformService', () => {
         as(() => platform.removePlan(free.id)),
       ).resolves.toBeTruthy();
     });
+
+    it('lista os planos excluídos e reativa', async () => {
+      const kept = await ctx.factory.plan();
+      const gone = await ctx.factory.plan();
+      await as(() => platform.removePlan(gone.id));
+
+      const deleted = await platform.listDeletedPlans();
+      expect(deleted.map((p) => p.id)).toEqual([gone.id]);
+      expect(deleted[0].deletedAt).toBeInstanceOf(Date);
+      expect((await platform.listPlans()).map((p) => p.id)).toEqual([kept.id]);
+
+      const restored = await as(() => platform.restorePlan(gone.id));
+      expect(restored.id).toBe(gone.id);
+      expect(await platform.listDeletedPlans()).toEqual([]);
+      await expect(
+        as(() => platform.restorePlan(gone.id)),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        as(() => platform.restorePlan('nao-existe')),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   describe('organizações', () => {
@@ -174,6 +195,37 @@ describe('PlatformService', () => {
       await expect(
         platform.getOrganization('nao-existe'),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('detalhe mostra as lojas excluídas e as pessoas removidas, com a data', async () => {
+      const w = await ctx.factory.world();
+      const m = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'EMPLOYEE' },
+      ]);
+      await ctx.audit.runAsSystem('seed', async () => {
+        await ctx.prisma.store.update({
+          where: { id: w.storeB.id },
+          data: { deletedAt: new Date() },
+        });
+        await ctx.prisma.membership.update({
+          where: { id: m.membership.id },
+          data: { deletedAt: new Date() },
+        });
+      });
+
+      const detail = await platform.getOrganization(w.organization.id);
+      const stores = detail.companies[0].stores;
+      expect(stores.find((s) => s.id === w.storeA.id)?.deletedAt).toBeNull();
+      expect(
+        stores.find((s) => s.id === w.storeB.id)?.deletedAt,
+      ).toBeInstanceOf(Date);
+      expect(
+        detail.people.map((p) => [p.user.id, p.removedAt !== null]),
+      ).toEqual([
+        [w.owner.id, false],
+        [m.user.id, true],
+      ]);
+      expect(detail.people[0].companyId).toBe(w.company.id);
     });
 
     it('entrar em PAST_DUE marca o início do atraso; continuar em PAST_DUE não reinicia a carência', async () => {

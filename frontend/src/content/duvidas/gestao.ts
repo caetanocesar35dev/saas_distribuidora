@@ -65,6 +65,7 @@ export const gestao: Article[] = [
       "Para mudar o papel, use a lista ao lado da loja, na linha da pessoa. O papel pode ser diferente em cada loja.",
       "Para dar acesso a outra loja, clique no nome da loja em Dar acesso também a.",
       "Para retirar o acesso de uma loja, use a lixeira da linha. Para tirar da empresa toda, use Remover da empresa.",
+      "Para ver quem saiu, marque Mostrar quem foi removido, no fim da página: aparece a data e as lojas e papéis que a pessoa tinha. Reativar devolve exatamente esses acessos.",
     ],
     problems: [
       {
@@ -75,8 +76,12 @@ export const gestao: Article[] = [
         message: "A empresa precisa ter pelo menos um dono (OWNER).",
         fix: "Antes de tirar ou rebaixar este dono, deixe outra pessoa como dono.",
       },
+      {
+        message: "As lojas que esta pessoa acessava foram excluídas.",
+        fix: "Não há acesso para devolver. Convide a pessoa de novo, escolhendo as lojas e os papéis.",
+      },
     ],
-    related: ["acesso-convite", "gestao-historico"],
+    related: ["acesso-convite", "gestao-historico", "faq-excluir-engano"],
     keywords: ["convidar", "equipe", "funcionário", "papel", "permissão", "acesso"],
   },
   {
@@ -94,12 +99,13 @@ export const gestao: Article[] = [
       "Se a busca não encontrar o CNPJ ou estiver fora do ar, preencha o endereço você mesmo.",
       "Para mudar endereço ou telefone, clique em Editar.",
       "Em Fechamento automático do caixa, escolha o horário em que o caixa esquecido aberto fecha sozinho todo dia (padrão: meia-noite). Use um horário depois do fim do expediente, por exemplo 02:00 para quem fecha de madrugada.",
-      "Para excluir, clique em Excluir e confirme.",
+      "Para excluir, clique em Excluir e confirme. As vendas, o estoque e o histórico da loja ficam guardados.",
+      "Para ver as lojas excluídas, marque Mostrar as lojas excluídas, no fim da página: aparecem o endereço e a data da exclusão. Reativar traz a loja de volta com as vendas, o estoque e a equipe de antes.",
     ],
     problems: [
       {
         message: "O plano permite no máximo ... loja(s) por empresa.",
-        fix: "Você atingiu o limite do plano. Fale com o suporte para mudar de plano.",
+        fix: "Você atingiu o limite do plano (vale também para reativar uma loja excluída). Exclua outra loja ou fale com o suporte para mudar de plano.",
       },
       {
         message: "CNPJ inválido.",
@@ -118,8 +124,16 @@ export const gestao: Article[] = [
         fix: "Feche ou cancele as comandas abertas em Menu › Comandas.",
       },
     ],
-    related: ["gestao-equipe"],
-    keywords: ["nova loja", "filial", "endereço", "cnpj da loja", "cnpj alfanumérico"],
+    related: ["gestao-equipe", "faq-excluir-engano"],
+    keywords: [
+      "nova loja",
+      "filial",
+      "endereço",
+      "cnpj da loja",
+      "cnpj alfanumérico",
+      "reativar loja",
+      "loja excluída",
+    ],
   },
   {
     id: "gestao-empresa",

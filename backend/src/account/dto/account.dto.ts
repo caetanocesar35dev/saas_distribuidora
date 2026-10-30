@@ -32,6 +32,14 @@ const trim = ({ value }: { value: unknown }) =>
 const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
+// ---- Organização ---------------------------------------------------------------------------
+
+/** Troca de plano feita pelo próprio responsável pela assinatura. */
+export class ChangePlanDto {
+  @IsUUID()
+  planId: string;
+}
+
 // ---- Company -----------------------------------------------------------------------------
 
 export class CreateCompanyDto {

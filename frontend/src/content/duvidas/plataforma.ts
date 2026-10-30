@@ -14,7 +14,8 @@ export const plataforma: Article[] = [
     audience: [],
     steps: [
       "Abra Área da plataforma › Organizações. Use a busca (nome ou e-mail do responsável) e os filtros de situação e plano.",
-      "Clique em Abrir para ver o responsável, o plano, as datas, quantos usuários têm acesso e as empresas e lojas.",
+      "Clique em Abrir para ver o responsável, o plano, as datas, quantos usuários têm acesso e as empresas e lojas. As lojas excluídas aparecem com a data da exclusão.",
+      "Em Pessoas, veja todos que já tiveram acesso a cada empresa: quem ainda tem acesso, quem foi removido (com a data) e as contas desativadas.",
       "Em Ajustar a assinatura, mude a situação, o plano, o fim do teste ou a data de atraso e clique em Salvar ajuste.",
       'A mudança vale na hora, em todas as lojas da organização. Ao marcar "Pagamento em atraso", a data de atraso é preenchida com hoje (a carência de 5 dias conta a partir dela).',
     ],
@@ -41,6 +42,7 @@ export const plataforma: Article[] = [
       "Para criar, clique em Novo plano: nome, preço por mês e os limites de empresas e de lojas por empresa. Limite vazio é ilimitado.",
       "Para mudar, clique em Editar. A mudança vale para quem já usa o plano.",
       "Para excluir, use a lixeira. Só é possível se nenhuma organização usa o plano.",
+      "Para ver os planos excluídos, marque Mostrar os planos excluídos, no fim da página. Reativar (só o administrador) faz o plano voltar a valer.",
     ],
     problems: [
       {
@@ -49,7 +51,7 @@ export const plataforma: Article[] = [
       },
     ],
     related: ["plataforma-organizacoes"],
-    keywords: ["plano", "preço", "limite"],
+    keywords: ["plano", "preço", "limite", "reativar plano", "plano excluído"],
   },
   {
     id: "plataforma-usuarios",

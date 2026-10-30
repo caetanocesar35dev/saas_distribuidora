@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AuditContext } from '../audit/audit-context';
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/account.dto';
@@ -35,7 +36,10 @@ const STORE_SELECT = {
 
 @Injectable()
 export class StoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditContext,
+  ) {}
 
   list(companyId: string) {
     return this.prisma.store.findMany({
@@ -137,5 +141,85 @@ export class StoresService {
       data: { deletedAt: new Date() },
     });
     return { message: 'Loja excluída.' };
+  }
+
+  /** Lojas excluídas da empresa (as mais recentes primeiro), para o dono ver e reativar. */
+  listDeleted(companyId: string) {
+    return this.audit.withDeleted(() =>
+      this.prisma.store.findMany({
+        where: { companyId, deletedAt: { not: null } },
+        select: { ...STORE_SELECT, deletedAt: true },
+        orderBy: { deletedAt: 'desc' },
+      }),
+    );
+  }
+
+  /**
+   * Reativa uma loja excluída, respeitando o limite de lojas do plano. Vendas, estoque, caixas e
+   * acessos da equipe continuam ligados a ela e voltam junto. Os donos atuais da empresa que não
+   * tinham acesso a ela (ex.: entraram depois da exclusão) ganham OWNER, como numa loja nova.
+   */
+  async restore(companyId: string, id: string) {
+    const [store, company] = await Promise.all([
+      this.audit.withDeleted(() =>
+        this.prisma.store.findFirst({
+          where: { id, companyId },
+          select: { id: true, deletedAt: true },
+        }),
+      ),
+      this.prisma.company.findFirst({
+        where: { id: companyId },
+        select: {
+          organization: {
+            select: { plan: { select: { maxStoresPerCompany: true } } },
+          },
+        },
+      }),
+    ]);
+    if (!store || !company) throw new NotFoundException('Loja não encontrada.');
+    if (!store.deletedAt)
+      throw new ConflictException('A loja não está excluída.');
+
+    await this.audit.withDeleted(() =>
+      this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'company-stores:' + companyId}))`;
+
+        const max = company.organization.plan.maxStoresPerCompany;
+        const active = await tx.store.count({
+          where: { companyId, deletedAt: null },
+        });
+        if (max !== null && active >= max) {
+          throw new ConflictException(
+            `O plano permite no máximo ${max} loja(s) por empresa. Exclua outra loja ou mude de plano para reativar esta.`,
+          );
+        }
+
+        await tx.store.update({ where: { id }, data: { deletedAt: null } });
+
+        const owners = await tx.membershipStore.findMany({
+          where: {
+            role: 'OWNER',
+            deletedAt: null,
+            store: { deletedAt: null, companyId, id: { not: id } },
+            membership: { deletedAt: null, companyId },
+          },
+          select: { membershipId: true },
+          distinct: ['membershipId'],
+        });
+        for (const { membershipId } of owners) {
+          const access = await tx.membershipStore.findUnique({
+            where: { membershipId_storeId: { membershipId, storeId: id } },
+            select: { deletedAt: true },
+          });
+          if (access && !access.deletedAt) continue;
+          await tx.membershipStore.upsert({
+            where: { membershipId_storeId: { membershipId, storeId: id } },
+            create: { membershipId, storeId: id, role: 'OWNER' },
+            update: { role: 'OWNER', deletedAt: null },
+          });
+        }
+      }),
+    );
+    return this.get(companyId, id);
   }
 }

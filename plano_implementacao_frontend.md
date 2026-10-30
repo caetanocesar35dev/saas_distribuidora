@@ -532,6 +532,12 @@ automático e manual, e os saldos se atualizam.
      responsável pela assinatura" em vez do botão de pagar.
    - Recarregar `GET /api/me/memberships` periodicamente e ao voltar para a aba, para o
      acesso completo voltar sozinho quando a assinatura for regularizada.
+3. ✅ **Troca de plano pelo dono (decisão do usuário, 2026-10-30).** Assinatura › Planos: cartões
+   dos planos pagos (o Trial é só do teste e não aparece) com preço e limites, "Seu plano" no
+   atual e "Fazer upgrade"/"Mudar para este plano" só para o responsável pela assinatura (liberado
+   em somente leitura). O plano que não cabe (empresas ou lojas por empresa) fica apagado com o
+   motivo (`planFit` em `src/lib/plans.ts`, a mesma conta do backend). Vale na hora; artigo
+   `assinatura-mudar-plano` na Central de Dúvidas.
 
 ### 8b. Depende da cobrança com Asaas (Fase 10 do backend, AINDA NÃO FEITA)
 🛑 **Não implementar** até o backend ter os endpoints `/api/organizations/:organizationId/billing/*`.
@@ -617,10 +623,11 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 
 1. **Swagger sem schemas** de corpo e resposta (por isso os tipos à mão). Adicionar
    `@ApiProperty`/plugin do Nest resolveria e permitiria gerar os tipos.
-2. **Listagem de excluídos:** ✅ produtos têm desde 2026-10-26 (`?deleted=true` e "Mostrar só
-   os excluídos"). Tipos de vasilhame continuam se reativando pelo erro 409, e **cliente
-   excluído segue sem caminho na interface** (só pela API; item 19 de
-   `docs/a_fazer.md`).
+2. **Listagem de excluídos:** ✅ produtos desde 2026-10-26; ✅ desde 2026-10-30 também
+   clientes ("Mostrar só os excluídos", gerente ou dono), lojas ("Mostrar as lojas excluídas"),
+   equipe ("Mostrar quem foi removido", reativa com os mesmos acessos) e planos da plataforma; o
+   detalhe da organização na plataforma mostra lojas excluídas e pessoas removidas (item 19 de
+   `docs/a_fazer.md`). Tipos de vasilhame continuam se reativando pelo erro 409.
 3. ✅ Resolvido em 2026-10-21: o `HideCostInterceptor` tira custo e lucro de toda resposta para
    o atendente (antes `GET /sales` entregava `costPrice` e `totalCost`).
 4. O motivo do ajuste de inventário só vai para o log do servidor (já era a parada P9 do backend).

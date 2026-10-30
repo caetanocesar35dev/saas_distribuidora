@@ -22,6 +22,7 @@ npm run start:prod   # roda o build (node dist/src/main)
 npm run lint         # formata (Prettier) e confere
 npm run db:seed      # dados de demonstração (não duplica; recusa rodar em produção)
 npm run docs:api     # regenera ../docs/API.md a partir dos controllers
+npm run mail:test -- destino@exemplo.com   # envia os 3 e-mails de exemplo (confere o SMTP)
 npm test             # todos os testes (services e e2e)
 npm run test:unit    # só os testes de service/unitários (src/**/*.spec.ts)
 npm run test:e2e     # só os e2e HTTP (test/*.e2e-spec.ts)
@@ -51,6 +52,14 @@ as variáveis com os padrões. **Obrigatórias:** `DATABASE_URL` e `JWT_SECRET` 
 segredo). Em produção também `CORS_ORIGINS` e `APP_URL` (em desenvolvimento o padrão de
 ambas é `http://localhost:3000`, a porta do Next). Sem `EMAIL_USER`/`EMAIL_PASS` nenhum
 e-mail é enviado (a mensagem aparece só no log).
+
+**E-mail:** o envio é por SMTP com nodemailer. Com Gmail, `EMAIL_PASS` é uma **senha de app**
+(conta com verificação em duas etapas; gere em https://myaccount.google.com/apppasswords), não a
+senha da conta. `EMAIL_FROM` pode ter nome (`"Distribuidora <conta@gmail.com>"`). Os textos ficam
+em `src/mail/templates.ts` (redefinição de senha, convite e lembrete de assinatura, em HTML de
+e-mail com versão em texto puro) e `npm run mail:test` envia os três de exemplo. O Gmail gratuito
+envia cerca de 500 e-mails por dia; em produção, prefira um domínio próprio com um serviço de
+e-mail transacional (só mudam as variáveis `EMAIL_*`).
 
 Sessão: access token de 15 min (`JWT_ACCESS_EXPIRES_IN`) e refresh token com rotação de
 30 dias (`REFRESH_TOKEN_DAYS`).

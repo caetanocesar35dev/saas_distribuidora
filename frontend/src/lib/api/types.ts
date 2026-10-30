@@ -177,6 +177,11 @@ export interface Store {
   createdAt: string;
 }
 
+/** Loja excluída (`GET /stores/deleted`, só o dono). */
+export interface DeletedStore extends Store {
+  deletedAt: string;
+}
+
 export interface StoreBody {
   name: string;
   cnpj?: string;
@@ -195,6 +200,11 @@ export interface Member {
   membershipId: string;
   user: { id: string; name: string; email: string; isActive: boolean };
   stores: MembershipStoreView[];
+}
+
+/** Pessoa removida da empresa, com as lojas e os papéis que tinha ao sair (os que voltam). */
+export interface RemovedMember extends Member {
+  removedAt: string;
 }
 
 export interface InviteMemberBody {
@@ -221,8 +231,20 @@ export interface OrganizationSummary {
     maxCompanies: number | null;
     maxStoresPerCompany: number | null;
   };
-  companies: { id: string; razaoSocial: string; nomeFantasia: string | null }[];
+  /** `storeCount` = lojas ativas da empresa (para saber se cabe num plano menor). */
+  companies: {
+    id: string;
+    razaoSocial: string;
+    nomeFantasia: string | null;
+    storeCount: number;
+  }[];
   isBillingOwner: boolean;
+}
+
+/** `PATCH /organizations/:id/plan` (só o responsável pela assinatura). */
+export interface ChangePlanResponse {
+  message: string;
+  plan: Plan;
 }
 
 export interface CreateCompanyBody {
@@ -561,6 +583,8 @@ export interface Customer {
 /** Item da lista de clientes: já vem com a dívida de fiado por loja (só lojas que a pessoa vê). */
 export interface CustomerListItem extends Customer {
   debts: { storeId: string; balance: number }[];
+  /** Preenchido só na lista de excluídos (`deleted=true`, gerente ou dono). */
+  deletedAt: string | null;
 }
 
 export interface CustomerBody {
@@ -720,6 +744,8 @@ export interface UnreadCount {
 export interface PlatformPlan extends Plan {
   createdAt: string;
   organizations?: number;
+  /** Só nos planos excluídos (`GET /platform/plans/deleted`). */
+  deletedAt?: string;
 }
 
 export interface PlanBody {
@@ -757,9 +783,17 @@ export interface PlatformOrganization {
     cnpj: string;
     razaoSocial: string;
     nomeFantasia: string | null;
-    stores: { id: string; name: string }[];
+    /** Inclui as lojas excluídas (`deletedAt` preenchido). */
+    stores: { id: string; name: string; deletedAt: string | null }[];
   }[];
   userCount: number;
+  /** Todos que já tiveram acesso, por empresa; `removedAt` preenchido = removido da empresa. */
+  people: {
+    user: { id: string; name: string; email: string; isActive: boolean };
+    companyId: string;
+    companyName: string;
+    removedAt: string | null;
+  }[];
 }
 
 export interface UpdateOrganizationBody {

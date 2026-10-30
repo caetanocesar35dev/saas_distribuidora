@@ -97,6 +97,33 @@ export class PlatformService {
     return { message: 'Plano excluído.' };
   }
 
+  /** Planos excluídos (soft delete), para o SUPERADMIN ver e reativar. */
+  listDeletedPlans() {
+    return this.audit.withDeleted(() =>
+      this.prisma.plan.findMany({
+        where: { deletedAt: { not: null } },
+        select: { ...PLAN_SELECT, deletedAt: true },
+        orderBy: { deletedAt: 'desc' },
+      }),
+    );
+  }
+
+  async restorePlan(id: string) {
+    const plan = await this.audit.withDeleted(() =>
+      this.prisma.plan.findFirst({
+        where: { id },
+        select: { deletedAt: true },
+      }),
+    );
+    if (!plan) throw new NotFoundException('Plano não encontrado.');
+    if (!plan.deletedAt)
+      throw new ConflictException('O plano não está excluído.');
+    await this.audit.withDeleted(() =>
+      this.prisma.plan.update({ where: { id }, data: { deletedAt: null } }),
+    );
+    return this.getPlan(id);
+  }
+
   private async getPlan(id: string) {
     const plan = await this.prisma.plan.findFirst({
       where: { id },
@@ -187,9 +214,10 @@ export class PlatformService {
             cnpj: true,
             razaoSocial: true,
             nomeFantasia: true,
+            // Inclui as lojas excluídas (com a data), para o suporte ver tudo o que o cliente tem.
             stores: {
-              where: { deletedAt: null },
-              select: { id: true, name: true },
+              select: { id: true, name: true, deletedAt: true },
+              orderBy: { name: 'asc' },
             },
           },
           orderBy: { razaoSocial: 'asc' },
@@ -206,7 +234,35 @@ export class PlatformService {
       select: { userId: true },
       distinct: ['userId'],
     });
-    return { ...org, userCount: users.length };
+
+    // Todas as pessoas que já tiveram acesso, inclusive as removidas da empresa (com a data).
+    const memberships = await this.audit.withDeleted(() =>
+      this.prisma.membership.findMany({
+        where: { company: { organizationId: id, deletedAt: null } },
+        select: {
+          deletedAt: true,
+          company: {
+            select: { id: true, razaoSocial: true, nomeFantasia: true },
+          },
+          user: {
+            select: { id: true, name: true, email: true, isActive: true },
+          },
+        },
+      }),
+    );
+    const people = memberships
+      .map((m) => ({
+        user: m.user,
+        companyId: m.company.id,
+        companyName: m.company.nomeFantasia || m.company.razaoSocial,
+        removedAt: m.deletedAt,
+      }))
+      .sort(
+        (a, b) =>
+          Number(a.removedAt !== null) - Number(b.removedAt !== null) ||
+          a.user.name.localeCompare(b.user.name),
+      );
+    return { ...org, userCount: users.length, people };
   }
 
   /**

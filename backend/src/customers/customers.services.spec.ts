@@ -306,6 +306,40 @@ describe('Serviços de clientes e fiado', () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
+    it('lista só os excluídos (com a data) para gerente e dono; o atendente é recusado', async () => {
+      const kept = await ctx.factory.customer(w.company.id);
+      const gone = await ctx.factory.customer(w.company.id);
+      await as(() => customers.remove(w.company.id, gone.id));
+      const other = await ctx.factory.world();
+      const foreign = await ctx.factory.customer(other.company.id);
+      await ctx.asRequest(
+        () => customers.remove(other.company.id, foreign.id),
+        { userId: other.owner.id, endpoint: 'DELETE /api/teste' },
+      );
+
+      const deleted = await customers.list(
+        w.company.id,
+        { ...page, deleted: true },
+        { role: 'MANAGER', storeIds: [w.storeA.id] },
+      );
+      expect(deleted.data.map((c) => c.id)).toEqual([gone.id]);
+      expect(deleted.data[0].deletedAt).toBeInstanceOf(Date);
+      expect(deleted.data[0].debts).toEqual([]);
+      expect(
+        (await customers.list(w.company.id, page, owner())).data.map(
+          (c) => c.id,
+        ),
+      ).toEqual([kept.id]);
+
+      await expect(
+        customers.list(
+          w.company.id,
+          { ...page, deleted: true },
+          { role: 'EMPLOYEE', storeIds: [w.storeA.id] },
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
     it('não exclui cliente com fiado ou com vasilhame em aberto', async () => {
       const c = await ctx.factory.customer(w.company.id);
       await ctx.factory.debt(c.id, w.storeA.id, 10);

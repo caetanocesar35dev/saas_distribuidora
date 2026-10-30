@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -15,7 +15,9 @@ import {
   RequireCompanyOwnerPage,
 } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -27,11 +29,19 @@ import {
 import { MaskedInput } from "@/components/app/inputs";
 import { Input } from "@/components/ui/input";
 import { useCnpjAutofill } from "@/hooks/use-cnpj-autofill";
-import { useDeleteStore, useSaveStore, useStores } from "@/lib/api/hooks/admin";
+import {
+  useDeletedStores,
+  useDeleteStore,
+  useRestoreStore,
+  useSaveStore,
+  useStores,
+} from "@/lib/api/hooks/admin";
 import type { Store, StoreBody } from "@/lib/api/types";
 import type { CnpjData } from "@/lib/cnpj-lookup";
 import { maskCep } from "@/lib/cep-lookup";
 import {
+  formatCnpj,
+  formatDateTime,
   isValidCnpj,
   isValidPhone,
   maskCnpj,
@@ -418,7 +428,7 @@ function StoresList({
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Excluir a loja ${deleting?.name ?? ""}?`}
-        description="A loja some das listas. Só é possível excluir sem caixa aberto e sem comandas abertas. O histórico dela continua guardado."
+        description="A loja some das listas. Só é possível excluir sem caixa aberto e sem comandas abertas. Vendas, estoque e histórico continuam guardados, e dá para reativá-la em Mostrar as lojas excluídas."
         confirmLabel="Excluir loja"
         destructive
         pending={remove.isPending}
@@ -433,6 +443,77 @@ function StoresList({
         }
       />
     </>
+  );
+}
+
+/** Lojas excluídas, com os dados e a data da exclusão, para o dono ver e reativar. */
+function DeletedStores({ companyId }: { companyId: string }) {
+  const [open, setOpen] = useState(false);
+  const deleted = useDeletedStores(companyId, open);
+  const restore = useRestoreStore(companyId);
+
+  return (
+    <section className="mt-6 space-y-3">
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+        <Checkbox checked={open} onCheckedChange={setOpen} />
+        Mostrar as lojas excluídas
+      </label>
+      {open && (
+        <QueryBoundary query={deleted}>
+          {(list) =>
+            list.length === 0 ? (
+              <EmptyState
+                title="Nenhuma loja excluída"
+                description="As lojas que você excluir aparecem aqui para reativar."
+              />
+            ) : (
+              <ul className="divide-y rounded-xl border bg-card">
+                {list.map((store) => (
+                  <li key={store.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">
+                        {store.name}
+                        <Badge variant="secondary" className="ml-2">
+                          Excluída em {formatDateTime(store.deletedAt)}
+                        </Badge>
+                      </p>
+                      <p className="truncate text-sm text-muted-foreground">
+                        {addressLine(store)}
+                        {store.cnpj && ` · CNPJ ${formatCnpj(store.cnpj)}`}
+                      </p>
+                    </div>
+                    <HistoryButton
+                      target={{
+                        scope: "company",
+                        scopeId: companyId,
+                        entity: "stores",
+                        id: store.id,
+                      }}
+                      title={`Histórico da loja ${store.name}`}
+                    />
+                    <ActionButton
+                      variant="outline"
+                      size="sm"
+                      disabled={restore.isPending}
+                      onClick={() =>
+                        restore.mutate(store.id, {
+                          onSuccess: (restored) =>
+                            toast.success(
+                              `${restored.name} foi reativada, com as vendas, o estoque e a equipe de antes.`,
+                            ),
+                        })
+                      }
+                    >
+                      <RotateCcwIcon /> Reativar
+                    </ActionButton>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        </QueryBoundary>
+      )}
+    </section>
   );
 }
 
@@ -460,6 +541,7 @@ export function StoresView() {
           creating={creating}
           onCloseCreate={() => setCreating(false)}
         />
+        <DeletedStores companyId={companyId} />
       </RequireCompanyOwnerPage>
     </div>
   );

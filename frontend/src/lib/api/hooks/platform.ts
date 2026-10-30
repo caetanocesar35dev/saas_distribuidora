@@ -18,6 +18,8 @@ import type {
 
 export const platformKeys = {
   plans: ["platform", "plans"] as const,
+  // Embaixo da chave dos planos: invalidar a lista recarrega os excluídos também.
+  deletedPlans: ["platform", "plans", "deleted"] as const,
   organizations: ["platform", "organizations"] as const,
   users: ["platform", "users"] as const,
   notifications: ["platform", "notifications"] as const,
@@ -47,6 +49,22 @@ export function useDeletePlan() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete<MessageResponse>(`/platform/plans/${id}`),
+    onSuccess: () => client.invalidateQueries({ queryKey: platformKeys.plans }),
+  });
+}
+
+export function useDeletedPlans(enabled = true) {
+  return useQuery({
+    queryKey: platformKeys.deletedPlans,
+    queryFn: () => api.get<PlatformPlan[]>("/platform/plans/deleted"),
+    enabled,
+  });
+}
+
+export function useRestorePlan() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<PlatformPlan>(`/platform/plans/${id}/restore`),
     onSuccess: () => client.invalidateQueries({ queryKey: platformKeys.plans }),
   });
 }
