@@ -7,6 +7,12 @@ import { Prisma } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
+import { confirmReferral } from '../referrals/referral-rewards';
+import {
+  REFERRAL_DISCOUNT_PERCENT,
+  remainingMonths,
+} from '../referrals/referral-rules';
 import {
   CreatePlanDto,
   ListOrganizationsQuery,
@@ -39,6 +45,7 @@ export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditContext,
+    private readonly mail: MailService,
   ) {}
 
   // ---- Planos ----------------------------------------------------------------------------------
@@ -95,6 +102,33 @@ export class PlatformService {
       data: { deletedAt: new Date() },
     });
     return { message: 'Plano excluído.' };
+  }
+
+  /** Planos excluídos (soft delete), para o SUPERADMIN ver e reativar. */
+  listDeletedPlans() {
+    return this.audit.withDeleted(() =>
+      this.prisma.plan.findMany({
+        where: { deletedAt: { not: null } },
+        select: { ...PLAN_SELECT, deletedAt: true },
+        orderBy: { deletedAt: 'desc' },
+      }),
+    );
+  }
+
+  async restorePlan(id: string) {
+    const plan = await this.audit.withDeleted(() =>
+      this.prisma.plan.findFirst({
+        where: { id },
+        select: { deletedAt: true },
+      }),
+    );
+    if (!plan) throw new NotFoundException('Plano não encontrado.');
+    if (!plan.deletedAt)
+      throw new ConflictException('O plano não está excluído.');
+    await this.audit.withDeleted(() =>
+      this.prisma.plan.update({ where: { id }, data: { deletedAt: null } }),
+    );
+    return this.getPlan(id);
   }
 
   private async getPlan(id: string) {
@@ -180,6 +214,26 @@ export class PlatformService {
         createdAt: true,
         plan: { select: PLAN_SELECT },
         owner: { select: { id: true, name: true, email: true } },
+        referralCode: true,
+        // Quem indicou esta organização e os descontos dela (programa de indicação).
+        referredBy: {
+          select: {
+            id: true,
+            code: true,
+            status: true,
+            createdAt: true,
+            confirmedAt: true,
+            referrerOrganization: { select: { id: true, name: true } },
+            representative: { select: { id: true, name: true } },
+          },
+        },
+        discounts: {
+          where: { deletedAt: null },
+          select: { months: true, monthsUsed: true, percent: true },
+        },
+        _count: {
+          select: { referralsMade: { where: { deletedAt: null } } },
+        },
         companies: {
           where: { deletedAt: null },
           select: {
@@ -187,9 +241,10 @@ export class PlatformService {
             cnpj: true,
             razaoSocial: true,
             nomeFantasia: true,
+            // Inclui as lojas excluídas (com a data), para o suporte ver tudo o que o cliente tem.
             stores: {
-              where: { deletedAt: null },
-              select: { id: true, name: true },
+              select: { id: true, name: true, deletedAt: true },
+              orderBy: { name: 'asc' },
             },
           },
           orderBy: { razaoSocial: 'asc' },
@@ -206,7 +261,42 @@ export class PlatformService {
       select: { userId: true },
       distinct: ['userId'],
     });
-    return { ...org, userCount: users.length };
+
+    // Todas as pessoas que já tiveram acesso, inclusive as removidas da empresa (com a data).
+    const memberships = await this.audit.withDeleted(() =>
+      this.prisma.membership.findMany({
+        where: { company: { organizationId: id, deletedAt: null } },
+        select: {
+          deletedAt: true,
+          company: {
+            select: { id: true, razaoSocial: true, nomeFantasia: true },
+          },
+          user: {
+            select: { id: true, name: true, email: true, isActive: true },
+          },
+        },
+      }),
+    );
+    const people = memberships
+      .map((m) => ({
+        user: m.user,
+        companyId: m.company.id,
+        companyName: m.company.nomeFantasia || m.company.razaoSocial,
+        removedAt: m.deletedAt,
+      }))
+      .sort(
+        (a, b) =>
+          Number(a.removedAt !== null) - Number(b.removedAt !== null) ||
+          a.user.name.localeCompare(b.user.name),
+      );
+    const { discounts, _count, ...rest } = org;
+    return {
+      ...rest,
+      userCount: users.length,
+      people,
+      referralsMade: _count.referralsMade,
+      discountRemainingMonths: remainingMonths(discounts),
+    };
   }
 
   /**
@@ -240,8 +330,39 @@ export class PlatformService {
     }
     if (dto.pastDueSince !== undefined) data.pastDueSince = dto.pastDueSince;
 
-    await this.prisma.organization.update({ where: { id }, data });
+    const confirmed = await this.prisma.$transaction(async (tx) => {
+      await tx.organization.update({ where: { id }, data });
+      // Até a cobrança automática existir, pôr a assinatura em ACTIVE é o "pagou a 1ª mensalidade"
+      // que libera a recompensa de quem indicou (na Fase 10, o webhook do pagamento faz isso).
+      return dto.subscriptionStatus === 'ACTIVE'
+        ? confirmReferral(tx, id)
+        : null;
+    });
+    if (confirmed && confirmed.grantedMonths > 0)
+      await this.notifyReferrer(confirmed.referral.id, confirmed.grantedMonths);
     return this.getOrganization(id);
+  }
+
+  /** E-mail para o responsável pela assinatura de quem indicou: ganhou desconto. */
+  private async notifyReferrer(referralId: string, months: number) {
+    const referral = await this.prisma.referral.findFirst({
+      where: { id: referralId },
+      select: {
+        referredOrganization: { select: { name: true } },
+        referrerOrganization: {
+          select: { owner: { select: { name: true, email: true } } },
+        },
+      },
+    });
+    const owner = referral?.referrerOrganization?.owner;
+    if (!referral || !owner) return;
+    await this.mail.sendReferralReward(
+      owner.email,
+      owner.name,
+      referral.referredOrganization.name,
+      months,
+      REFERRAL_DISCOUNT_PERCENT,
+    );
   }
 
   // ---- Usuários ------------------------------------------------------------------------------------

@@ -7,12 +7,12 @@ export const gestao: Article[] = [
     title: "Painel da loja e da empresa",
     purpose:
       "Acompanhar faturamento, lucro, produtos mais vendidos, estoque baixo e fiado em aberto.",
-    where: "Menu › Início (loja) · Menu › Painel da empresa (dono)",
+    where: "Menu › Início (loja) · Menu › Painel da empresa (dono e gerente geral)",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Para a loja: abra Menu › Início. Gerentes e donos veem o painel logo abaixo dos atalhos.",
-      "Para a empresa toda: o dono abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
+      "Para a empresa toda: o dono ou o gerente geral abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
       "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Histórico de vendas.",
       "Faturamento e lucro contam tudo o que foi vendido, inclusive no fiado (vendas canceladas ficam de fora). Quando há fiado, o cartão mostra embaixo quanto disso foi vendido no fiado, que ainda pode não ter sido pago.",
       "O cartão Fiado recebido mostra quanto os clientes pagaram de fiado nesta loja no período, de vendas de qualquer data.",
@@ -22,7 +22,7 @@ export const gestao: Article[] = [
     problems: [
       {
         message: "Não vejo o painel",
-        fix: "O painel da loja é do gerente e do dono; o da empresa é só do dono. O atendente vê apenas os atalhos.",
+        fix: "O painel da loja é do gerente e do dono; o da empresa é do dono e do gerente geral (um gerente comum, mesmo em todas as lojas, não vê: peça ao dono para torná-lo gerente geral em Equipe). O atendente vê apenas os atalhos.",
       },
     ],
     related: ["vendas-historico", "gestao-historico"],
@@ -45,7 +45,7 @@ export const gestao: Article[] = [
     problems: [
       {
         message: "O botão Histórico não aparece",
-        fix: "O histórico de uma loja é do gerente e do dono. O histórico de cliente, produto, tipo de vasilhame, loja e equipe é só do dono.",
+        fix: "O histórico de uma loja é do gerente e do dono. O histórico de cliente, produto, tipo de vasilhame, loja e equipe é do dono e do gerente geral.",
       },
     ],
     keywords: ["auditoria", "quem alterou", "log", "mudanças"],
@@ -57,16 +57,29 @@ export const gestao: Article[] = [
     purpose: "Dar acesso às pessoas e dizer o que cada uma pode fazer em cada loja.",
     where: "Menu › Painel da empresa › Equipe",
     minRole: "OWNER",
+    who: "O dono; o gerente geral também, só para atendentes e gerentes",
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Equipe.",
       "Para convidar, clique em Convidar pessoa, digite o nome da pessoa (só letras) e o e-mail, marque as lojas e escolha o papel em cada uma (atendente, gerente ou dono).",
+      "Gerente geral: para alguém cuidar de todas as lojas sem ser dono, o dono clica em Tornar gerente geral no cartão da pessoa. Ela vira gerente em todas as lojas (também nas criadas depois) e passa a ver o Painel da empresa, a Equipe e as Lojas. Não mexe em donos, nos dados da empresa nem na assinatura, e não exclui nem cria lojas.",
+      "O gerente geral convida, muda o papel e remove atendentes e gerentes, mas não dá o papel de dono nem mexe em donos ou em outro gerente geral. Só o dono marca e desmarca o gerente geral.",
+      "O papel do gerente geral nas lojas fica fixo em gerente. Para mudar, o dono clica em Tirar de gerente geral: a pessoa continua gerente nas lojas, e aí dá para ajustar loja por loja.",
       "A pessoa recebe um e-mail para criar a senha (vale 7 dias). Se já tem conta no sistema, só ganha o acesso.",
       "Para mudar o papel, use a lista ao lado da loja, na linha da pessoa. O papel pode ser diferente em cada loja.",
       "Para dar acesso a outra loja, clique no nome da loja em Dar acesso também a.",
       "Para retirar o acesso de uma loja, use a lixeira da linha. Para tirar da empresa toda, use Remover da empresa.",
+      "Para ver quem saiu (só o dono), marque Mostrar quem foi removido, no fim da página: aparece a data e as lojas e papéis que a pessoa tinha. Reativar devolve exatamente esses acessos.",
     ],
     problems: [
+      {
+        message: "O gerente geral não pode alterar donos nem outros gerentes gerais.",
+        fix: "Peça ao dono da empresa para fazer essa mudança.",
+      },
+      {
+        message: "O gerente geral é gerente em todas as lojas...",
+        fix: "Para mudar o papel dele numa loja, o dono clica antes em Tirar de gerente geral.",
+      },
       {
         message: "Você não pode alterar o seu próprio papel.",
         fix: "Peça a outro dono da empresa para mudar o seu papel.",
@@ -75,8 +88,12 @@ export const gestao: Article[] = [
         message: "A empresa precisa ter pelo menos um dono (OWNER).",
         fix: "Antes de tirar ou rebaixar este dono, deixe outra pessoa como dono.",
       },
+      {
+        message: "As lojas que esta pessoa acessava foram excluídas.",
+        fix: "Não há acesso para devolver. Convide a pessoa de novo, escolhendo as lojas e os papéis.",
+      },
     ],
-    related: ["acesso-convite", "gestao-historico"],
+    related: ["acesso-convite", "gestao-historico", "faq-excluir-engano"],
     keywords: ["convidar", "equipe", "funcionário", "papel", "permissão", "acesso"],
   },
   {
@@ -86,20 +103,22 @@ export const gestao: Article[] = [
     purpose: "Criar novas lojas da empresa e manter os dados delas.",
     where: "Menu › Painel da empresa › Lojas",
     minRole: "OWNER",
+    who: "O dono; o gerente geral só edita (não cria, não exclui)",
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Lojas.",
-      "Para criar, clique em Nova loja, preencha o nome e o endereço (CEP, rua, número, bairro, cidade e UF são obrigatórios; complemento, telefone e CNPJ são opcionais) e salve. Todos os donos da empresa já viram donos da loja nova.",
+      "Para criar, clique em Nova loja, preencha o nome e o endereço (CEP, rua, número, bairro, cidade e UF são obrigatórios; complemento, telefone e CNPJ são opcionais) e salve. Todos os donos da empresa já viram donos da loja nova, e os gerentes gerais, gerentes.",
       "Se o CNPJ da loja for o mesmo da empresa, deixe o campo em branco: a loja usa o CNPJ da empresa. Se ela tiver CNPJ próprio (filial), digite-o primeiro: ao completar, o sistema busca os dados públicos e preenche endereço, telefone e, se estiver vazio, o nome da loja com o nome fantasia. O que você já digitou não é trocado; confira antes de salvar.",
       "Se a busca não encontrar o CNPJ ou estiver fora do ar, preencha o endereço você mesmo.",
       "Para mudar endereço ou telefone, clique em Editar.",
       "Em Fechamento automático do caixa, escolha o horário em que o caixa esquecido aberto fecha sozinho todo dia (padrão: meia-noite). Use um horário depois do fim do expediente, por exemplo 02:00 para quem fecha de madrugada.",
-      "Para excluir, clique em Excluir e confirme.",
+      "Para excluir, clique em Excluir e confirme. As vendas, o estoque e o histórico da loja ficam guardados.",
+      "Para ver as lojas excluídas, marque Mostrar as lojas excluídas, no fim da página: aparecem o endereço e a data da exclusão. Reativar traz a loja de volta com as vendas, o estoque e a equipe de antes.",
     ],
     problems: [
       {
         message: "O plano permite no máximo ... loja(s) por empresa.",
-        fix: "Você atingiu o limite do plano. Fale com o suporte para mudar de plano.",
+        fix: "Você atingiu o limite do plano (vale também para reativar uma loja excluída). Exclua outra loja ou fale com o suporte para mudar de plano.",
       },
       {
         message: "CNPJ inválido.",
@@ -118,8 +137,16 @@ export const gestao: Article[] = [
         fix: "Feche ou cancele as comandas abertas em Menu › Comandas.",
       },
     ],
-    related: ["gestao-equipe"],
-    keywords: ["nova loja", "filial", "endereço", "cnpj da loja", "cnpj alfanumérico"],
+    related: ["gestao-equipe", "faq-excluir-engano"],
+    keywords: [
+      "nova loja",
+      "filial",
+      "endereço",
+      "cnpj da loja",
+      "cnpj alfanumérico",
+      "reativar loja",
+      "loja excluída",
+    ],
   },
   {
     id: "gestao-empresa",

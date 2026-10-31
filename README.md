@@ -26,7 +26,8 @@ caixa, comandas, vasilhames e fiado (com abatimento entre lojas). Cada cliente d
 | [docs/API.md](docs/API.md) | Todas as rotas do backend e quem pode chamar cada uma (gerado do código) |
 | [plano_implementacao_backend.md](plano_implementacao_backend.md) | Plano de implementação do backend, por fases, com o relatório do que foi feito |
 | [plano_implementacao_frontend.md](plano_implementacao_frontend.md) | Plano de implementação do frontend, por fases, com o relatório do que foi feito |
-| [docs/a_fazer.md](docs/a_fazer.md) | O que ainda falta no sistema (fora o gateway de pagamento) e o roteiro de testes manuais |
+| [docs/a_fazer.md](docs/a_fazer.md) | O que ainda falta no sistema (fora o gateway de pagamento) |
+| [docs/testes.md](docs/testes.md) | Roteiro de testes manuais, por papel e por tela |
 | [frontend/README.md](frontend/README.md) | Como rodar o frontend, como o BFF funciona e a estrutura de pastas |
 | [CLAUDE.md](CLAUDE.md) | Regras do projeto para agentes de IA (servem também como resumo para pessoas) |
 

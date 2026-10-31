@@ -1,6 +1,17 @@
-import { MailMessage } from '../../src/mail/mail.service';
+import { formatDateBr, MailMessage } from '../../src/mail/mail.service';
+import {
+  inviteEmail,
+  passwordChangedEmail,
+  passwordResetEmail,
+  referralRewardEmail,
+  subscriptionReminderEmail,
+  welcomeEmail,
+} from '../../src/mail/templates';
 
-/** Substitui o MailService nos testes: guarda as mensagens em vez de enviá-las. */
+/**
+ * Substitui o MailService nos testes: guarda as mensagens em vez de enviá-las. Usa os mesmos
+ * templates do envio real, então os testes também passam pelos textos de verdade.
+ */
 export class FakeMailService {
   sent: MailMessage[] = [];
 
@@ -10,11 +21,7 @@ export class FakeMailService {
   }
 
   sendPasswordReset(to: string, name: string, url: string) {
-    return this.send({
-      to,
-      subject: 'Redefinição de senha',
-      text: `${name} ${url}`,
-    });
+    return this.send({ to, ...passwordResetEmail(name, url) });
   }
 
   sendInvite(
@@ -26,8 +33,7 @@ export class FakeMailService {
   ) {
     return this.send({
       to,
-      subject: `Convite para ${companyName}`,
-      text: `${name} ${invitedBy} ${url}`,
+      ...inviteEmail(name, companyName, invitedBy, url),
     });
   }
 
@@ -37,7 +43,63 @@ export class FakeMailService {
     subject: string,
     body: string,
   ) {
-    return this.send({ to, subject, text: `${name} ${body}` });
+    return this.send({
+      to,
+      ...subscriptionReminderEmail(
+        name,
+        subject,
+        body,
+        'http://localhost:3000/login',
+      ),
+    });
+  }
+
+  sendWelcome(
+    to: string,
+    name: string,
+    companyName: string,
+    trialEndsAt: Date | null,
+  ) {
+    return this.send({
+      to,
+      ...welcomeEmail(
+        name,
+        companyName,
+        trialEndsAt ? formatDateBr(trialEndsAt, 'America/Sao_Paulo') : null,
+        'http://localhost:3000/login',
+      ),
+    });
+  }
+
+  sendPasswordChanged(to: string, name: string) {
+    return this.send({
+      to,
+      ...passwordChangedEmail(name, 'http://localhost:3000/esqueci-a-senha'),
+    });
+  }
+
+  sendReferralReward(
+    to: string,
+    name: string,
+    referredName: string,
+    months: number,
+    percent: number,
+  ) {
+    return this.send({
+      to,
+      ...referralRewardEmail(
+        name,
+        referredName,
+        months,
+        percent,
+        'http://localhost:3000/indique',
+      ),
+    });
+  }
+
+  /** Mensagens enviadas para o destinatário, na ordem. */
+  sentTo(to: string): MailMessage[] {
+    return this.sent.filter((m) => m.to === to);
   }
 
   /** Último link (http...) enviado para o destinatário. */

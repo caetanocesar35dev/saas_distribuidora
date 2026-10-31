@@ -12,6 +12,7 @@ import { AppModule } from '../src/app.module';
 import {
   ALLOW_READ_ONLY_KEY,
   BILLING_OWNER_KEY,
+  COMPANY_ADMIN_KEY,
   COMPANY_ROLE_KEY,
   IS_PUBLIC_KEY,
   PLATFORM_ROLE_KEY,
@@ -56,8 +57,13 @@ function describeAccess(path: string, fn: object, ctor: object): string {
   if (platform) return `Plataforma: ${platform.join(' ou ')}`;
   if (path.includes(':storeId'))
     return `Loja: ${metadata<string>(STORE_ROLE_KEY, fn, ctor) ?? 'EMPLOYEE'} ou mais`;
-  if (path.includes(':companyId'))
-    return `Empresa: ${metadata<string>(COMPANY_ROLE_KEY, fn, ctor) ?? 'EMPLOYEE'} ou mais`;
+  if (path.includes(':companyId')) {
+    const role = metadata<string>(COMPANY_ROLE_KEY, fn, ctor);
+    if (role === 'OWNER') return 'Empresa: OWNER';
+    if (metadata<boolean>(COMPANY_ADMIN_KEY, fn, ctor))
+      return 'Empresa: OWNER ou gerente geral';
+    return `Empresa: ${role ?? 'EMPLOYEE'} ou mais`;
+  }
   if (path.includes(':organizationId')) {
     return metadata<boolean>(BILLING_OWNER_KEY, fn, ctor)
       ? 'Responsável pela cobrança'
@@ -167,7 +173,13 @@ async function main() {
     '- `POST/PATCH /companies/:companyId/customers`: o campo `creditLimit` **exige gerente** (403 para o funcionário).',
     '- `POST /stores/:storeId/sales` e `POST /stores/:storeId/command-tabs/:id/close` no fiado: acima do limite de crédito do cliente (soma de todas as lojas), **funcionário recebe 403**; gerente e dono recebem 409, a menos que enviem `allowOverCreditLimit: true`. O funcionário passa enviando `managerApproval: { email, password }` de um gerente ou dono **desta loja** (400 se a senha estiver errada, 403 se não for gerente da loja, 429 depois de 5 erros por e-mail em 15 min).',
     '- `GET /companies/:companyId/products?deleted=true`: lista só os produtos excluídos; `POST /companies/:companyId/products/:id/restore` os reativa junto com as ofertas das lojas.',
-    '- `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade).',
+    '- `PATCH /organizations/:organizationId/plan`: o responsável pela assinatura troca de plano (vale na hora, **liberado em somente leitura**). 409 para o plano gratuito (só do período de teste), para o plano atual e para o downgrade que não cabe (mais empresas, ou uma empresa com mais lojas, que o plano novo permite).',
+    '- `GET /companies/:companyId/customers?deleted=true`: lista só os clientes excluídos, **exige gerente** (403 para o funcionário).',
+    '- `POST /companies/:companyId/stores/:id/restore`: reativa a loja excluída respeitando o limite de lojas do plano (409 se já estiver no limite). `POST /companies/:companyId/members/:membershipId/restore` devolve à pessoa removida as lojas e os papéis que ela tinha ao sair (409 se todas essas lojas foram excluídas).',
+    '- **Gerente geral** (`Membership.isGeneralManager`): é MANAGER em todas as lojas da empresa (também nas criadas depois) e passa nas rotas "OWNER ou gerente geral" (painel e histórico da empresa, editar loja, equipe). Na equipe, não mexe em donos nem em outro gerente geral e não dá o papel de dono (403). Mudar o papel ou tirar de uma loja quem é gerente geral → 409 (desmarque antes). `PUT /companies/:companyId/members/:membershipId/general-manager` `{ isGeneralManager }` é só do dono (409 para dono ou a própria pessoa).',
+    '- `POST /auth/signup`: exige `acceptTerms: true` (aceite dos termos de uso e da política de privacidade). `referralCode` (opcional) é o código de indicação de um cliente ou representante: 400 se não existir; grava a indicação pendente e o desconto de quem se cadastrou.',
+    '- `GET /organizations/:organizationId/referral` ("Indique e ganhe"): cria o código da organização na primeira chamada. A recompensa de quem indicou (desconto do cliente ou comissão do representante) só vale quando o indicado paga: hoje, quando `PATCH /platform/organizations/:id` põe `subscriptionStatus: ACTIVE`.',
+    '- `POST /platform/referrals/:id/commission-paid`: só indicação de representante já confirmada e ainda não paga (409 nos outros casos). `POST /platform/referrals/:id/cancel` anula a indicação e os meses de desconto não usados (409 se a comissão já foi paga).',
     '- Rotas `/platform/*`: `SUPPORT` só lê; `SUPERADMIN` lê e escreve (cada escrita aparece como "Plataforma: SUPERADMIN").',
     '',
   ];

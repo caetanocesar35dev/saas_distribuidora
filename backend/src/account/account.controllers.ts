@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -10,7 +11,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
+  AllowWhenReadOnly,
   BillingOwner,
+  CompanyAdmin,
   CompanyOwner,
   CurrentUser,
   Tenant,
@@ -22,9 +25,11 @@ import type {
 } from '../common/decorators/access.decorators';
 import { CompaniesService } from './companies.service';
 import {
+  ChangePlanDto,
   CreateCompanyDto,
   CreateStoreDto,
   InviteMemberDto,
+  SetGeneralManagerDto,
   SetRoleDto,
   UpdateCompanyDto,
   UpdateStoreDto,
@@ -45,6 +50,17 @@ export class OrganizationsController {
   @Get('mine')
   mine(@CurrentUser() user: AuthUser) {
     return this.organizations.mine(user.id);
+  }
+
+  /**
+   * Troca de plano pelo responsável. Liberada em somente leitura: escolher o plano faz parte de
+   * regularizar a assinatura.
+   */
+  @BillingOwner()
+  @AllowWhenReadOnly()
+  @Patch(':organizationId/plan')
+  changePlan(@Tenant() tenant: OrgTenant, @Body() dto: ChangePlanDto) {
+    return this.organizations.changePlan(tenant.organizationId, dto.planId);
   }
 
   @BillingOwner()
@@ -91,6 +107,13 @@ export class StoresController {
     return this.stores.list(tenant.companyId);
   }
 
+  /** Lojas excluídas (antes de `:id`, senão "deleted" seria lido como id). */
+  @CompanyOwner()
+  @Get('deleted')
+  listDeleted(@Tenant() tenant: CompanyTenant) {
+    return this.stores.listDeleted(tenant.companyId);
+  }
+
   @Get(':id')
   get(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
     return this.stores.get(tenant.companyId, id);
@@ -102,7 +125,8 @@ export class StoresController {
     return this.stores.create(tenant.companyId, dto);
   }
 
-  @CompanyOwner()
+  /** Editar a loja: dono ou gerente geral. Criar, excluir e reativar continuam só do dono. */
+  @CompanyAdmin()
   @Patch(':id')
   update(
     @Tenant() tenant: CompanyTenant,
@@ -117,11 +141,22 @@ export class StoresController {
   remove(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
     return this.stores.remove(tenant.companyId, id);
   }
+
+  @CompanyOwner()
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.stores.restore(tenant.companyId, id);
+  }
 }
 
+/**
+ * Equipe: dono ou gerente geral. O gerente geral só mexe em atendentes e gerentes e não dá o papel
+ * de dono (o service confere); ver e reativar removidos e marcar gerente geral são só do dono.
+ */
 @ApiTags('members')
 @ApiBearerAuth()
-@CompanyOwner()
+@CompanyAdmin()
 @Controller('companies/:companyId/members')
 export class MembershipsController {
   constructor(private readonly memberships: MembershipsService) {}
@@ -131,13 +166,46 @@ export class MembershipsController {
     return this.memberships.list(tenant.companyId);
   }
 
+  /** Pessoas removidas da empresa, com as lojas e papéis que tinham. */
+  @CompanyOwner()
+  @Get('removed')
+  listRemoved(@Tenant() tenant: CompanyTenant) {
+    return this.memberships.listRemoved(tenant.companyId);
+  }
+
+  @CompanyOwner()
+  @HttpCode(200)
+  @Post(':membershipId/restore')
+  restore(
+    @Tenant() tenant: CompanyTenant,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.memberships.restore(tenant.companyId, membershipId);
+  }
+
+  /** Marca ou desmarca o gerente geral (só o dono). */
+  @CompanyOwner()
+  @Put(':membershipId/general-manager')
+  setGeneralManager(
+    @Tenant() tenant: CompanyTenant,
+    @Param('membershipId') membershipId: string,
+    @Body() dto: SetGeneralManagerDto,
+  ) {
+    return this.memberships.setGeneralManager(
+      tenant.companyId,
+      tenant.membershipId,
+      membershipId,
+      dto.isGeneralManager,
+    );
+  }
+
   @Post()
   invite(
     @Tenant() tenant: CompanyTenant,
     @CurrentUser() user: AuthUser,
     @Body() dto: InviteMemberDto,
   ) {
-    return this.memberships.invite(tenant.companyId, user, dto);
+    return this.memberships.invite(tenant, user, dto);
   }
 
   @Put(':membershipId/stores/:targetStoreId')
@@ -148,8 +216,7 @@ export class MembershipsController {
     @Body() dto: SetRoleDto,
   ) {
     return this.memberships.setRole(
-      tenant.companyId,
-      tenant.membershipId,
+      tenant,
       membershipId,
       targetStoreId,
       dto.role,
@@ -163,7 +230,7 @@ export class MembershipsController {
     @Param('targetStoreId') targetStoreId: string,
   ) {
     return this.memberships.removeFromStore(
-      tenant.companyId,
+      tenant,
       membershipId,
       targetStoreId,
     );
@@ -174,6 +241,6 @@ export class MembershipsController {
     @Tenant() tenant: CompanyTenant,
     @Param('membershipId') membershipId: string,
   ) {
-    return this.memberships.remove(tenant.companyId, membershipId);
+    return this.memberships.remove(tenant, membershipId);
   }
 }

@@ -1,15 +1,19 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, companyApi } from "@/lib/api/client";
+import { api, companyApi, publicApi } from "@/lib/api/client";
 import type {
+  ChangePlanResponse,
   Company,
   CreateCompanyBody,
+  DeletedStore,
   InviteMemberBody,
   InviteMemberResponse,
   Member,
   MessageResponse,
   OrganizationSummary,
+  Plan,
+  RemovedMember,
   Role,
   Store,
   StoreBody,
@@ -19,8 +23,11 @@ import { sessionKeys } from "@/lib/session/queries";
 
 export const adminKeys = {
   company: (companyId: string) => ["company", companyId] as const,
+  // As excluídas e as removidas ficam embaixo da chave da lista: invalidar a lista recarrega as duas.
   stores: (companyId: string) => ["company", companyId, "stores"] as const,
+  deletedStores: (companyId: string) => ["company", companyId, "stores", "deleted"] as const,
   members: (companyId: string) => ["company", companyId, "members"] as const,
+  removedMembers: (companyId: string) => ["company", companyId, "members", "removed"] as const,
   organizations: ["organizations", "mine"] as const,
 };
 
@@ -87,6 +94,27 @@ export function useDeleteStore(companyId: string) {
   });
 }
 
+export function useDeletedStores(companyId: string, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.deletedStores(companyId),
+    queryFn: () => companyApi(companyId).get<DeletedStore[]>("/stores/deleted"),
+    enabled,
+  });
+}
+
+export function useRestoreStore(companyId: string) {
+  const client = useQueryClient();
+  const refresh = useRefreshAccess();
+  return useMutation({
+    mutationFn: (id: string) => companyApi(companyId).post<Store>(`/stores/${id}/restore`),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: adminKeys.stores(companyId) });
+      await client.invalidateQueries({ queryKey: adminKeys.members(companyId) });
+      await refresh();
+    },
+  });
+}
+
 // ---- Equipe ----------------------------------------------------------------------------------
 
 export function useMembers(companyId: string) {
@@ -114,6 +142,22 @@ export function useSetMemberRole(companyId: string) {
         `/members/${v.membershipId}/stores/${v.storeId}`,
         { role: v.role },
       ),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: adminKeys.members(companyId) });
+      await refresh();
+    },
+  });
+}
+
+/** Marca ou desmarca o gerente geral (só o dono). Marcar dá gerente em todas as lojas. */
+export function useSetGeneralManager(companyId: string) {
+  const client = useQueryClient();
+  const refresh = useRefreshAccess();
+  return useMutation({
+    mutationFn: (v: { membershipId: string; isGeneralManager: boolean }) =>
+      companyApi(companyId).put<MessageResponse>(`/members/${v.membershipId}/general-manager`, {
+        isGeneralManager: v.isGeneralManager,
+      }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: adminKeys.members(companyId) });
       await refresh();
@@ -149,12 +193,55 @@ export function useRemoveMember(companyId: string) {
   });
 }
 
+export function useRemovedMembers(companyId: string, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.removedMembers(companyId),
+    queryFn: () => companyApi(companyId).get<RemovedMember[]>("/members/removed"),
+    enabled,
+  });
+}
+
+export function useRestoreMember(companyId: string) {
+  const client = useQueryClient();
+  const refresh = useRefreshAccess();
+  return useMutation({
+    mutationFn: (membershipId: string) =>
+      companyApi(companyId).post<MessageResponse>(`/members/${membershipId}/restore`),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: adminKeys.members(companyId) });
+      await refresh();
+    },
+  });
+}
+
 // ---- Organização -----------------------------------------------------------------------------
 
 export function useOrganizations() {
   return useQuery({
     queryKey: adminKeys.organizations,
     queryFn: () => api.get<OrganizationSummary[]>("/organizations/mine"),
+  });
+}
+
+/** Planos do cadastro (rota pública), para a troca de plano. */
+export function usePlans() {
+  return useQuery({
+    queryKey: ["plans"],
+    queryFn: () => publicApi.get<Plan[]>("/plans"),
+  });
+}
+
+/** Troca de plano pelo responsável: vale na hora; o downgrade que não cabe volta 409. */
+export function useChangePlan(organizationId: string) {
+  const client = useQueryClient();
+  const refresh = useRefreshAccess();
+  return useMutation({
+    mutationFn: (planId: string) =>
+      api.patch<ChangePlanResponse>(`/organizations/${organizationId}/plan`, { planId }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: adminKeys.organizations });
+      await refresh();
+    },
   });
 }
 

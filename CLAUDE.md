@@ -3,7 +3,7 @@
 SaaS multi-tenant para distribuidoras de bebidas: PDV, estoque, caixa, comandas,
 vasilhames e fiado. Hierarquia: `Organization` (cobrança) → `Company` (distribuidora)
 → `Store` (loja). O acesso é por papel em cada loja (`OWNER` > `MANAGER` > `EMPLOYEE`;
-não existe `ADMIN`).
+não existe `ADMIN`), mais o **gerente geral** da empresa (`Membership.isGeneralManager`, ver abaixo).
 
 - `backend/`: NestJS 11 + Prisma 7 (`@prisma/adapter-pg`) + PostgreSQL 16.
 - `frontend/`: **Next.js (App Router) + React + TypeScript (strict) + Tailwind CSS +
@@ -56,6 +56,12 @@ os campos é a extensão do Prisma).
 - **Soft delete obrigatório:** o banco recusa `DELETE`. Excluir =
   `deletedAt = now()`. Consultas filtram `deletedAt: null`. Os únicos são globais:
   reative o registro em vez de recriar.
+- **Excluído tem que ser visível e reativável pela tela (decidido pelo usuário, 2026-10-30):** é
+  para isso que existe o soft delete. Hoje: produtos e clientes ("Mostrar só os excluídos",
+  gerente/dono), lojas ("Mostrar as lojas excluídas") e equipe ("Mostrar quem foi removido",
+  devolve os mesmos acessos), ambos só o dono, e planos na `/plataforma`; o detalhe da
+  organização na plataforma mostra lojas excluídas e pessoas removidas. Exclusão nova: dê também
+  a listagem (`withDeleted`) e o `restore`.
 - Sem `onDelete: Cascade`; as relações usam `Restrict`.
 - `StoreBottleType.stock` e os saldos de cliente (`CustomerStoreBalance.balance`,
   `CustomerStoreBottleBalance.balance`) **não têm histórico**: só mudam junto com o
@@ -70,6 +76,20 @@ os campos é a extensão do Prisma).
 - **Mudança de schema exige aprovação do usuário.** Coluna nova vai também no
   `*History`; tabela nova ganha os dois triggers. Sempre por migration, nunca SQL
   manual. Detalhes em `docs/BANCO_DE_DADOS.md` §7.
+
+**Gerente geral (decidido pelo usuário, 2026-10-30)**
+- Papel da **empresa**, não da loja: `Membership.isGeneralManager`. Hierarquia: dono > gerente geral
+  > gerente > atendente. Só o dono marca e desmarca (`PUT .../members/:membershipId/general-manager`,
+  tela Equipe › "Tornar gerente geral"); dono não pode ser marcado.
+- O acesso fica nas linhas de `MembershipStore` como o de todo mundo: o gerente geral é **MANAGER em
+  todas as lojas ativas**, e as lojas criadas ou reativadas depois já entram para ele
+  (`src/account/general-manager.ts`). O papel dele numa loja não muda nem é revogado enquanto for
+  gerente geral (409: desmarque antes). Desmarcar não tira acessos.
+- Pode o que o dono pode, **menos**: dados da empresa, assinatura/plano, nova empresa, criar/excluir/
+  reativar loja, ver e reativar removidos da equipe e mexer em donos ou outro gerente geral (403) ou
+  dar o papel de dono (403). Rotas "dono ou gerente geral" usam `@CompanyAdmin()` (painel e histórico
+  da empresa, editar loja, equipe); o que ele não pode dentro da equipe o `MembershipsService` confere.
+  No frontend: `isCompanyAdmin` no `useAccess()` e `RequireCompanyAdmin(Page)`.
 
 **Multi-tenancy**
 - Os ids da company/loja vêm na rota (`/companies/:companyId/...`,
@@ -97,6 +117,38 @@ os campos é a extensão do Prisma).
   de fiado**, até a assinatura ser paga.
 - Gateway: **Asaas** (cartão recorrente + Pix Automático). O número do cartão nunca
   passa pela nossa API nem pelo nosso frontend.
+- **Planos (decidido pelo usuário, 2026-10-30):** Trial R$ 0 (1 empresa, 2 lojas; só para o
+  período de teste), Essencial R$ 99 (1 loja), Básico R$ 179 (até 3 lojas), Profissional R$ 349
+  (3 empresas, até 10 lojas cada) e Rede R$ 599 (5 empresas, até 50 lojas cada; **nenhum plano
+  ilimitado**, decidido pelo usuário: arriscado demais). Ficam no seed (`syncPlans`, roda
+  sempre e atualiza pelo nome) e se editam em Plataforma › Planos. **Contra a divisão de conta
+  entre comerciantes (decidido pelo usuário):** preço ÷ empresas do plano nunca fica abaixo do
+  Essencial (R$ 99), e os Termos de Uso proíbem dividir a assinatura entre titulares diferentes.
+  Plano novo ou preço novo: confira essa conta.
+- **O dono troca de plano sozinho** (`PATCH /organizations/:id/plan`, só o responsável pela
+  assinatura; tela Assinatura › Planos): upgrade e downgrade valem **na hora**, o valor novo vale
+  na próxima cobrança, e a situação da assinatura não muda. Downgrade que não cabe (mais empresas,
+  ou uma empresa com mais lojas, que o plano novo) → 409. Plano gratuito (`priceInCents = 0`, o
+  Trial) não pode ser escolhido na troca. Liberado em somente leitura. A plataforma continua
+  podendo pôr qualquer plano (ajuste manual, sem essa conferência).
+
+**Indicação e descontos (decidido pelo usuário, 2026-10-30)**
+- Dois jeitos de indicar: o **cliente** (o responsável pela assinatura, pelo código da organização,
+  na tela "Indique e ganhe" do menu do usuário, `/indique`) e o **representante** (não usa o
+  sistema e não tem login; a plataforma o cadastra em Plataforma › Representantes com contato e
+  chave Pix). O código só é informado **no cadastro** (`referralCode`; o link `/cadastro?ref=` já
+  preenche) e é único entre clientes e representantes.
+- Quem se cadastra com qualquer código ganha **20% por 2 meses** depois do trial. O cliente que
+  indicou ganha o mesmo, **acumulando até 12 meses**; o representante ganha uma comissão em
+  dinheiro, **proporcional ao plano** que o indicado assinou (`commissionPercent` % do preço mensal),
+  para incentivar planos maiores. Valores em `backend/src/referrals/referral-rules.ts`.
+- **A recompensa de quem indicou (desconto ou comissão) só vale quando o indicado paga a 1ª
+  mensalidade.** Enquanto o Asaas não existe, "pagou" = a plataforma pôr a assinatura em `ACTIVE`
+  (`confirmReferral` em `referral-rewards.ts`); na Fase 10, o webhook do pagamento chama o mesmo
+  e a cobrança aplica os descontos (`SubscriptionDiscount.monthsUsed`).
+- O desconto aparece num selo ao lado do sino (`DiscountBadge`), só para o responsável pela
+  assinatura. A plataforma vê tudo em Plataforma › Indicações (painel, lista com filtros, "Pix
+  enviado" e cancelar indicação fraudulenta).
 
 **Código**
 - Bodies tipados com classe DTO (class-validator), nunca `any` ou `Dto & {...}` (isso
@@ -242,7 +294,15 @@ npm run lint                       # formata (Prettier) e confere; deve terminar
 npm test                           # todos os testes (unitários, de service e e2e)
 npm run db:seed                    # dados de demonstração (dev; não duplica)
 npm run docs:api                   # regenera docs/API.md
+npm run mail:test -- dest@x.com    # envia de verdade os 3 e-mails de exemplo (confere o SMTP)
 ```
+
+- **E-mail (configurado pelo usuário em 2026-10-30, Gmail com senha de app):** textos em
+  `src/mail/templates.ts` (HTML de e-mail em tabelas com estilos inline + texto puro). E-mail novo:
+  crie a função lá e use-a no `MailService`, no `FakeMailService` dos testes e no
+  `scripts/send-test-emails.ts`. Hoje são 6: redefinir senha, convite, lembretes da assinatura (3 e
+  1 dia antes do fim do teste, carência acabando, e teste/carência terminou), boas-vindas, senha
+  alterada e indicação confirmada. Os de pagamento ficam para o Asaas (`docs/a_fazer.md`, item 21).
 
 - `prisma migrate dev` **não funciona em sessão não interativa**. Para criar uma
   migration: alterar o schema, gerar o SQL com

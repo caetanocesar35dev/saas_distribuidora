@@ -22,6 +22,9 @@ export interface Access {
   /** Papel na loja ativa; em telas de empresa, o maior papel do usuário nela. */
   role: Role | null;
   isCompanyOwner: boolean;
+  isGeneralManager: boolean;
+  /** Dono ou gerente geral: painel da empresa, equipe e lojas. */
+  isCompanyAdmin: boolean;
   isBillingOwner: boolean;
   /** Assinatura vencida: só consulta (exceto fechar o caixa). */
   readOnly: boolean;
@@ -61,6 +64,8 @@ function accessOf(
     companyId: membership.companyId,
     role,
     isCompanyOwner: membership.isCompanyOwner,
+    isGeneralManager: membership.isGeneralManager,
+    isCompanyAdmin: membership.isCompanyOwner || membership.isGeneralManager,
     isBillingOwner: membership.isBillingOwner,
     readOnly,
     readOnlyReason: sub.reason,

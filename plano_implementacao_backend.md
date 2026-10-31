@@ -6,7 +6,8 @@
 >   `distribuidora_test`). Desde 2026-10-14 vieram pedidos do usuário, cada um registrado na
 >   sua fase (aviso e limite de fiado, autorização do gerente, LGPD, custo escondido do
 >   atendente, venda antiga, venda em lote, endereço do cliente, celular no cadastro, caixa que
->   abre e fecha sozinho, reativar produto, fiado no painel). Os testes desses pedidos foram
+>   abre e fecha sozinho, reativar produto, fiado no painel, ver e reativar clientes, lojas,
+>   pessoas da equipe e planos excluídos). Os testes desses pedidos foram
 >   escritos, mas a suíte completa não foi rodada de novo depois deles (o usuário pediu para não
 >   rodar a cada mudança): rode `npm test` antes do próximo deploy.
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
@@ -478,7 +479,8 @@ do signup tem `modifierId` = id do novo usuário; o rate limit (se aprovado) ret
 
    | Ação | Mínimo |
    |---|---|
-   | Dados da company, criar/editar/excluir lojas, membros e papéis | OWNER da company |
+   | Dados da company, criar/excluir lojas | OWNER da company |
+   | Painel da empresa, editar lojas, membros e papéis (sem mexer em donos) | OWNER ou gerente geral (2026-10-30) |
    | Cobrança (Fase 10) | Responsável pela cobrança |
    | Catálogo (`Product`, `BottleType`): criar/editar/excluir | MANAGER em alguma loja |
    | `StoreProduct`: preço, custo, ativo, entrada e ajuste de estoque | MANAGER na loja |
@@ -505,7 +507,19 @@ funcionam.
 ## Fase 3 — Cadastros da conta (Company, Store, membros)
 
 1. **`OrganizationModule`:** `GET /organizations/mine` (organizations em que o usuário
-   tem company). Edição de dados de cobrança fica na Fase 10.
+   tem company; cada company traz `storeCount`). Edição de dados de cobrança fica na Fase 10.
+   - **Troca de plano pelo dono (decisão do usuário, 2026-10-30):**
+     `PATCH /organizations/:organizationId/plan` `{ planId }`, só o responsável pela cobrança e
+     liberado em somente leitura. Vale na hora (sem mexer na situação da assinatura); o valor
+     novo vale na próxima cobrança. 409 para o plano atual, para plano gratuito (o Trial é só do
+     teste) e para downgrade que não cabe (empresas ou lojas por empresa acima do limite;
+     confere sob as mesmas travas de criar empresa e loja). Na Fase 10, a troca precisa refletir
+     na assinatura do Asaas (valor da próxima cobrança).
+   - **Planos do seed (decisão do usuário):** Trial R$ 0 (1/2), Essencial R$ 99 (1/1), Básico
+     R$ 179 (1/3), Profissional R$ 349 (3/10) e Rede R$ 599 (5/50), em empresas/lojas por
+     empresa. Nenhum plano ilimitado (decisão do usuário: arriscado). O Rede tinha 10 empresas e
+     caiu para 5 (decisão do usuário, 2026-10-30): com 10, cada empresa saía por R$ 60 e valia a
+     pena comerciantes diferentes dividirem uma conta; regra: preço ÷ empresas ≥ R$ 99. `syncPlans` roda em todo `db:seed` e atualiza pelo nome.
 2. **`CompanyModule`:**
    - `GET /companies/:companyId`, `PATCH` (OWNER): razão social, nome fantasia (CNPJ não
      muda (⚠️)).
@@ -520,6 +534,9 @@ funcionam.
      cadastro é a exceção (pode ficar sem endereço se a consulta do CNPJ falhar).
    - `cashAutoCloseTime` (HH:mm, padrão `00:00`): horário do fechamento automático do caixa
      da loja (Fase 6).
+   - **Excluídas (pedido do usuário, 2026-10-30):** `GET .../stores/deleted` e
+     `POST .../stores/:id/restore` (OWNER). Reativar respeita `maxStoresPerCompany` (409) e dá
+     OWNER aos donos atuais que não tinham acesso à loja; vendas, estoque e equipe voltam junto.
 4. **`MembershipModule`** (OWNER da company):
    - `GET /companies/:companyId/members`: membros com papel por loja.
    - `POST /companies/:companyId/members`: `{ email, name, stores: [{ storeId, role }] }`.
@@ -536,6 +553,21 @@ funcionam.
    - `DELETE /companies/:companyId/members/:membershipId`: remove de todas as lojas.
    - Proteções: não remover o próprio acesso de OWNER se for o último OWNER da company;
      não alterar o próprio papel.
+   - **Removidos (pedido do usuário, 2026-10-30):** `GET .../members/removed` lista quem saiu,
+     com as lojas e papéis revogados junto com o vínculo; `POST .../members/:membershipId/restore`
+     devolve exatamente esses acessos (os revogados até 5 s antes da remoção; a remoção agora grava
+     a mesma data no vínculo e nos acessos). Lojas revogadas antes, uma a uma, não voltam; se
+     todas foram excluídas, 409 (convidar de novo).
+   - **Gerente geral (decisão do usuário, 2026-10-30; migration `20261030010000_general_manager`):**
+     `Membership.isGeneralManager`. `PUT .../members/:membershipId/general-manager`
+     `{ isGeneralManager }` (só OWNER; 409 para dono ou a própria pessoa) marca e dá MANAGER em todas
+     as lojas ativas (`grantGeneralManagerAccess`); criar e reativar loja dão MANAGER aos gerentes
+     gerais (`grantStoreToGeneralManagers`); reativar um gerente geral removido também. Desmarcar
+     não tira acesso. O decorator `@CompanyAdmin()` (OWNER ou gerente geral) vale para o painel e
+     o histórico da empresa, `PATCH .../stores/:id` e o `MembershipsController` (removidos e
+     reativar continuam `@CompanyOwner()`). No service: o gerente geral não mexe em donos nem em
+     outro gerente geral e não dá OWNER (403, também por convite); papel ou revogação de loja de
+     um gerente geral → 409. `GET /me/memberships` e a lista de membros trazem `isGeneralManager`.
    - Invalidar o cache de acesso (se P3).
    - `User.isActive` é global (o usuário pode estar em outras companies): o dono da
      company **revoga acesso**, não desativa o usuário. Desativar é ação da plataforma
@@ -612,7 +644,8 @@ altere essas colunas por outro caminho; cada alteração precisa do registro cor
    - `GET /stores/:storeId/bottle-stock`: estoque por tipo.
 3. **`CustomerModule`** (`/companies/:companyId/customers`): CRUD + restore + busca por
    nome/telefone. Excluir é bloqueado se houver saldo devedor (dinheiro ou vasilhame)
-   em qualquer loja. A listagem (pedido do usuário, 2026-10-21) traz em cada cliente
+   em qualquer loja. `?deleted=true` (pedido do usuário, 2026-10-30) lista só os excluídos, com
+   `deletedAt`, para gerente e dono (403 para o atendente). A listagem (pedido do usuário, 2026-10-21) traz em cada cliente
    `debts: [{ storeId, balance }]` (só saldo devedor, só as lojas que quem pede enxerga: o
    funcionário vê as dele) e aceita `withDebt=true` para listar só quem deve.
    **Limite de crédito (decisão do usuário, 2026-10-21):** `creditLimit` (null = sem limite)
@@ -815,9 +848,11 @@ versões, com autor, endpoint e diff; um usuário de outra company recebe 404.
 1. Rotas `/platform/*`, protegidas por `@PlatformRole`. SUPPORT só lê; SUPERADMIN lê e
    escreve.
    - Planos: CRUD (excluir = soft delete; bloqueado se houver organization ativa no
-     plano). `GET /plans` público (vitrine do cadastro).
+     plano). `GET /plans` público (vitrine do cadastro). `GET /platform/plans/deleted` e
+     `POST /platform/plans/:id/restore` (SUPERADMIN) para ver e reativar os excluídos (2026-10-30).
    - Organizations: listagem com filtros (status, plano), detalhe com companies, lojas
-     e contagem de usuários; `PATCH` de `subscriptionStatus` e `planId` (manual: para
+     (inclusive as excluídas, com `deletedAt`), contagem de usuários e `people` (todos que já
+     tiveram acesso por empresa, com `removedAt` de quem foi removido; 2026-10-30); `PATCH` de `subscriptionStatus` e `planId` (manual: para
      cortesia e suporte, e até a Fase 10 existir; depois dela o status normalmente vem
      dos webhooks do Asaas). Também `PATCH` de `trialEndsAt` (estender o trial) e limpar
      `pastDueSince` (cortesia). Ao mudar o status manualmente, manter `pastDueSince`
@@ -825,6 +860,27 @@ versões, com autor, endpoint e diff; um usuário de outra company recebe 404.
    - Eventos de cobrança (depois da Fase 10): listagem de `tb_billing_events` com
      filtros (organização, tipo, com erro) e `POST .../reprocess` (SUPERADMIN).
    - Usuários: busca por e-mail; ativar/desativar (`isActive`).
+   - **Indicação e descontos (decisão do usuário, 2026-10-30; módulo `src/referrals/`):**
+     - Banco (migration `20261030000000_referrals`, aprovada pelo usuário): `Organization.referralCode`,
+       `tb_sales_representatives`, `tb_referrals` e `tb_subscription_discounts` (ver
+       `docs/BANCO_DE_DADOS.md` §3.8).
+     - Cadastro: `SignupDto.referralCode` (opcional; código desconhecido → 400). Grava a indicação
+       `PENDING` e o desconto de quem se cadastrou (20% por 2 meses depois do trial), na mesma
+       transação do cadastro.
+     - `GET /organizations/:organizationId/referral` (responsável pela assinatura): cria o código na
+       primeira chamada (`PREFIXO-XXX` com o começo do nome) e devolve indicações feitas e descontos.
+     - Confirmação: `confirmReferral` roda quando `PATCH /platform/organizations/:id` põe
+       `subscriptionStatus: ACTIVE` (= pagou a 1ª mensalidade, até a Fase 10). Cliente que indicou:
+       2 meses de 20%, acumulando até 12 meses a usar. Representante: `commissionInCents` =
+       preço do plano atual do indicado × `commissionPercent`. Chamar de novo não duplica.
+     - Plataforma: `/platform/representatives` (CRUD, `?deleted=true`, `restore`),
+       `GET /platform/referrals` (filtros: situação, origem, representante, comissão, busca),
+       `GET /platform/referrals/summary` (painel), `POST /platform/referrals/:id/commission-paid`
+       ("Pix enviado") e `POST /platform/referrals/:id/cancel` (motivo obrigatório; anula os meses
+       não usados; recusado se a comissão já foi paga). O detalhe da organização traz
+       `referredBy`, `referralCode`, `referralsMade` e `discountRemainingMonths`.
+     - **Na Fase 10:** o webhook `PAYMENT_CONFIRMED` chama `confirmReferral`, e a cobrança aplica os
+       descontos no valor (avançando `monthsUsed`, um mês por cobrança paga).
 2. **Notificações:**
    - `/platform/notifications`: CRUD (SUPERADMIN). `publishedAt` futuro = agendada;
      `expiresAt` opcional.

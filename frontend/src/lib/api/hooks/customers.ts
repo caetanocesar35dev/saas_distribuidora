@@ -27,7 +27,14 @@ export const customerKeys = {
 
 export function useCustomers(
   companyId: string,
-  params: { search?: string; page?: number; limit?: number; withDebt?: boolean },
+  params: {
+    search?: string;
+    page?: number;
+    limit?: number;
+    withDebt?: boolean;
+    /** Só os excluídos (gerente ou dono). */
+    deleted?: boolean;
+  },
   enabled = true,
 ) {
   return useQuery({

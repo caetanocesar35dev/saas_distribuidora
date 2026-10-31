@@ -2,7 +2,7 @@
 
 import { DashboardView } from "@/components/app/dashboard-view";
 import { PageHeader, QueryBoundary } from "@/components/app/common";
-import { RequireCompanyOwnerPage } from "@/components/app/guards";
+import { RequireCompanyAdminPage } from "@/components/app/guards";
 import { useCompanyDashboard } from "@/lib/api/hooks/dashboard";
 import { useCompany } from "@/lib/session/context";
 
@@ -25,9 +25,9 @@ export function CompanyHome() {
         description={`${company.companyName} · todas as lojas juntas`}
         help="gestao-painel"
       />
-      <RequireCompanyOwnerPage>
+      <RequireCompanyAdminPage>
         <CompanyDashboard />
-      </RequireCompanyOwnerPage>
+      </RequireCompanyAdminPage>
     </div>
   );
 }

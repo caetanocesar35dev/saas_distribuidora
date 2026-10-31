@@ -88,13 +88,42 @@ describe('Jobs agendados', () => {
       ]);
     });
 
+    it('no dia seguinte ao fim do teste ou da carência, avisa que ficou somente leitura', async () => {
+      const trialEnded = await org({
+        subscriptionStatus: 'TRIAL',
+        trialEndsAt: at('2026-10-13T20:00:00Z'),
+      }); // acabou ontem, 13/10 17:00 SP
+      const graceEnded = await org({
+        subscriptionStatus: 'PAST_DUE',
+        pastDueSince: at('2026-10-08T18:00:00Z'),
+      }); // 08/10 + 5 = 13/10 (ontem)
+
+      const found = await reminders.findReminders(NOW);
+      expect(found.map((r) => [r.organizationId, r.kind]).sort()).toEqual(
+        [
+          [trialEnded.org.id, 'TRIAL_ENDED'],
+          [graceEnded.org.id, 'GRACE_ENDED'],
+        ].sort(),
+      );
+
+      await ctx.audit.runAsSystem('job:subscription-reminders', () =>
+        reminders.run(NOW),
+      );
+      expect(ctx.mail.sentTo(trialEnded.owner.email)[0].subject).toBe(
+        'Seu período de teste terminou: o sistema está somente para consulta',
+      );
+      expect(ctx.mail.sentTo(graceEnded.owner.email)[0].text).toContain(
+        'modo somente leitura',
+      );
+    });
+
     it('ignora assinaturas ativas e canceladas, teste já vencido e responsável desativado', async () => {
       await org({ subscriptionStatus: 'ACTIVE' });
       await org({ subscriptionStatus: 'CANCELED' });
       await org({
         subscriptionStatus: 'TRIAL',
-        trialEndsAt: at('2026-10-13T15:00:00Z'),
-      }); // venceu ontem
+        trialEndsAt: at('2026-10-12T15:00:00Z'),
+      }); // venceu anteontem (o aviso de "acabou" já saiu ontem)
       const inactive = await org({
         subscriptionStatus: 'TRIAL',
         trialEndsAt: at('2026-10-15T15:00:00Z'),

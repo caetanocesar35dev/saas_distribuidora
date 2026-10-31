@@ -8,7 +8,11 @@ import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ReminderKind =
-  'TRIAL_3_DAYS' | 'TRIAL_1_DAY' | 'GRACE_ENDS_TOMORROW';
+  | 'TRIAL_3_DAYS'
+  | 'TRIAL_1_DAY'
+  | 'TRIAL_ENDED'
+  | 'GRACE_ENDS_TOMORROW'
+  | 'GRACE_ENDED';
 
 export interface Reminder {
   organizationId: string;
@@ -26,16 +30,26 @@ const MESSAGES: Record<ReminderKind, { subject: string; body: string }> = {
     subject: 'Seu período de teste termina amanhã',
     body: 'Seu período de teste termina amanhã. Depois disso o sistema passa para o modo somente leitura até a assinatura ser feita.',
   },
+  TRIAL_ENDED: {
+    subject:
+      'Seu período de teste terminou: o sistema está somente para consulta',
+    body: 'O seu período de teste terminou e o sistema passou para o modo somente leitura: você ainda consulta tudo e fecha o caixa que estava aberto, mas não vende nem cadastra. Seus dados continuam guardados. Escolha um plano em Painel da empresa › Assinatura para voltar a usar tudo.',
+  },
   GRACE_ENDS_TOMORROW: {
     subject:
       'Sua mensalidade está em atraso: o acesso ficará somente leitura amanhã',
     body: 'A mensalidade está em atraso e o prazo de carência termina amanhã. Depois disso o sistema passa para o modo somente leitura (você ainda poderá consultar tudo, fechar o caixa e pagar a assinatura).',
   },
+  GRACE_ENDED: {
+    subject: 'Mensalidade em atraso: o sistema está somente para consulta',
+    body: 'O prazo de carência da mensalidade em atraso terminou e o sistema passou para o modo somente leitura: você ainda consulta tudo, fecha o caixa que estava aberto e pode pagar a assinatura. Seus dados continuam guardados. Assim que o pagamento for confirmado, o acesso completo volta sozinho.',
+  },
 };
 
 /**
- * Avisa o responsável pela cobrança, por e-mail, que o teste ou a carência está acabando. NÃO muda
- * status: o modo somente leitura é calculado na hora a partir de trialEndsAt e pastDueSince.
+ * Avisa o responsável pela cobrança, por e-mail, que o teste ou a carência está acabando e, no dia
+ * seguinte ao fim, que o sistema ficou somente leitura. NÃO muda status: o modo somente leitura é
+ * calculado na hora a partir de trialEndsAt e pastDueSince.
  */
 @Injectable()
 export class SubscriptionRemindersJob {
@@ -75,13 +89,15 @@ export class SubscriptionRemindersJob {
     const day = (date: Date) => formatDayInTz(date, tz);
     const in3Days = day(addDays(now, 3));
     const tomorrow = day(addDays(now, 1));
+    // O aviso de "acabou" sai uma vez, no dia seguinte ao fim (o job roda de manhã).
+    const yesterday = day(addDays(now, -1));
 
     const orgs = await this.prisma.organization.findMany({
       where: {
         OR: [
           {
             subscriptionStatus: 'TRIAL',
-            trialEndsAt: { gt: now, lt: addDays(now, 5) },
+            trialEndsAt: { gt: addDays(now, -3), lt: addDays(now, 5) },
           },
           { subscriptionStatus: 'PAST_DUE', pastDueSince: { not: null } },
         ],
@@ -104,9 +120,11 @@ export class SubscriptionRemindersJob {
         const endsOn = day(org.trialEndsAt);
         if (endsOn === in3Days) kind = 'TRIAL_3_DAYS';
         else if (endsOn === tomorrow) kind = 'TRIAL_1_DAY';
+        else if (endsOn === yesterday) kind = 'TRIAL_ENDED';
       } else if (org.subscriptionStatus === 'PAST_DUE' && org.pastDueSince) {
-        if (day(addDays(org.pastDueSince, graceDays)) === tomorrow)
-          kind = 'GRACE_ENDS_TOMORROW';
+        const graceEndsOn = day(addDays(org.pastDueSince, graceDays));
+        if (graceEndsOn === tomorrow) kind = 'GRACE_ENDS_TOMORROW';
+        else if (graceEndsOn === yesterday) kind = 'GRACE_ENDED';
       }
 
       if (kind)

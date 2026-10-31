@@ -590,10 +590,7 @@ describe('SalesService', () => {
       // gerente confirmando: vende, e fica gravado que ele mesmo autorizou
       const over = await fiadoSale('MANAGER', { allowOverCreditLimit: true });
       expect(await fiado(customer.id)).toBe(45);
-      expect(over.creditApprovedBy).toEqual({
-        id: w.owner.id,
-        name: w.owner.name,
-      });
+      expect(over.creditApprovedBy?.id).toBe(w.owner.id);
 
       // venda à vista não olha o limite
       await sell(

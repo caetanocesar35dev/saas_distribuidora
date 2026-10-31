@@ -15,6 +15,7 @@ import { Role } from '@prisma/client';
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEmail,
   IsEnum,
   IsNotEmpty,
@@ -31,6 +32,14 @@ const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
+
+// ---- Organização ---------------------------------------------------------------------------
+
+/** Troca de plano feita pelo próprio responsável pela assinatura. */
+export class ChangePlanDto {
+  @IsUUID()
+  planId: string;
+}
 
 // ---- Company -----------------------------------------------------------------------------
 
@@ -175,4 +184,9 @@ export class InviteMemberDto {
 export class SetRoleDto {
   @IsEnum(Role)
   role: Role;
+}
+
+export class SetGeneralManagerDto {
+  @IsBoolean()
+  isGeneralManager: boolean;
 }

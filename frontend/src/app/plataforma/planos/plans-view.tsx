@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -9,6 +9,7 @@ import { FormField } from "@/components/app/form";
 import { IntInput, MoneyInput } from "@/components/app/inputs";
 import { PlatformActionButton } from "@/components/app/platform-button";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -26,9 +27,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useDeletePlan, usePlatformPlans, useSavePlan } from "@/lib/api/hooks/platform";
+import {
+  useDeletedPlans,
+  useDeletePlan,
+  usePlatformPlans,
+  useRestorePlan,
+  useSavePlan,
+} from "@/lib/api/hooks/platform";
 import type { PlatformPlan } from "@/lib/api/types";
-import { formatInt } from "@/lib/format";
+import { formatDateTime, formatInt } from "@/lib/format";
 
 const limit = (value: number | null) => (value === null ? "Ilimitado" : formatInt(value));
 
@@ -118,6 +125,80 @@ function PlanDialog({ plan, onClose }: { plan: PlatformPlan | null; onClose: () 
   );
 }
 
+/** Planos excluídos, para ver os limites que tinham e reativar (só SUPERADMIN reativa). */
+function DeletedPlans() {
+  const [open, setOpen] = useState(false);
+  const deleted = useDeletedPlans(open);
+  const restore = useRestorePlan();
+
+  return (
+    <section className="mt-6 space-y-3">
+      <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+        <Checkbox checked={open} onCheckedChange={setOpen} />
+        Mostrar os planos excluídos
+      </label>
+      {open && (
+        <QueryBoundary query={deleted}>
+          {(list) =>
+            list.length === 0 ? (
+              <EmptyState title="Nenhum plano excluído" />
+            ) : (
+              <div className="overflow-x-auto rounded-xl border bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Plano</TableHead>
+                      <TableHead className="text-right">Preço/mês</TableHead>
+                      <TableHead className="text-right">Empresas</TableHead>
+                      <TableHead className="text-right">Lojas por empresa</TableHead>
+                      <TableHead>Excluído em</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {list.map((plan) => (
+                      <TableRow key={plan.id}>
+                        <TableCell className="font-medium">{plan.name}</TableCell>
+                        <TableCell className="text-right">
+                          <Money value={plan.priceInCents / 100} />
+                        </TableCell>
+                        <TableCell className="text-right">{limit(plan.maxCompanies)}</TableCell>
+                        <TableCell className="text-right">
+                          {limit(plan.maxStoresPerCompany)}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          {plan.deletedAt ? formatDateTime(plan.deletedAt) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <PlatformActionButton
+                              variant="outline"
+                              size="sm"
+                              disabled={restore.isPending}
+                              onClick={() =>
+                                restore.mutate(plan.id, {
+                                  onSuccess: (restored) =>
+                                    toast.success(`O plano ${restored.name} voltou a valer.`),
+                                })
+                              }
+                            >
+                              <RotateCcwIcon /> Reativar
+                            </PlatformActionButton>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          }
+        </QueryBoundary>
+      )}
+    </section>
+  );
+}
+
 export function PlansView() {
   const plans = usePlatformPlans();
   const remove = useDeletePlan();
@@ -192,6 +273,7 @@ export function PlansView() {
           )
         }
       </QueryBoundary>
+      <DeletedPlans />
 
       {dialog && (
         <PlanDialog key={dialog.plan?.id ?? "new"} plan={dialog.plan} onClose={() => setDialog(null)} />
@@ -200,7 +282,7 @@ export function PlansView() {
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Excluir o plano ${deleting?.name ?? ""}?`}
-        description="Só é possível excluir um plano que nenhuma organização usa."
+        description="Só é possível excluir um plano que nenhuma organização usa. Ele fica guardado e pode ser reativado em Mostrar os planos excluídos."
         confirmLabel="Excluir plano"
         destructive
         pending={remove.isPending}

@@ -97,7 +97,7 @@ export function SelectContext() {
                   </li>
                 ))}
               </ul>
-              {company.isCompanyOwner && (
+              {(company.isCompanyOwner || company.isGeneralManager) && (
                 <div className="border-t px-4 py-2.5">
                   <Link
                     href={`/empresa/${company.companyId}`}

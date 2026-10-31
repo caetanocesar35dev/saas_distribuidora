@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -28,6 +28,7 @@ import {
   onlyDigits,
   PERSON_NAME_MESSAGE,
 } from "@/lib/format";
+import { normalizeReferralCode } from "@/lib/referral";
 import { resolveHome } from "@/lib/session/last-selection";
 import { sessionKeys } from "@/lib/session/queries";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,7 @@ const schema = z
     nomeFantasia: z.string().trim().max(200).optional(),
     storeName: z.string().trim().min(1, "Informe o nome da primeira loja.").max(120),
     planId: z.string().optional(),
+    referralCode: z.string().trim().max(40).optional(),
     acceptTerms: z.boolean().refine((v) => v, {
       message: "Para criar a conta, aceite os termos de uso e a política de privacidade.",
     }),
@@ -95,6 +97,8 @@ export function SignupForm() {
   const router = useRouter();
   const client = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
+  // Link de indicação (/cadastro?ref=CODIGO) já preenche o código.
+  const referralFromLink = normalizeReferralCode(useSearchParams().get("ref") ?? "");
 
   const plans = useQuery({
     queryKey: ["plans"],
@@ -111,7 +115,7 @@ export function SignupForm() {
     formState: { errors },
   } = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { cnpj: "", phone: "", acceptTerms: false },
+    defaultValues: { cnpj: "", phone: "", acceptTerms: false, referralCode: referralFromLink },
   });
   const cnpjLookup = useCnpjAutofill({
     get: (name) => getValues(name),
@@ -150,6 +154,7 @@ export function SignupForm() {
           planId: v.planId || undefined,
           acceptTerms: v.acceptTerms,
           phone: onlyDigits(v.phone),
+          referralCode: v.referralCode ? normalizeReferralCode(v.referralCode) : undefined,
           // Endereço e telefone da primeira loja vêm da consulta do CNPJ (sem campo na tela).
           storeAddress: storeAddressFromCnpj(cnpjLookup.found),
         });
@@ -338,6 +343,21 @@ export function SignupForm() {
           Os 14 dias de teste valem para qualquer plano. Nenhuma cobrança é feita agora.
         </p>
       </fieldset>
+
+      <FormField
+        label="Código de indicação (opcional)"
+        htmlFor="referralCode"
+        error={errors.referralCode?.message}
+        hint="Foi indicado por alguém? Com o código, você ganha desconto nos primeiros meses depois do teste. Só dá para informar agora, no cadastro."
+      >
+        <Input
+          id="referralCode"
+          autoCapitalize="characters"
+          autoComplete="off"
+          placeholder="Ex.: DISTRI-7K2"
+          {...register("referralCode")}
+        />
+      </FormField>
 
       <div className="space-y-1">
         <Controller

@@ -33,15 +33,35 @@ export function RequireCompanyOwner({
   return isCompanyOwner ? <>{children}</> : <>{fallback}</>;
 }
 
-export function NoPermission({ min }: { min: Role }) {
+/** Dono ou gerente geral (painel da empresa, equipe e lojas). */
+export function RequireCompanyAdmin({
+  children,
+  fallback = null,
+}: {
+  children: ReactNode;
+  fallback?: ReactNode;
+}) {
+  const { isCompanyAdmin } = useAccess();
+  return isCompanyAdmin ? <>{children}</> : <>{fallback}</>;
+}
+
+export function RequireCompanyAdminPage({ children }: { children: ReactNode }) {
+  return (
+    <RequireCompanyAdmin fallback={<NoPermission min="OWNER" generalManager />}>
+      {children}
+    </RequireCompanyAdmin>
+  );
+}
+
+export function NoPermission({ min, generalManager }: { min: Role; generalManager?: boolean }) {
   const who = min === "OWNER" ? "ao dono" : "ao gerente";
   return (
     <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center">
       <LockIcon className="size-8 text-muted-foreground" />
       <h2 className="text-lg font-semibold">Você não tem permissão para ver esta página</h2>
       <p className="text-sm text-muted-foreground">
-        Esta área é para {ROLE_LABEL[min].toLowerCase()} ou acima. Peça {who} se precisar de
-        acesso.
+        Esta área é para {ROLE_LABEL[min].toLowerCase()}
+        {generalManager ? " ou gerente geral" : " ou acima"}. Peça {who} se precisar de acesso.
       </p>
     </div>
   );

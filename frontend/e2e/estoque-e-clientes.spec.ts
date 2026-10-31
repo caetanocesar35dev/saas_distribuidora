@@ -184,7 +184,9 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     expect(errors).toEqual([]);
   });
 
-  test("excluir um cliente sem dívida volta para a lista e ele some", async ({ page }) => {
+  test("excluir um cliente sem dívida: ele some, aparece nos excluídos e volta ao reativar", async ({
+    page,
+  }) => {
     const storeId = await openStore(page, "Loja Centro");
     const nome = `Cliente Excluir ${Date.now() % 100000}`;
     await goToStore(page, storeId, "/clientes");
@@ -207,6 +209,16 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
 
     await page.getByPlaceholder("Buscar por nome ou telefone").fill(nome);
     await expect(page.getByText("Nenhum cliente encontrado")).toBeVisible();
+
+    // nos excluídos aparece com a data; Reativar traz de volta para a lista normal
+    await page.getByText("Mostrar só os excluídos").click();
+    const row = page.getByRole("row", { name: new RegExp(nome) });
+    await expect(row).toBeVisible();
+    await row.getByRole("button", { name: "Reativar" }).click();
+    await expect(page.getByText(`${nome} voltou para a lista de clientes.`)).toBeVisible();
+    await expect(page.getByText("Nenhum cliente excluído")).toBeVisible();
+    await page.getByText("Mostrar só os excluídos").click();
+    await expect(page.getByRole("row", { name: new RegExp(nome) })).toBeVisible();
   });
 
   test("devolução só vale na loja da dívida: na outra loja o sistema avisa", async ({ page }) => {

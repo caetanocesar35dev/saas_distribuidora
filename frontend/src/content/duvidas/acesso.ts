@@ -48,6 +48,7 @@ export const acesso: Article[] = [
       "Ao completar o CNPJ, o sistema busca os dados públicos da empresa e preenche a razão social e o nome fantasia. Confira e corrija se precisar. O que você já tiver digitado não é trocado.",
       "Se a busca não encontrar a empresa ou estiver fora do ar, preencha a razão social e o nome fantasia você mesmo.",
       "Informe o nome da primeira loja e escolha o plano. O endereço e o telefone da loja vêm da consulta do CNPJ e aparecem abaixo do nome; você pode mudar depois em Painel da empresa › Lojas.",
+      "Foi indicado por alguém? Digite o código em Código de indicação (quem abriu um link de indicação já encontra o código preenchido). Você ganha desconto nos primeiros meses depois do teste. Só dá para informar o código agora, no cadastro.",
       "Leia os Termos de uso e a Política de privacidade (os links abrem em outra aba) e marque Li e aceito. Sem esse aceite a conta não é criada.",
       "Clique em Criar conta e começar.",
     ],
@@ -55,6 +56,10 @@ export const acesso: Article[] = [
       {
         message: "CNPJ inválido.",
         fix: "Algum caractere foi digitado errado: os dois últimos são sempre números (dígitos verificadores). Confira no cartão CNPJ da empresa.",
+      },
+      {
+        message: "Código de indicação não encontrado.",
+        fix: "Confira o código com quem indicou (letras, números e hífen, ex.: DISTRI-7K2) ou apague o campo para criar a conta sem indicação.",
       },
       {
         message: "Para criar a conta, aceite os termos de uso e a política de privacidade.",

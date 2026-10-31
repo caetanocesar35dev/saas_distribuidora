@@ -32,6 +32,73 @@ const EMAILS = {
   employee: 'funcionario@exemplo.com',
 };
 
+/**
+ * Planos (decisão do usuário, 2026-10-30). O Trial (R$ 0) é só o plano do período de teste: no
+ * cadastro dá para escolhê-lo, mas o dono não volta para ele depois (plano gratuito não é
+ * oferecido na troca). `null` = ilimitado.
+ */
+const PLANS = [
+  { name: 'Trial', priceInCents: 0, maxCompanies: 1, maxStoresPerCompany: 2 },
+  {
+    name: 'Essencial',
+    priceInCents: 9900,
+    maxCompanies: 1,
+    maxStoresPerCompany: 1,
+  },
+  {
+    name: 'Básico',
+    priceInCents: 17900,
+    maxCompanies: 1,
+    maxStoresPerCompany: 3,
+  },
+  {
+    name: 'Profissional',
+    priceInCents: 34900,
+    maxCompanies: 3,
+    maxStoresPerCompany: 10,
+  },
+  // Sem "ilimitado" (decisão do usuário: arriscado demais); acima disso, ajuste à mão na plataforma.
+  // Preço ÷ empresas nunca abaixo do Essencial (R$ 99), senão vale a pena comerciantes diferentes
+  // dividirem uma conta (decisão do usuário): 599 ÷ 5 = 119,80.
+  {
+    name: 'Rede',
+    priceInCents: 59900,
+    maxCompanies: 5,
+    maxStoresPerCompany: 50,
+  },
+];
+
+/**
+ * Cria ou atualiza (pelo nome) os planos acima e devolve o Trial. O antigo "Pro" do seed anterior
+ * vira "Rede", para as organizações que estão nele continuarem no plano maior.
+ */
+async function syncPlans(prisma: PrismaService) {
+  const [legacyPro, rede] = await Promise.all([
+    prisma.plan.findUnique({ where: { name: 'Pro' } }),
+    prisma.plan.findUnique({ where: { name: 'Rede' } }),
+  ]);
+  if (legacyPro && !rede) {
+    await prisma.plan.update({
+      where: { id: legacyPro.id },
+      data: { name: 'Rede' },
+    });
+  }
+  let trial: { id: string } | null = null;
+  for (const plan of PLANS) {
+    const saved = await prisma.plan.upsert({
+      where: { name: plan.name },
+      create: plan,
+      update: {
+        priceInCents: plan.priceInCents,
+        maxCompanies: plan.maxCompanies,
+        maxStoresPerCompany: plan.maxStoresPerCompany,
+      },
+    });
+    if (plan.name === 'Trial') trial = saved;
+  }
+  return trial!;
+}
+
 async function main() {
   if (
     process.env.NODE_ENV === 'production' &&
@@ -54,12 +121,15 @@ async function main() {
     const rounds = Number(process.env.BCRYPT_ROUNDS ?? 12);
 
     await audit.runAsSystem('seed', async () => {
+      // Os planos são sincronizados sempre (até num banco que já tem o seed).
+      const trial = await syncPlans(prisma);
+
       const already = await prisma.user.findUnique({
         where: { email: EMAILS.owner },
       });
       if (already) {
         console.log(
-          'Seed já aplicado (o usuário dono@exemplo.com existe). Nada a fazer.',
+          'Seed já aplicado (o usuário dono@exemplo.com existe). Planos conferidos; nada mais a fazer.',
         );
         return;
       }
@@ -69,27 +139,6 @@ async function main() {
         prisma.user.create({
           data: { name, email, passwordHash, platformRole },
         });
-
-      // ---- planos ----
-      const [trial] = await Promise.all([
-        prisma.plan.create({
-          data: {
-            name: 'Trial',
-            priceInCents: 0,
-            maxCompanies: 1,
-            maxStoresPerCompany: 2,
-          },
-        }),
-        prisma.plan.create({
-          data: {
-            name: 'Básico',
-            priceInCents: 9900,
-            maxCompanies: 1,
-            maxStoresPerCompany: 3,
-          },
-        }),
-        prisma.plan.create({ data: { name: 'Pro', priceInCents: 19900 } }),
-      ]);
 
       // ---- pessoas, organização, empresa e lojas ----
       await user(

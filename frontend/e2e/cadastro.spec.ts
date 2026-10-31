@@ -1,28 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { randomCnpj as cnpj } from "./api";
 import { trackPageErrors } from "./helpers";
-
-/**
- * CNPJ **alfanumérico** válido (com os dígitos verificadores) gerado na hora, para o cadastro não
- * repetir. Cada caractere vale o código ASCII menos 48 (dígito = ele mesmo, A = 17).
- */
-function cnpj(): string {
-  const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const base = Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)])
-    .concat(["A", "0", "0", "1"])
-    .join("");
-  const digit = (text: string) => {
-    let factor = text.length - 7;
-    let sum = 0;
-    for (const ch of text) {
-      sum += (ch.charCodeAt(0) - 48) * factor--;
-      if (factor < 2) factor = 9;
-    }
-    const mod = sum % 11;
-    return mod < 2 ? 0 : 11 - mod;
-  };
-  const d1 = digit(base);
-  return `${base}${d1}${digit(`${base}${d1}`)}`;
-}
 
 test("cadastro de conta nova, administração da empresa e conta pessoal", async ({ page }) => {
   const errors = trackPageErrors(page);

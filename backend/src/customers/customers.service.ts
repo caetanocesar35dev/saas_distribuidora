@@ -123,6 +123,7 @@ export class CustomersService {
    * precisar abrir cliente por cliente. Como nos saldos, o funcionário só vê as lojas dele.
    */
   async list(companyId: string, query: ListCustomersQuery, viewer: Viewer) {
+    if (query.deleted) return this.listDeleted(companyId, query, viewer.role);
     const storeFilter = hasMinRole(viewer.role, Role.MANAGER)
       ? {}
       : { storeId: { in: viewer.storeIds } };
@@ -147,7 +148,7 @@ export class CustomersService {
     const [customers, total] = await Promise.all([
       this.prisma.customer.findMany({
         where,
-        select: CUSTOMER_SELECT,
+        select: { ...CUSTOMER_SELECT, deletedAt: true },
         orderBy: { name: 'asc' },
         ...pageArgs(query),
       }),
@@ -169,6 +170,48 @@ export class CustomersService {
         .filter((d) => d.customerId === c.id)
         .map((d) => ({ storeId: d.storeId, balance: roundMoney(d.balance) })),
     }));
+    return paginate(data, total, query.page, query.limit);
+  }
+
+  /**
+   * Clientes excluídos (soft delete), com os dados de cadastro e a data da exclusão, para gerente
+   * e dono verem e reativarem. Excluído não tem dívida (a exclusão exige saldo zerado).
+   */
+  private async listDeleted(
+    companyId: string,
+    query: ListCustomersQuery,
+    role: Role,
+  ) {
+    if (!hasMinRole(role, Role.MANAGER)) {
+      throw new ForbiddenException(
+        'Só gerente ou dono pode ver os clientes excluídos.',
+      );
+    }
+    const where: Prisma.CustomerWhereInput = {
+      companyId,
+      deletedAt: { not: null },
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { phone: { contains: query.search } },
+            ],
+          }
+        : {}),
+    };
+    // A extensão esconde quem tem deletedAt, então a leitura sai do filtro padrão.
+    const [customers, total] = await this.audit.withDeleted(() =>
+      Promise.all([
+        this.prisma.customer.findMany({
+          where,
+          select: { ...CUSTOMER_SELECT, deletedAt: true },
+          orderBy: { deletedAt: 'desc' },
+          ...pageArgs(query),
+        }),
+        this.prisma.customer.count({ where }),
+      ]),
+    );
+    const data = customers.map((c) => ({ ...c, debts: [] }));
     return paginate(data, total, query.page, query.limit);
   }
 

@@ -3,6 +3,7 @@
 import { ArrowLeftIcon } from "lucide-react";
 import Link from "next/link";
 import { Brand } from "@/components/app/brand";
+import { DiscountBadge } from "@/components/app/discount-badge";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { UserMenu } from "@/components/app/user-menu";
 import { getValidLastSelection } from "@/lib/session/last-selection";
@@ -21,6 +22,7 @@ export function UserShell({ children }: { children: React.ReactNode }) {
           <Brand />
         </Link>
         <div className="flex-1" />
+        <DiscountBadge />
         <NotificationsBell />
         <UserMenu />
       </header>

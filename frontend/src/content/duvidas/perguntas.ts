@@ -76,18 +76,41 @@ export const perguntas: Article[] = [
   {
     id: "faq-excluir-engano",
     category: "perguntas",
-    title: "Excluí um produto ou cliente por engano",
-    purpose: "Saber como trazer de volta algo excluído.",
-    where: "Menu › Produtos · Menu › Clientes e fiado",
+    title: "Excluí algo por engano (produto, cliente, loja ou pessoa da equipe)",
+    purpose:
+      "Saber como ver e trazer de volta algo excluído. Nada é apagado de verdade: os dados ficam guardados.",
+    where:
+      "Menu › Produtos · Menu › Clientes e fiado · Menu › Painel da empresa › Lojas · Menu › Painel da empresa › Equipe",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Produto: em Menu › Produtos, marque Mostrar só os excluídos e clique em Reativar. Ele volta com o preço e o estoque de antes nas lojas.",
+      "Cliente: em Menu › Clientes e fiado, marque Mostrar só os excluídos. A lista mostra o telefone, o endereço e quando o cliente foi excluído; clique em Reativar para ele voltar, com as vendas e os pagamentos de antes.",
       'Tipo de vasilhame: crie um tipo com o mesmo nome em Menu › Vasilhames › Tipos de vasilhame e use "Reativar o tipo excluído".',
-      "Cliente: clientes excluídos não aparecem na lista. Cadastre o cliente de novo; as vendas e pagamentos antigos continuam guardados no histórico.",
+      "Loja (só o dono): em Menu › Painel da empresa › Lojas, marque Mostrar as lojas excluídas e clique em Reativar. A loja volta com as vendas, o estoque, os caixas e a equipe de antes; o limite de lojas do plano vale.",
+      "Pessoa da equipe (só o dono): em Menu › Painel da empresa › Equipe, marque Mostrar quem foi removido e clique em Reativar. A pessoa volta com as lojas e os papéis que tinha quando saiu.",
     ],
-    related: ["produtos-excluir-reativar"],
-    keywords: ["reativar", "restaurar", "apaguei", "excluído"],
+    problems: [
+      {
+        message: "O plano permite no máximo ... loja(s) por empresa. Exclua outra loja ou mude de plano para reativar esta.",
+        fix: "A empresa já está no limite de lojas do plano. Exclua outra loja ou fale com o suporte para mudar de plano.",
+      },
+      {
+        message: "As lojas que esta pessoa acessava foram excluídas.",
+        fix: "Convide a pessoa de novo em Convidar pessoa, escolhendo as lojas e os papéis.",
+      },
+    ],
+    related: ["produtos-excluir-reativar", "clientes-cadastrar", "gestao-lojas", "gestao-equipe"],
+    keywords: [
+      "reativar",
+      "restaurar",
+      "apaguei",
+      "excluído",
+      "excluída",
+      "removido",
+      "desfazer",
+      "lixeira",
+    ],
   },
   {
     id: "faq-codigo-existe",

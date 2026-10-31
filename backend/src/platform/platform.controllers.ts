@@ -48,6 +48,19 @@ export class PlatformController {
     return this.platform.listPlans();
   }
 
+  /** Planos excluídos (antes de `plans/:id`). */
+  @Get('plans/deleted')
+  listDeletedPlans() {
+    return this.platform.listDeletedPlans();
+  }
+
+  @RequirePlatformRole('SUPERADMIN')
+  @HttpCode(200)
+  @Post('plans/:id/restore')
+  restorePlan(@Param('id') id: string) {
+    return this.platform.restorePlan(id);
+  }
+
   @RequirePlatformRole('SUPERADMIN')
   @Post('plans')
   createPlan(@Body() dto: CreatePlanDto) {

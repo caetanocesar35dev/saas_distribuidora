@@ -9,6 +9,8 @@ import {
   ClipboardListIcon,
   ContainerIcon,
   CreditCardIcon,
+  GiftIcon,
+  HandshakeIcon,
   HistoryIcon,
   HomeIcon,
   MegaphoneIcon,
@@ -26,6 +28,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Brand } from "@/components/app/brand";
+import { DiscountBadge } from "@/components/app/discount-badge";
 import { NotificationsBell } from "@/components/app/notifications-bell";
 import { SubscriptionBanner } from "@/components/app/subscription-banner";
 import { UserMenu } from "@/components/app/user-menu";
@@ -199,6 +202,7 @@ function Frame({
           >
             <CircleHelpIcon />
           </Button>
+          <DiscountBadge />
           <NotificationsBell />
           <UserMenu />
         </header>
@@ -244,7 +248,7 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
   ];
 
   const groups: NavGroup[] = [{ items: operation }, { title: "Mercadoria", items: stock }];
-  if (store.isCompanyOwner) {
+  if (store.isCompanyAdmin) {
     groups.push({
       title: "Empresa",
       items: [
@@ -281,7 +285,10 @@ export function CompanyShell({ children }: { children: React.ReactNode }) {
     { href: base, label: "Painel da empresa", icon: HomeIcon, exact: true },
     { href: `${base}/lojas`, label: "Lojas", icon: StoreIcon },
     { href: `${base}/equipe`, label: "Equipe", icon: UsersIcon },
-    { href: `${base}/dados`, label: "Dados da empresa", icon: BuildingIcon },
+    // Dados da empresa são só do dono (o gerente geral não vê o item).
+    ...(company.isCompanyOwner
+      ? [{ href: `${base}/dados`, label: "Dados da empresa", icon: BuildingIcon }]
+      : []),
     { href: `${base}/assinatura`, label: "Assinatura", icon: CreditCardIcon },
   ];
   if (company.isBillingOwner) {
@@ -321,6 +328,8 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
       items: [
         { href: "/plataforma/organizacoes", label: "Organizações", icon: BuildingIcon },
         { href: "/plataforma/planos", label: "Planos", icon: BadgeDollarSignIcon },
+        { href: "/plataforma/indicacoes", label: "Indicações", icon: GiftIcon },
+        { href: "/plataforma/representantes", label: "Representantes", icon: HandshakeIcon },
         { href: "/plataforma/usuarios", label: "Usuários", icon: UsersIcon },
         { href: "/plataforma/notificacoes", label: "Notificações", icon: MegaphoneIcon },
       ],
