@@ -264,3 +264,4 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     **Talvez depois:** resumo semanal para o dono (faturamento, fiado em aberto, estoque baixo),
     só se os primeiros clientes quiserem.
 21. [ ] revisar termos de uso
+21. [ ] adicionar whatsapp e instagram
