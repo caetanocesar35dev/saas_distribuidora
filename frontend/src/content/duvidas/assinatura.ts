@@ -13,6 +13,7 @@ export const assinatura: Article[] = [
       "Toda conta nova começa com 14 dias de teste, sem informar cartão.",
       "Durante o teste tudo funciona normalmente. Uma faixa no topo mostra quantos dias faltam (e fica em destaque nos últimos 3 dias).",
       "Quando o teste acaba, o sistema não é bloqueado: ele passa a ser somente para consulta até a assinatura ser regularizada.",
+      "O responsável pela assinatura recebe e-mails: boas-vindas no cadastro (com a data do fim do teste), aviso 3 dias e 1 dia antes do fim, e outro no dia seguinte ao fim, quando o sistema fica somente para consulta. Confira também a caixa de spam.",
     ],
     related: ["assinatura-somente-leitura", "assinatura-regularizar"],
     keywords: ["trial", "teste grátis", "14 dias"],

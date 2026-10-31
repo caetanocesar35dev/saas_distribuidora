@@ -163,6 +163,72 @@ export function inviteEmail(
   });
 }
 
+/** Cadastro concluído: o fim do teste e os primeiros passos. */
+export function welcomeEmail(
+  name: string,
+  companyName: string,
+  trialEndsOn: string | null,
+  url: string,
+): EmailContent {
+  return render({
+    subject: `Bem-vindo! Sua conta de ${companyName} está pronta - ${APP_NAME}`,
+    preheader: trialEndsOn
+      ? `Seu teste grátis vai até ${trialEndsOn}. Veja os primeiros passos.`
+      : 'Veja os primeiros passos para começar a usar o sistema.',
+    title: 'Sua conta está pronta',
+    name,
+    paragraphs: [
+      `A conta de ${companyName} foi criada.${trialEndsOn ? ` Você pode usar tudo de graça até ${trialEndsOn}, sem informar cartão.` : ''}`,
+      'Para começar: 1) cadastre os seus produtos em Produtos; 2) faça a primeira venda em Vender (PDV), que o caixa abre sozinho; 3) convide a sua equipe em Painel da empresa › Equipe.',
+      'No Início do sistema, o quadro Primeiros passos mostra o que falta. E o botão "?" de cada tela explica como ela funciona.',
+    ],
+    button: { label: 'Entrar no sistema', url },
+    reason: 'Você recebeu este e-mail porque criou uma conta no sistema.',
+  });
+}
+
+/** Aviso de segurança: a senha da conta mudou (troca, redefinição ou primeira senha do convite). */
+export function passwordChangedEmail(name: string, url: string): EmailContent {
+  return render({
+    subject: `Sua senha foi alterada - ${APP_NAME}`,
+    preheader: 'A senha da sua conta acabou de ser alterada.',
+    title: 'Sua senha foi alterada',
+    name,
+    paragraphs: [
+      'A senha da sua conta acabou de ser alterada, e as sessões abertas em outros aparelhos foram encerradas.',
+      'Se foi você (inclusive ao criar a senha de um convite), não precisa fazer nada.',
+    ],
+    button: { label: 'Não fui eu: redefinir a senha', url },
+    note: 'Se você não reconhece esta alteração, redefina a senha agora pelo botão e avise o dono da empresa.',
+    reason:
+      'Você recebeu este e-mail porque a senha desta conta foi alterada. É um aviso de segurança.',
+  });
+}
+
+/** Quem indicou ganhou desconto: o indicado pagou a 1ª mensalidade. */
+export function referralRewardEmail(
+  name: string,
+  referredName: string,
+  months: number,
+  percent: number,
+  url: string,
+): EmailContent {
+  const period = `${months} ${months === 1 ? 'mês' : 'meses'} com ${percent}% de desconto`;
+  return render({
+    subject: `Você ganhou ${period} - ${APP_NAME}`,
+    preheader: `${referredName} assinou pelo seu código de indicação.`,
+    title: 'Sua indicação deu certo',
+    name,
+    paragraphs: [
+      `${referredName} se cadastrou com o seu código de indicação e pagou a primeira mensalidade. Por isso você ganhou ${period} na sua assinatura.`,
+      'O desconto vale nas próximas mensalidades e se soma aos que você já tem. Continue indicando: cada distribuidora que assinar pelo seu código dá mais desconto.',
+    ],
+    button: { label: 'Ver meus descontos', url },
+    reason:
+      'Você recebeu este e-mail porque alguém assinou o sistema pelo seu código de indicação.',
+  });
+}
+
 export function subscriptionReminderEmail(
   name: string,
   subject: string,

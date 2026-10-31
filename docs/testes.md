@@ -211,3 +211,9 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Botão "?" de várias telas: cada um abre o artigo certo da Central de Dúvidas.
 - [ ] Modo escuro, se você usa.
 - [x] testar emails, especialmente de redefinir senha
+- [ ] Rodar `npm run mail:test -- seu@email.com` em `backend/` e conferir os 6 e-mails no Gmail e no
+  celular (boas-vindas, senha alterada e indicação confirmada são novos).
+- [ ] Criar uma conta com um e-mail real: chega o de boas-vindas com a data do fim do teste.
+- [ ] Trocar a senha em Minha conta: chega "Sua senha foi alterada".
+- [ ] Indicação: com um e-mail real no dono que indicou, pôr o indicado em Ativa na plataforma: chega
+  "Você ganhou 2 meses com 20% de desconto".

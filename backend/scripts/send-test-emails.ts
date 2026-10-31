@@ -1,6 +1,7 @@
 /**
- * Envia de verdade os três e-mails do sistema (redefinição de senha, convite e lembrete de
- * assinatura), com dados de exemplo, para conferir a configuração do SMTP e a aparência.
+ * Envia de verdade os e-mails do sistema (redefinição de senha, convite, lembrete de assinatura,
+ * boas-vindas, senha alterada e indicação confirmada), com dados de exemplo, para conferir a
+ * configuração do SMTP e a aparência.
  *
  *   npm run mail:test -- destino@exemplo.com
  *
@@ -46,6 +47,26 @@ async function main() {
         'Maria Exemplo',
         'Seu período de teste termina em 3 dias',
         'Faltam 3 dias para o fim do seu período de teste. Assine um plano para continuar usando o sistema sem interrupção.',
+      ),
+    ],
+    [
+      'Boas-vindas',
+      await mail.sendWelcome(
+        to,
+        'Maria Exemplo',
+        'Distribuidora Exemplo',
+        new Date(Date.now() + 14 * 86_400_000),
+      ),
+    ],
+    ['Senha alterada', await mail.sendPasswordChanged(to, 'Maria Exemplo')],
+    [
+      'Indicação confirmada',
+      await mail.sendReferralReward(
+        to,
+        'Maria Exemplo',
+        'Bar do Zé Bebidas',
+        2,
+        20,
       ),
     ],
   ] as const;

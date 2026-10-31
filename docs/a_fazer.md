@@ -114,6 +114,27 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
       limite, autorizado por ...".
 
+25. [ ] **Vender além de bebidas** (pedido do usuário, 2026-10-30: distribuidoras também vendem
+    cigarro, salgadinho, gelo, carvão, descartáveis etc.). Hoje o cadastro já aceita esses produtos
+    (vasilhame é opcional e o "fardo" serve para qualquer embalagem com várias unidades), mas tudo
+    foi pensado para bebida. A decidir com o usuário antes de implementar:
+    - **Categorias de produto** (Bebidas, Cigarros, Salgadinhos, Mercearia, Gelo/Carvão...): filtro
+      no PDV, no Estoque e em Produtos, e faturamento e lucro por categoria no painel. Precisa de
+      tabela ou coluna nova (aprovação do schema).
+    - **Nome da embalagem por produto**: hoje a tela diz sempre "fardo"; cigarro vende em **maço** e
+      **pacote** (10 maços), salgadinho em **caixa** ou **display**. Um campo "nome da embalagem"
+      (fardo, caixa, pacote, display, engradado) muda só o texto, sem mexer na conta.
+    - **Venda por peso ou fração** (gelo em kg, carvão, produtos a granel): hoje a quantidade é
+      inteira. Exige aceitar quantidade decimal em estoque e venda: mudança grande, só se pedirem.
+    - **Validade e lote** (salgadinho e alimentos vencem): alerta de produtos perto do vencimento.
+      Mudança média; avaliar com os primeiros clientes.
+    - **Venda proibida para menores** (bebida alcoólica e cigarro): um aviso opcional no PDV
+      ("confirme a idade do cliente") nos produtos marcados como restritos. Simples.
+    - **Nota fiscal** (item 12) fica mais importante: cigarro e alimentos têm tributação própria
+      (NCM, substituição tributária), então o cadastro fiscal do produto entra junto com a NFC-e.
+    - Revisar os textos que dizem "bebidas" (cadastro, Termos, Central de Dúvidas, e-mails) para
+      falar em "distribuidora" de forma geral.
+
 ### Operação da plataforma
 
 22. [x] **Mais planos e troca de plano pelo dono** (pedido do usuário, 2026-10-30: "não faria
@@ -193,5 +214,18 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     Tipo de vasilhame continua voltando só pelo aviso ao recriar com o mesmo nome.
 20. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
 
-21. [ ] adicionar mais emails
+21. [x] adicionar mais emails. **Feito (2026-10-30):** além de redefinir senha, convite e lembrete
+    do teste/carência, o sistema manda **boas-vindas** no cadastro (fim do teste e primeiros
+    passos), **senha alterada** (troca, redefinição e primeira senha do convite: aviso de
+    segurança), **teste terminou** e **carência terminou** (no dia seguinte, avisando o modo
+    somente leitura) e **indicação confirmada** (para quem indicou, com os meses de desconto).
+    `npm run mail:test -- seu@email.com` envia todos de exemplo.
+    **Falta, com o Asaas (Fase 10):**
+    - **Pagamento confirmado / recibo** (valor, plano, período, link da fatura).
+    - **Pagamento falhou ou venceu** (cartão recusado, Pix não pago), com o link para pagar.
+    - **Plano alterado** (plano novo, valor e a partir de quando vale).
+    - **Assinatura cancelada** (o que continua liberado e como voltar).
+    - O "teste terminou" e o "carência terminou" passam a levar o botão direto para pagar.
+    **Talvez depois:** resumo semanal para o dono (faturamento, fiado em aberto, estoque baixo),
+    só se os primeiros clientes quiserem.
 21. [ ] revisar termos de uso

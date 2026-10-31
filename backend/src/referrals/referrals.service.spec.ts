@@ -241,6 +241,17 @@ describe('ReferralsService', () => {
       expect(view.discounts).toEqual([
         expect.objectContaining({ reason: 'REFERRER', from: referred.name }),
       ]);
+
+      // e-mail para quem indicou, uma vez só (a segunda confirmação não faz nada)
+      const owner = await ctx.prisma.user.findUniqueOrThrow({
+        where: { id: referrer.ownerUserId },
+      });
+      const rewards = ctx.mail
+        .sentTo(owner.email)
+        .filter((m) => m.subject.startsWith('Você ganhou'));
+      expect(rewards).toHaveLength(1);
+      expect(rewards[0].subject).toContain('2 meses com 20% de desconto');
+      expect(rewards[0].text).toContain(referred.name);
     });
 
     it('não confirma enquanto a assinatura não fica ativa', async () => {

@@ -299,7 +299,10 @@ npm run mail:test -- dest@x.com    # envia de verdade os 3 e-mails de exemplo (c
 
 - **E-mail (configurado pelo usuário em 2026-10-30, Gmail com senha de app):** textos em
   `src/mail/templates.ts` (HTML de e-mail em tabelas com estilos inline + texto puro). E-mail novo:
-  crie a função lá e use-a no `MailService` e no `FakeMailService` dos testes.
+  crie a função lá e use-a no `MailService`, no `FakeMailService` dos testes e no
+  `scripts/send-test-emails.ts`. Hoje são 6: redefinir senha, convite, lembretes da assinatura (3 e
+  1 dia antes do fim do teste, carência acabando, e teste/carência terminou), boas-vindas, senha
+  alterada e indicação confirmada. Os de pagamento ficam para o Asaas (`docs/a_fazer.md`, item 21).
 
 - `prisma migrate dev` **não funciona em sessão não interativa**. Para criar uma
   migration: alterar o schema, gerar o SQL com

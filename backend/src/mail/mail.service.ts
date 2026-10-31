@@ -4,8 +4,11 @@ import { createTransport, Transporter } from 'nodemailer';
 import { Env } from '../config/env';
 import {
   inviteEmail,
+  passwordChangedEmail,
   passwordResetEmail,
+  referralRewardEmail,
   subscriptionReminderEmail,
+  welcomeEmail,
 } from './templates';
 
 export interface MailMessage {
@@ -87,10 +90,62 @@ export class MailService {
     subject: string,
     body: string,
   ) {
-    const url = `${this.config.get('APP_URL', { infer: true })}/login`;
     return this.send({
       to,
-      ...subscriptionReminderEmail(name, subject, body, url),
+      ...subscriptionReminderEmail(name, subject, body, this.url('/login')),
     });
   }
+
+  sendWelcome(
+    to: string,
+    name: string,
+    companyName: string,
+    trialEndsAt: Date | null,
+  ) {
+    const trialEndsOn = trialEndsAt
+      ? formatDateBr(
+          trialEndsAt,
+          this.config.get('APP_TIMEZONE', { infer: true }),
+        )
+      : null;
+    return this.send({
+      to,
+      ...welcomeEmail(name, companyName, trialEndsOn, this.url('/login')),
+    });
+  }
+
+  sendPasswordChanged(to: string, name: string) {
+    return this.send({
+      to,
+      ...passwordChangedEmail(name, this.url('/esqueci-a-senha')),
+    });
+  }
+
+  sendReferralReward(
+    to: string,
+    name: string,
+    referredName: string,
+    months: number,
+    percent: number,
+  ) {
+    return this.send({
+      to,
+      ...referralRewardEmail(
+        name,
+        referredName,
+        months,
+        percent,
+        this.url('/indique'),
+      ),
+    });
+  }
+
+  private url(path: string) {
+    return `${this.config.get('APP_URL', { infer: true })}${path}`;
+  }
+}
+
+/** Data no formato brasileiro (ex.: 13/11/2026), no fuso informado. */
+export function formatDateBr(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('pt-BR', { timeZone }).format(date);
 }

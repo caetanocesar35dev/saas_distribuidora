@@ -1,8 +1,11 @@
-import { MailMessage } from '../../src/mail/mail.service';
+import { formatDateBr, MailMessage } from '../../src/mail/mail.service';
 import {
   inviteEmail,
+  passwordChangedEmail,
   passwordResetEmail,
+  referralRewardEmail,
   subscriptionReminderEmail,
+  welcomeEmail,
 } from '../../src/mail/templates';
 
 /**
@@ -49,6 +52,54 @@ export class FakeMailService {
         'http://localhost:3000/login',
       ),
     });
+  }
+
+  sendWelcome(
+    to: string,
+    name: string,
+    companyName: string,
+    trialEndsAt: Date | null,
+  ) {
+    return this.send({
+      to,
+      ...welcomeEmail(
+        name,
+        companyName,
+        trialEndsAt ? formatDateBr(trialEndsAt, 'America/Sao_Paulo') : null,
+        'http://localhost:3000/login',
+      ),
+    });
+  }
+
+  sendPasswordChanged(to: string, name: string) {
+    return this.send({
+      to,
+      ...passwordChangedEmail(name, 'http://localhost:3000/esqueci-a-senha'),
+    });
+  }
+
+  sendReferralReward(
+    to: string,
+    name: string,
+    referredName: string,
+    months: number,
+    percent: number,
+  ) {
+    return this.send({
+      to,
+      ...referralRewardEmail(
+        name,
+        referredName,
+        months,
+        percent,
+        'http://localhost:3000/indique',
+      ),
+    });
+  }
+
+  /** Mensagens enviadas para o destinatário, na ordem. */
+  sentTo(to: string): MailMessage[] {
+    return this.sent.filter((m) => m.to === to);
   }
 
   /** Último link (http...) enviado para o destinatário. */

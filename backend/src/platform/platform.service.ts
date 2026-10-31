@@ -7,8 +7,12 @@ import { Prisma } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import { confirmReferral } from '../referrals/referral-rewards';
-import { remainingMonths } from '../referrals/referral-rules';
+import {
+  REFERRAL_DISCOUNT_PERCENT,
+  remainingMonths,
+} from '../referrals/referral-rules';
 import {
   CreatePlanDto,
   ListOrganizationsQuery,
@@ -41,6 +45,7 @@ export class PlatformService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditContext,
+    private readonly mail: MailService,
   ) {}
 
   // ---- Planos ----------------------------------------------------------------------------------
@@ -325,13 +330,39 @@ export class PlatformService {
     }
     if (dto.pastDueSince !== undefined) data.pastDueSince = dto.pastDueSince;
 
-    await this.prisma.$transaction(async (tx) => {
+    const confirmed = await this.prisma.$transaction(async (tx) => {
       await tx.organization.update({ where: { id }, data });
       // Até a cobrança automática existir, pôr a assinatura em ACTIVE é o "pagou a 1ª mensalidade"
       // que libera a recompensa de quem indicou (na Fase 10, o webhook do pagamento faz isso).
-      if (dto.subscriptionStatus === 'ACTIVE') await confirmReferral(tx, id);
+      return dto.subscriptionStatus === 'ACTIVE'
+        ? confirmReferral(tx, id)
+        : null;
     });
+    if (confirmed && confirmed.grantedMonths > 0)
+      await this.notifyReferrer(confirmed.referral.id, confirmed.grantedMonths);
     return this.getOrganization(id);
+  }
+
+  /** E-mail para o responsável pela assinatura de quem indicou: ganhou desconto. */
+  private async notifyReferrer(referralId: string, months: number) {
+    const referral = await this.prisma.referral.findFirst({
+      where: { id: referralId },
+      select: {
+        referredOrganization: { select: { name: true } },
+        referrerOrganization: {
+          select: { owner: { select: { name: true, email: true } } },
+        },
+      },
+    });
+    const owner = referral?.referrerOrganization?.owner;
+    if (!referral || !owner) return;
+    await this.mail.sendReferralReward(
+      owner.email,
+      owner.name,
+      referral.referredOrganization.name,
+      months,
+      REFERRAL_DISCOUNT_PERCENT,
+    );
   }
 
   // ---- Usuários ------------------------------------------------------------------------------------

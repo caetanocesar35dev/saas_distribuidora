@@ -84,6 +84,12 @@ describe('AuthService', () => {
       expect(access).toHaveLength(1);
       expect(access[0]).toMatchObject({ role: 'OWNER' });
       expect(access[0].store.name).toBe('Matriz');
+
+      // boas-vindas com o fim do teste
+      const [welcome] = ctx.mail.sentTo('maria@dist.com');
+      expect(welcome.subject).toContain('Maria Bebidas');
+      expect(welcome.text).toContain('Para começar');
+      expect(welcome.text).toMatch(/até \d{2}\/\d{2}\/\d{4}/);
     });
 
     it('a auditoria do cadastro atribui tudo ao próprio usuário criado', async () => {
@@ -392,6 +398,11 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
       await expect(login(user.email, 'NovaSenha@1')).resolves.toBeTruthy();
+
+      // aviso de segurança por e-mail
+      expect(ctx.mail.sentTo(user.email).map((m) => m.subject)).toEqual([
+        'Sua senha foi alterada - Distribuidora',
+      ]);
     });
   });
 
@@ -437,6 +448,9 @@ describe('AuthService', () => {
       await expect(login(user.email, 'Redefinida@1')).resolves.toBeTruthy();
       await expect(refresh(session.refresh_token)).rejects.toBeInstanceOf(
         UnauthorizedException,
+      );
+      expect(ctx.mail.sentTo(user.email).at(-1)!.subject).toBe(
+        'Sua senha foi alterada - Distribuidora',
       );
 
       // o mesmo link não funciona de novo (o hash da senha mudou)

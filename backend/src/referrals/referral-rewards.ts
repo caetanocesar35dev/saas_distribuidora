@@ -113,6 +113,7 @@ export async function confirmReferral(
 
   const plan = referral.referredOrganization.plan;
   let note: string | undefined;
+  let grantedMonths = 0;
 
   if (referral.referrerOrganizationId) {
     const referrerId = referral.referrerOrganizationId;
@@ -123,6 +124,7 @@ export async function confirmReferral(
       select: { months: true, monthsUsed: true },
     });
     const months = referrerMonthsToGrant(remainingMonths(current));
+    grantedMonths = months;
     if (months > 0) {
       await tx.subscriptionDiscount.create({
         data: {
@@ -138,7 +140,7 @@ export async function confirmReferral(
     }
   }
 
-  return tx.referral.update({
+  const confirmed = await tx.referral.update({
     where: { id: referral.id },
     data: {
       status: 'CONFIRMED',
@@ -156,4 +158,6 @@ export async function confirmReferral(
       ...(note ? { note } : {}),
     },
   });
+  // Meses dados ao cliente que indicou (0 = representante ou limite atingido): base do e-mail.
+  return { referral: confirmed, grantedMonths };
 }

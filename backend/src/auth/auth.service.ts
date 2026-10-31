@@ -128,6 +128,7 @@ export class AuthService {
     const passwordHash = await this.hashPassword(dto.password);
     const userId = randomUUID();
     const trialDays = this.config.get('TRIAL_DAYS', { infer: true });
+    const trialEndsAt = addDays(new Date(), trialDays);
 
     // O autor das gravações do cadastro é o próprio usuário que está sendo criado.
     const user = await this.audit.actAs(userId, () =>
@@ -149,7 +150,7 @@ export class AuthService {
             ownerUserId: userId,
             planId: plan.id,
             subscriptionStatus: 'TRIAL',
-            trialEndsAt: addDays(new Date(), trialDays),
+            trialEndsAt,
             billingEmail: dto.email,
             billingDocument: cnpj,
           },
@@ -195,6 +196,13 @@ export class AuthService {
       }),
     );
 
+    // Boas-vindas: falha de envio não desfaz o cadastro (o MailService só registra).
+    await this.mail.sendWelcome(
+      user.email,
+      user.name,
+      dto.nomeFantasia || dto.razaoSocial,
+      trialEndsAt,
+    );
     const session = await this.tokens.issueSession(user.id, meta);
     return this.toResult(session, user);
   }
@@ -266,6 +274,7 @@ export class AuthService {
       }),
     );
     await this.tokens.revokeAllForUser(user.id);
+    await this.mail.sendPasswordChanged(user.email, user.name);
     return { message: 'Senha redefinida com sucesso.' };
   }
 
@@ -291,6 +300,7 @@ export class AuthService {
       }),
     );
     await this.tokens.revokeAllForUser(userId);
+    await this.mail.sendPasswordChanged(user.email, user.name);
     const session = await this.tokens.issueSession(userId, meta);
     return this.toResult(session, user);
   }

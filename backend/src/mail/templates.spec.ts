@@ -1,8 +1,11 @@
 import {
   escapeHtml,
   inviteEmail,
+  passwordChangedEmail,
   passwordResetEmail,
+  referralRewardEmail,
   subscriptionReminderEmail,
+  welcomeEmail,
 } from './templates';
 
 describe('templates de e-mail', () => {
@@ -44,6 +47,32 @@ describe('templates de e-mail', () => {
     expect(email.text).toContain(
       'Acessar o sistema: http://localhost:3000/login',
     );
+  });
+
+  it('boas-vindas: empresa no assunto, fim do teste e primeiros passos', () => {
+    const email = welcomeEmail('Maria', 'Bebidas Centro', '13/11/2026', url);
+    expect(email.subject).toContain('Bebidas Centro');
+    expect(email.text).toContain('até 13/11/2026');
+    expect(email.text).toContain('Para começar');
+    // sem data de teste (conta antiga), a frase do teste some
+    expect(welcomeEmail('Maria', 'X', null, url).text).not.toContain(
+      'de graça',
+    );
+  });
+
+  it('senha alterada: aviso de segurança com o link para redefinir', () => {
+    const email = passwordChangedEmail('Maria', url);
+    expect(email.subject).toBe('Sua senha foi alterada - Distribuidora');
+    expect(email.text).toContain(`Não fui eu: redefinir a senha: ${url}`);
+  });
+
+  it('indicação: meses e porcentagem no assunto, singular para 1 mês', () => {
+    expect(referralRewardEmail('Ana', 'Bar do Zé', 2, 20, url).subject).toBe(
+      'Você ganhou 2 meses com 20% de desconto - Distribuidora',
+    );
+    const one = referralRewardEmail('Ana', 'Bar do Zé', 1, 20, url);
+    expect(one.subject).toContain('1 mês com 20%');
+    expect(one.text).toContain('Bar do Zé se cadastrou');
   });
 
   it('escapa o texto variável no HTML (nome, empresa) e não no texto puro', () => {
