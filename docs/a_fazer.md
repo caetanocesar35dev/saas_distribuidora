@@ -27,6 +27,41 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
      produção): `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_CNPJ`, `LEGAL_CONTACT_EMAIL` e
      `LEGAL_FORUM` (modelo em `frontend/.env.example`), e pedir a revisão de um advogado. Os
      textos (`frontend/src/content/legal.ts`) são um modelo.
+26. [ ] **Tela inicial de apresentação do sistema (landing page)** (pedido do usuário, 2026-10-30).
+    Hoje `/` só redireciona (sem sessão vai para o login), então quem chega pelo anúncio, pela
+    indicação ou pelo Google não vê o que o sistema faz. A ideia é uma página pública em `/`, com
+    "Entrar" e "Teste grátis" no topo (quem já está logado continua indo direto para a loja):
+    - **Para quem é e o que resolve** em uma frase (distribuidoras e depósitos de bebidas).
+    - **Diferenciais** contra os PDVs baratos (ver a pesquisa de concorrentes de 2026-10-30):
+      vasilhame por cliente, fiado por loja com limite de crédito, várias lojas e empresas com
+      gerente geral e painel único, histórico de quem mudou o quê (contra desvio), caixa que abre
+      e fecha sozinho, venda em fardo.
+    - **Planos e preços** (lidos de `GET /plans`, sem o Trial) e "14 dias grátis, sem cartão".
+    - **Como funciona** em 3 passos, imagens ou um vídeo curto do PDV, e perguntas frequentes.
+    - **Indicação:** o link `/cadastro?ref=` continua indo direto para o cadastro; a página pode
+      citar o "Indique e ganhe".
+    - Botão do **WhatsApp do suporte** e os links de Termos e Privacidade no rodapé.
+    - Boa no celular, rápida e pensada para o Google (título, descrição, "sistema para
+      distribuidora de bebidas", "controle de vasilhame"). Decidir antes com o usuário: nome e
+      marca do produto, textos, imagens e se usa domínio próprio separado do sistema.
+27. [ ] **Assinatura mensal, semestral ou anual** (pedido do usuário, 2026-10-30). O dono escolhe o
+    ciclo de pagamento, e quanto mais longo, **maior o desconto em relação à mensal**; a tela mostra
+    a economia (ex.: "Anual: R$ 990, economize R$ 198, equivale a 2 meses grátis"). Bom para o
+    caixa do negócio e reduz cancelamento. Depende do **Asaas (Fase 10)**, que cobra cada ciclo. A
+    decidir com o usuário:
+    - **Descontos** de cada ciclo (sugestão: semestral 10%, anual ~17%, equivalente a 2 meses
+      grátis) e se valem para todos os planos.
+    - **Forma de pagamento** do semestral e do anual: à vista (Pix ou cartão) ou parcelado no
+      cartão.
+    - **Trocar de plano no meio do ciclo:** upgrade cobra a diferença proporcional na hora?
+      Downgrade vale só na renovação? E **cancelar** no meio: devolve a parte não usada ou só não
+      renova (o mais comum)?
+    - **Como somar com o desconto de indicação** (item 23): os meses de desconto viram desconto
+      no valor do ciclo ou só valem para quem paga mensal?
+    - **Banco:** o ciclo escolhido e a data da próxima renovação na organização (e talvez o preço
+      de cada ciclo no plano): mudança de schema, exige aprovação.
+    - **Telas:** Assinatura › Planos com a escolha do ciclo, a vitrine do cadastro, a página de
+      apresentação (item 26) e a plataforma (Plataforma › Planos com o desconto de cada ciclo).
 
 ### Para o dia a dia das distribuidoras
 
