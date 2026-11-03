@@ -1,4 +1,4 @@
-# SaaS Distribuidora
+# Minha Distribuidora Online
 
 SaaS multi-tenant para distribuidoras de bebidas: PDV, controle de estoque por loja,
 caixa, comandas, vasilhames e fiado (com abatimento entre lojas). Cada cliente do SaaS

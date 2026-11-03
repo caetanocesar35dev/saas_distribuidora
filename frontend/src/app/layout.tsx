@@ -4,8 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Distribuidora",
-    template: "%s | Distribuidora",
+    default: "Minha Distribuidora Online",
+    template: "%s | Minha Distribuidora Online",
   },
   description:
     "Sistema para distribuidoras de bebidas: vendas, estoque, caixa, comandas, vasilhames e fiado.",

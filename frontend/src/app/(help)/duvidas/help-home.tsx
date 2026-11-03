@@ -4,7 +4,9 @@ import { SearchIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { EmptyState } from "@/components/app/common";
+import { ContactChannels } from "@/components/app/contact-channels";
 import { Input } from "@/components/ui/input";
+import { SUPPORT_MESSAGE } from "@/content/contact";
 import { CATEGORIES, searchArticles, type Audience } from "@/content/duvidas";
 import { ROLE_LABEL } from "@/lib/format";
 import { useHelpViewer } from "@/lib/help/viewer";
@@ -36,6 +38,11 @@ export function HelpHome() {
       <p className="mt-1 text-sm text-muted-foreground">
         Aprenda a usar cada parte do sistema e descubra onde ela fica no menu.
       </p>
+
+      <section className="mt-5 rounded-xl border bg-card p-4">
+        <h2 className="text-sm font-semibold">Precisa de ajuda? Fale com a gente</h2>
+        <ContactChannels message={SUPPORT_MESSAGE} className="mt-3" />
+      </section>
 
       <div className="relative mt-5">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />

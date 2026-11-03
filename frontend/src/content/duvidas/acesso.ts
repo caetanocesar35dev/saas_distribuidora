@@ -10,7 +10,7 @@ export const acesso: Article[] = [
     minRole: null,
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
-      "Abra o endereço do sistema no navegador.",
+      "Abra o endereço do sistema no navegador e clique em Entrar, no topo da página inicial.",
       "Digite o e-mail e a senha da sua conta. Para conferir o que digitou, clique no olho no fim do campo da senha (clique de novo para esconder).",
       "Clique em Entrar.",
       "Se você trabalha em mais de uma loja, escolha a loja. Se tiver só uma, o sistema já abre nela.",
@@ -42,7 +42,7 @@ export const acesso: Article[] = [
     minRole: null,
     audience: ["OWNER"],
     steps: [
-      "Na tela de entrada, clique em Criar conta.",
+      "Na página inicial, clique em Teste grátis (ou em Criar conta, na tela de entrada).",
       "Preencha seu nome (só letras: números e símbolos não entram no campo), o e-mail, o celular (WhatsApp, obrigatório: é por onde o suporte e os avisos da assinatura falam com você) e uma senha de pelo menos 8 caracteres.",
       "Digite o CNPJ da distribuidora. Ele pode ter letras e números (CNPJ alfanumérico); a pontuação entra sozinha.",
       "Ao completar o CNPJ, o sistema busca os dados públicos da empresa e preenche a razão social e o nome fantasia. Confira e corrija se precisar. O que você já tiver digitado não é trocado.",

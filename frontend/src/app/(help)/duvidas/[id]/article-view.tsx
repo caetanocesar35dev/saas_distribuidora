@@ -3,6 +3,8 @@
 import { ArrowLeftIcon, MapPinIcon, TriangleAlertIcon } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ContactChannels } from "@/components/app/contact-channels";
+import { SUPPORT_MESSAGE } from "@/content/contact";
 import { CATEGORIES, getArticle } from "@/content/duvidas";
 import { hasMinRole, ROLE_LABEL } from "@/lib/format";
 import { useHelpViewer } from "@/lib/help/viewer";
@@ -110,6 +112,11 @@ export function ArticleView({ id }: { id: string }) {
           </ul>
         </section>
       )}
+
+      <section className="mt-6 rounded-xl border bg-card p-4">
+        <h2 className="text-sm font-semibold">Não resolveu? Fale com a gente</h2>
+        <ContactChannels message={SUPPORT_MESSAGE} className="mt-3" />
+      </section>
     </article>
   );
 }

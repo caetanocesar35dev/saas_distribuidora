@@ -401,7 +401,7 @@ describe('AuthService', () => {
 
       // aviso de segurança por e-mail
       expect(ctx.mail.sentTo(user.email).map((m) => m.subject)).toEqual([
-        'Sua senha foi alterada - Distribuidora',
+        'Sua senha foi alterada - Minha Distribuidora Online',
       ]);
     });
   });
@@ -450,7 +450,7 @@ describe('AuthService', () => {
         UnauthorizedException,
       );
       expect(ctx.mail.sentTo(user.email).at(-1)!.subject).toBe(
-        'Sua senha foi alterada - Distribuidora',
+        'Sua senha foi alterada - Minha Distribuidora Online',
       );
 
       // o mesmo link não funciona de novo (o hash da senha mudou)

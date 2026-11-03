@@ -16,10 +16,11 @@ export function Brand({
         className,
       )}
     >
-      <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
         <BeerIcon className="size-5" />
       </span>
-      Distribuidora
+      {/* Em espaço estreito (menu lateral, celular), o nome quebra em duas linhas. */}
+      <span className="leading-tight">Minha Distribuidora Online</span>
     </span>
   );
 }

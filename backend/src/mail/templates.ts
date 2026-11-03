@@ -7,7 +7,7 @@
  * Todo texto variável passa por `escapeHtml`.
  */
 
-export const APP_NAME = 'Distribuidora';
+export const APP_NAME = 'Minha Distribuidora Online';
 
 /** Cor principal do sistema (a mesma `--primary` do frontend, âmbar). */
 const PRIMARY = '#b45309';

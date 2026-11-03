@@ -67,10 +67,10 @@ export const assinatura: Article[] = [
     audience: ["OWNER"],
     steps: [
       "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano. Se o teste acabou, escolha antes um plano pago em Planos, na mesma tela.",
-      "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: entre em contato informando o nome da empresa.",
+      "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: chame no WhatsApp (31) 97562-3307 informando o nome da empresa.",
       'Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso "fale com o responsável".',
     ],
-    related: ["assinatura-somente-leitura", "assinatura-mudar-plano"],
+    related: ["assinatura-somente-leitura", "assinatura-mudar-plano", "faq-falar-com-suporte"],
     keywords: ["pagar", "pagamento", "assinar", "regularizar", "plano"],
   },
   {

@@ -13,7 +13,9 @@ describe('templates de e-mail', () => {
 
   it('redefinição de senha: assunto, botão com o link e validade de 30 minutos', () => {
     const email = passwordResetEmail('Maria', url);
-    expect(email.subject).toBe('Redefinição de senha - Distribuidora');
+    expect(email.subject).toBe(
+      'Redefinição de senha - Minha Distribuidora Online',
+    );
     expect(email.text).toContain('Olá, Maria.');
     expect(email.text).toContain(`Criar nova senha: ${url}`);
     expect(email.text).toContain('30 minutos');
@@ -27,7 +29,9 @@ describe('templates de e-mail', () => {
 
   it('convite: empresa e quem convidou no assunto e no texto, validade de 7 dias', () => {
     const email = inviteEmail('João', 'Bebidas Centro', 'Ana Dona', url);
-    expect(email.subject).toBe('Convite para Bebidas Centro - Distribuidora');
+    expect(email.subject).toBe(
+      'Convite para Bebidas Centro - Minha Distribuidora Online',
+    );
     expect(email.text).toContain(
       'Ana Dona convidou você para usar o sistema de Bebidas Centro',
     );
@@ -62,13 +66,15 @@ describe('templates de e-mail', () => {
 
   it('senha alterada: aviso de segurança com o link para redefinir', () => {
     const email = passwordChangedEmail('Maria', url);
-    expect(email.subject).toBe('Sua senha foi alterada - Distribuidora');
+    expect(email.subject).toBe(
+      'Sua senha foi alterada - Minha Distribuidora Online',
+    );
     expect(email.text).toContain(`Não fui eu: redefinir a senha: ${url}`);
   });
 
   it('indicação: meses e porcentagem no assunto, singular para 1 mês', () => {
     expect(referralRewardEmail('Ana', 'Bar do Zé', 2, 20, url).subject).toBe(
-      'Você ganhou 2 meses com 20% de desconto - Distribuidora',
+      'Você ganhou 2 meses com 20% de desconto - Minha Distribuidora Online',
     );
     const one = referralRewardEmail('Ana', 'Bar do Zé', 1, 20, url);
     expect(one.subject).toContain('1 mês com 20%');

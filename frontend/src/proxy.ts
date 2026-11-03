@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from "next/server";
 const REFRESH_COOKIE = "sd_rt";
 
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/cadastro",
   "/esqueci-a-senha",
@@ -16,7 +17,7 @@ const PUBLIC_PATHS = [
   "/privacidade",
 ];
 // Quem já está logado não precisa ver estas telas (redefinir-senha e dúvidas continuam abertas).
-const GUEST_ONLY = ["/login", "/cadastro", "/esqueci-a-senha"];
+const GUEST_ONLY = ["/", "/login", "/cadastro", "/esqueci-a-senha"];
 
 const matches = (pathname: string, bases: string[]) =>
   bases.some((b) => pathname === b || pathname.startsWith(`${b}/`));
@@ -29,7 +30,7 @@ export function proxy(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
-    if (pathname !== "/") url.searchParams.set("next", pathname + search);
+    url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
 
