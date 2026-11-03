@@ -13,8 +13,8 @@
  */
 import { formatCnpj } from "@/lib/format";
 
-export const TERMS_VERSION = "2026-10-30";
-export const TERMS_UPDATED_AT = "30/10/2026";
+export const TERMS_VERSION = "2026-11-02";
+export const TERMS_UPDATED_AT = "02/11/2026";
 
 export interface LegalOperator {
   name: string;
@@ -50,7 +50,7 @@ export function termsSections(op = legalOperator()): LegalSection[] {
     {
       title: "1. O que é o serviço",
       paragraphs: [
-        `Este sistema é oferecido por ${op.name} (CNPJ ${op.cnpj}) para distribuidoras de bebidas controlarem vendas (PDV), estoque, caixa, comandas, vasilhames e vendas a prazo (fiado), em uma ou mais lojas.`,
+        `O Minha Distribuidora Online é oferecido por ${op.name} (CNPJ ${op.cnpj}) para distribuidoras de bebidas controlarem vendas (PDV), estoque, caixa, comandas, vasilhames e vendas a prazo (fiado), em uma ou mais lojas.`,
         "Ao criar uma conta, você declara que leu e aceita estes termos e a Política de Privacidade, e que tem poderes para representar a distribuidora cadastrada.",
       ],
     },

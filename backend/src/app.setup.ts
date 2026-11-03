@@ -42,7 +42,7 @@ export function configureApp(
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
-        .setTitle('SaaS Distribuidora')
+        .setTitle('Minha Distribuidora Online')
         .setVersion('1.0')
         .addBearerAuth()
         .build(),

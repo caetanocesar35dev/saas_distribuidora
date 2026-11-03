@@ -1,6 +1,6 @@
-# SaaS Distribuidora
+# Minha Distribuidora Online
 
-SaaS multi-tenant para distribuidoras de bebidas: PDV, estoque, caixa, comandas,
+**Minha Distribuidora Online** é o nome do produto (decidido pelo usuário, 2026-11-02; no código: `Brand` no frontend e `APP_NAME` nos e-mails). SaaS multi-tenant para distribuidoras de bebidas: PDV, estoque, caixa, comandas,
 vasilhames e fiado. Hierarquia: `Organization` (cobrança) → `Company` (distribuidora)
 → `Store` (loja). O acesso é por papel em cada loja (`OWNER` > `MANAGER` > `EMPLOYEE`;
 não existe `ADMIN`), mais o **gerente geral** da empresa (`Membership.isGeneralManager`, ver abaixo).
@@ -213,6 +213,14 @@ os campos é a extensão do Prisma).
 - O job `cash-auto-close` (a cada 5 min) fecha o caixa esquecido aberto no horário da loja
   (`Store.cashAutoCloseTime`, padrão `00:00`, o dono muda em Lojas), marcando `autoClosed`.
   Abrir e fechar à mão continuam funcionando.
+
+**Página de apresentação e contato (decidido pelo usuário, 2026-11-02)**
+- `/` é a página pública de apresentação (`src/app/landing-page.tsx`); quem tem sessão vai para
+  `/selecionar` (proxy). Os preços vêm de `GET /plans`, sem o plano gratuito, refeitos a cada 5 min; com o
+  backend fora do ar, a página abre sem a tabela. Mudou uma regra que ela cita (teste, nota fiscal,
+  indicação, recursos): atualize o texto dela.
+- WhatsApp e Instagram do suporte ficam só em `src/content/contact.ts` e aparecem na página e na
+  Central de Dúvidas (topo e fim de cada artigo, `ContactChannels`).
 
 **Cadastro e primeiros passos (decidido pelo usuário)**
 - O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,

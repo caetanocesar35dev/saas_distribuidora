@@ -27,7 +27,13 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
      produção): `LEGAL_OPERATOR_NAME`, `LEGAL_OPERATOR_CNPJ`, `LEGAL_CONTACT_EMAIL` e
      `LEGAL_FORUM` (modelo em `frontend/.env.example`), e pedir a revisão de um advogado. Os
      textos (`frontend/src/content/legal.ts`) são um modelo.
-26. [ ] **Tela inicial de apresentação do sistema (landing page)** (pedido do usuário, 2026-10-30).
+26. [x] **Tela inicial de apresentação do sistema (landing page)** (pedido do usuário, 2026-10-30).
+    **Feito (2026-11-02):** página pública em `/` (`src/app/landing-page.tsx`), com preços lidos de
+    `GET /plans`, WhatsApp (31) 97562-3307 e Instagram (também na Central de Dúvidas, contatos em
+    `src/content/contact.ts`). **Nome do produto (decidido pelo usuário, 2026-11-02):** Minha
+    Distribuidora Online. **Falta, quando existir:** capturas reais ou vídeo do PDV e depoimentos de
+    clientes (o usuário ainda não tem; a página não inventa nenhum), logo e favicon próprios, domínio
+    próprio e, no deploy, `robots`/`sitemap` com o endereço definitivo. Plano original:
     Hoje `/` só redireciona (sem sessão vai para o login), então quem chega pelo anúncio, pela
     indicação ou pelo Google não vê o que o sistema faz. A ideia é uma página pública em `/`, com
     "Entrar" e "Teste grátis" no topo (quem já está logado continua indo direto para a loja):
@@ -248,6 +254,13 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
        exclusão** (não há o que reativar); o usuário só é desativado/ativado em Usuários.
     Tipo de vasilhame continua voltando só pelo aviso ao recriar com o mesmo nome.
 20. [ ] O motivo do ajuste de inventário vai só para o log do servidor; não fica gravado.
+
+28. [ ] **O proxy do frontend só roda em `/`** (encontrado em 2026-11-02). Em `src/proxy.ts`, o `\.`
+    do `matcher` está numa string comum e vira "qualquer caractere", então as outras páginas não
+    passam pelo proxy: sem sessão, `/selecionar` só vai para o login depois que a chamada à API
+    falha, e logado, `/login` e `/cadastro` abrem em vez de ir para o sistema. Não é falha de
+    segurança, porque o backend valida cada chamada. A correção é trocar por `\\.` e testar os
+    fluxos de entrada.
 
 21. [x] adicionar mais emails. **Feito (2026-10-30):** além de redefinir senha, convite e lembrete
     do teste/carência, o sistema manda **boas-vindas** no cadastro (fim do teste e primeiros

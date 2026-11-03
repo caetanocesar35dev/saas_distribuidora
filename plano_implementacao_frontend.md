@@ -580,6 +580,17 @@ no mesmo app, em rota separada `/plataforma`.
 
 ---
 
+## Página de apresentação e contato (pedido do usuário, feito em 2026-11-02)
+
+Página pública em `/` (`src/app/landing-page.tsx`, sem JavaScript próprio): diferenciais, como
+começar, planos de `GET /plans` (sem o gratuito, refeitos a cada 5 min), perguntas frequentes e
+contato. Quem tem sessão vai para `/selecionar` pelo proxy. A imagem do produto é uma ilustração em
+HTML com dados de exemplo. Os canais ficam em `src/content/contact.ts` e `ContactChannels` também os
+mostra na Central de Dúvidas (artigo `faq-falar-com-suporte`). Ponta a ponta em
+`e2e/apresentacao.spec.ts`.
+
+---
+
 ## Fase 10 — Acabamento
 
 1. Carregamento e erros consistentes, principalmente nos fluxos de dinheiro e estoque

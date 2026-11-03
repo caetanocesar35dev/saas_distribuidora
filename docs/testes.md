@@ -205,6 +205,17 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Excluir o representante: o código dele deixa de valer no cadastro; marcar "Mostrar os
   representantes excluídos" e Reativar.
 
+## 10b. Página de apresentação e contato
+
+- [ ] Sem estar logado, abrir `/`: aparece a página de apresentação (não o login), com os planos do
+  Essencial ao Rede, sem o Trial. "Testar grátis" abre o cadastro e "Entrar" abre o login.
+- [ ] Logado, abrir `/`: vai direto para o sistema.
+- [ ] Botões do WhatsApp: abrem a conversa com (31) 97562-3307 e a mensagem já escrita. Link do
+  Instagram: abre @minhadistribuidoraonline_.
+- [ ] Em Dúvidas: os dois canais aparecem no topo e no fim de cada artigo. Buscar "suporte" acha o
+  artigo "Como falar com o suporte".
+- [ ] Abrir a página no celular: nada corta nem cria rolagem para o lado.
+
 ## 11. Geral
 
 - [ ] Usar no celular e no tablet, principalmente o PDV.

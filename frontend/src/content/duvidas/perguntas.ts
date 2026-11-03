@@ -144,4 +144,21 @@ export const perguntas: Article[] = [
     related: ["acesso-email-nao-chegou", "acesso-esqueci-senha"],
     keywords: ["email", "senha", "link"],
   },
+  {
+    id: "faq-falar-com-suporte",
+    category: "perguntas",
+    title: "Como falar com o suporte",
+    purpose: "Pedir ajuda quando o artigo não resolveu, ou tratar da assinatura.",
+    where: "Menu › Dúvidas (no topo da página e no fim de cada artigo)",
+    minRole: null,
+    audience: ["EMPLOYEE", "MANAGER", "OWNER"],
+    steps: [
+      "Abra Menu › Dúvidas. No topo da página estão os botões do WhatsApp e do Instagram; eles também aparecem no fim de cada artigo.",
+      "WhatsApp: (31) 97562-3307. A conversa abre com uma mensagem pronta. Conte o nome da sua empresa e o que aconteceu.",
+      "Instagram: @minhadistribuidoraonline_.",
+      "Sem conta no sistema, os mesmos contatos estão na página inicial.",
+    ],
+    related: ["assinatura-regularizar", "faq-nao-consigo-vender"],
+    keywords: ["suporte", "ajuda", "contato", "whatsapp", "instagram", "atendimento", "falar"],
+  },
 ];
