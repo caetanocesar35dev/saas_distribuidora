@@ -284,7 +284,7 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     - O "teste terminou" e o "carência terminou" passam a levar o botão direto para pagar.
     **Talvez depois:** resumo semanal para o dono (faturamento, fiado em aberto, estoque baixo),
     só se os primeiros clientes quiserem.
-21. [ ] revisar termos de uso
+21. [ ] revisar termos de uso e privacidade
 22. [x] adicionar whatsapp e instagram
 23. [x] ao convidar uma pessoa, ter a opcao de dar acesso a todas as lojas de uma vez. **Feito
     (2026-11-06):** em Equipe › Convidar pessoa, com 2 lojas ou mais, aparece "Todas as lojas (N)",
@@ -294,4 +294,4 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
 
 24. [ ] SEO
 25. [ ] CACHE
-26. [ ] busca cep automatica ao editar loja
+26. [ ] votacao nas notificacoes e marcar todas como lidas

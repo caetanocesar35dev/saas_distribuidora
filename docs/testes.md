@@ -194,13 +194,17 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ## 10. Assinatura e plataforma (`admin@plataforma.com`)
 
-- [ ] Em `/plataforma`, deixar a organização como "vencida" e entrar como dono: aparece a faixa de
+- [x] Em `/plataforma`, deixar a organização como "vencida" e entrar como dono: aparece a faixa de
   somente leitura, os botões ficam apagados e fechar o caixa continua liberado.
+
+  --TODO TIVE QUE RECARREGAR A PAGINA
 - [ ] Voltar a organização para "ativa": o acesso completo volta sozinho, sem recarregar a página.
-- [ ] Criar uma notificação e ver se ela aparece no sino.
+
+
+- [x] Criar uma notificação e ver se ela aparece no sino.
 - [ ] Abrir uma organização: as lojas excluídas aparecem com a data, e a seção Pessoas mostra quem
   tem acesso, quem foi removido e as contas desativadas.
-- [ ] Em Planos, excluir um plano sem uso, marcar "Mostrar os planos excluídos" e Reativar.
+- [x] Em Planos, excluir um plano sem uso, marcar "Mostrar os planos excluídos" e Reativar.
 
 ## 10a. Indicação e descontos
 
@@ -234,14 +238,14 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ## 10b. Página de apresentação e contato
 
-- [ ] Sem estar logado, abrir `/`: aparece a página de apresentação (não o login), com os planos do
+- [x] Sem estar logado, abrir `/`: aparece a página de apresentação (não o login), com os planos do
   Essencial ao Rede, sem o Trial. "Testar grátis" abre o cadastro e "Entrar" abre o login.
-- [ ] Logado, abrir `/`: vai direto para o sistema.
-- [ ] Botões do WhatsApp: abrem a conversa com (31) 97562-3307 e a mensagem já escrita. Link do
+- [x] Logado, abrir `/`: vai direto para o sistema.
+- [x] Botões do WhatsApp: abrem a conversa com (31) 97562-3307 e a mensagem já escrita. Link do
   Instagram: abre @minhadistribuidoraonline_.
 - [ ] Em Dúvidas: os dois canais aparecem no topo e no fim de cada artigo. Buscar "suporte" acha o
   artigo "Como falar com o suporte".
-- [ ] Abrir a página no celular: nada corta nem cria rolagem para o lado.
+- [x] Abrir a página no celular: nada corta nem cria rolagem para o lado.
 
 ## 11. Geral
 
