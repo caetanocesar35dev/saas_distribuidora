@@ -7,7 +7,7 @@
 >   sua fase (aviso e limite de fiado, autorização do gerente, LGPD, custo escondido do
 >   atendente, venda antiga, venda em lote, endereço do cliente, celular no cadastro, caixa que
 >   abre e fecha sozinho, reativar produto, fiado no painel, ver e reativar clientes, lojas,
->   pessoas da equipe e planos excluídos). Os testes desses pedidos foram
+>   pessoas da equipe e planos excluídos, categorias de produto e nome da embalagem). Os testes desses pedidos foram
 >   escritos, mas a suíte completa não foi rodada de novo depois deles (o usuário pediu para não
 >   rodar a cada mudança): rode `npm test` antes do próximo deploy.
 > - **Fase 10 (cobrança com Asaas): NÃO implementada**, por decisão do usuário (fica para
@@ -482,7 +482,7 @@ do signup tem `modifierId` = id do novo usuário; o rate limit (se aprovado) ret
    | Dados da company, criar/excluir lojas | OWNER da company |
    | Painel da empresa, editar lojas, membros e papéis (sem mexer em donos) | OWNER ou gerente geral (2026-10-30) |
    | Cobrança (Fase 10) | Responsável pela cobrança |
-   | Catálogo (`Product`, `BottleType`): criar/editar/excluir | MANAGER em alguma loja |
+   | Catálogo (`Product`, `BottleType`, `ProductCategory`): criar/editar/excluir | MANAGER em alguma loja |
    | `StoreProduct`: preço, custo, ativo, entrada e ajuste de estoque | MANAGER na loja |
    | Clientes: criar/editar | EMPLOYEE |
    | Clientes: excluir | MANAGER em alguma loja |
@@ -568,6 +568,11 @@ funcionam.
      reativar continuam `@CompanyOwner()`). No service: o gerente geral não mexe em donos nem em
      outro gerente geral e não dá OWNER (403, também por convite); papel ou revogação de loja de
      um gerente geral → 409. `GET /me/memberships` e a lista de membros trazem `isGeneralManager`.
+   - **Responsável pela assinatura protegido (decisão do usuário, 2026-11-13):** OWNER em qualquer
+     loja é dono da empresa toda, então um funcionário promovido a dono podia tirar o dono original.
+     Agora os acessos de `Organization.ownerUserId` só mudam pela própria pessoa: papel, revogar
+     loja, remover, gerente geral e reconvite por outra pessoa → 403 (`assertNotBillingOwner`). A
+     lista de membros traz `isBillingOwner`. Teste em `account.services.spec.ts`.
    - Invalidar o cache de acesso (se P3).
    - `User.isActive` é global (o usuário pode estar em outras companies): o dono da
      company **revoga acesso**, não desativa o usuário. Desativar é ação da plataforma
@@ -596,9 +601,19 @@ EMPLOYEE na loja B, revogar só a B; o usuário continua com acesso à A; o hist
      2026-10-26).
    - Excluir um `Product` também faz soft delete dos `StoreProduct` dele, na mesma
      transação.
+   - **Categoria e embalagem (decisão do usuário, 2026-11-03):** `categoryId` (opcional, validado
+     na empresa; o `GET` filtra por ela, e `none` traz os sem categoria) e `packName` (null =
+     "fardo"; minúsculas, até 20 caracteres; só muda o texto). Produto reativado volta sem
+     categoria se ela foi excluída nesse meio-tempo.
+   - **Categorias** (`/companies/:companyId/product-categories`, `ProductCategoriesService`): CRUD
+     e `POST /:id/restore`; `deleted=true` lista as excluídas. Nome único na empresa, inclusive entre
+     as excluídas (409 com o id, para reativar). Só exclui sem produtos (409). A lista sugerida
+     (`createDefaultCategories`) entra no cadastro e em "Nova empresa"; a migration deu a mesma lista
+     às empresas que já existiam.
 2. **`StoreProductModule`** (`/stores/:storeId/store-products`):
-   - `GET`: listagem para PDV e estoque, com join em `Product` (code, name,
-     packQuantity, bottleType), busca por `code`/`name`, filtro `isActive`, paginado.
+   - `GET`: listagem para PDV e estoque, com join em `Product` (code, name, packQuantity,
+     packName, bottleType, category), busca por `code`/`name`, filtros `isActive` e `categoryId`,
+     paginado.
      Busca exata por código de barras: `GET /by-code/:code`.
    - `POST`: adiciona à loja um `Product` já existente da company (ou reativa).
    - `PATCH /:id`: `price`, `costPrice`, `isActive`. **Não aceita `stock`.**
@@ -764,8 +779,10 @@ de R$100; uma alocação inválida não altera nada (rollback).
    - **Venda em lote (decisão do usuário, 2026-10-23):** cada item aceita `packs` (fardos) além
      de `quantity` (unidades avulsas, agora `>= 0`); `toUnits` (`src/sales/packs.ts`) converte
      com o `packQuantity` do produto (400 se o produto não tem fardo ou se o total é zero). O
-     preço do fardo é o da unidade × unidades. `SaleItem`/`CommandItem` gravam `quantity`
-     (total em unidades), `packs` e `packSize`. Vale para venda, venda antiga e item de comanda.
+     preço do fardo é o próprio (`StoreProduct.packPrice`, 2026-11-03) ou, sem ele, o da unidade ×
+     unidades; as avulsas usam o da unidade (`itemTotalCents`). O custo da unidade tem até 4 casas
+     (`roundUnitCost`). `SaleItem`/`CommandItem` gravam `quantity`
+     (total em unidades), `packs`, `packSize` e `packPrice`. Vale para venda, venda antiga e item de comanda.
    - `POST /:id/cancel` (MANAGER): uma transação com caixa aberto obrigatório.
      - `status = CANCELED`.
      - Estoque devolvido (incremento).
@@ -806,10 +823,17 @@ compensatórios.
    (OWNER, soma das lojas + quebra por loja):
    - Receita, lucro e número de vendas de hoje, 7 dias e mês (`APP_TIMEZONE`, só
      `COMPLETED`). **Fiado (decisão do usuário, 2026-10-26: separar sem esconder):** a receita
-     e o lucro incluem o fiado, e cada período traz também `fiado: { revenue, profit }` (a
-     parte vendida no fiado) e `fiadoReceived` (pagamentos de fiado recebidos na loja no
-     período).
+     inclui o fiado, e cada período traz também `fiado: { revenue, profit }` (a parte vendida no
+     fiado) e `fiadoReceived` (pagamentos de fiado recebidos na loja no período). **Lucro pelo
+     recebido (decisão do usuário, 2026-11-13):** `profit` (e o do gráfico) conta a venda à vista
+     na data da venda e a fiada quando o cliente paga, proporcional ao pagamento, quitando primeiro
+     a venda fiada mais antiga (`src/dashboard/fiado-profit.ts`); `fiadoProfitReceived` é a parte
+     disso vinda de fiado e `pendingFiadoProfit` (painel e `byStore`) o lucro ainda no fiado.
+     `byCategory` segue com o lucro vendido.
    - Top 5 produtos em 7 dias.
+   - `byCategory` (2026-11-03): faturamento e lucro do mês por categoria, com o desconto da venda
+     repartido entre os itens na proporção do valor de cada um (a soma pode diferir do total em
+     centavos); produto sem categoria entra em "Sem categoria".
    - Gráfico dos últimos 7 dias (receita e lucro por dia).
    - Alertas de estoque baixo.
    - Total de fiado em aberto.
@@ -828,7 +852,7 @@ compensatórios.
 1. `GET /stores/:storeId/audit/:entity/:id` (MANAGER), para as entidades de loja:
    `store-products`, `sales`, `command-tabs`, `cash-registers`, `bottle-movements`.
    `GET /companies/:companyId/audit/:entity/:id` (OWNER): `products`, `customers`,
-   `bottle-types`, `stores`, `memberships`, `membership-stores`.
+   `bottle-types`, `product-categories`, `stores`, `memberships`, `membership-stores`.
    - Lista as versões em ordem (`historyStart`), com o nome do autor (lookup em
      `User`; `system` vira "Sistema") e o **diff** de cada versão em relação à anterior
      (só os campos que mudaram).

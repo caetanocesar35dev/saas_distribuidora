@@ -26,6 +26,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  bottleRows,
+  bottlesNeedCustomer,
+  bottlesTotal,
+  type BottleLine,
+} from "@/components/app/pos/bottle-checkout";
+import { useBottleTypes } from "@/lib/api/hooks/catalog";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
 import type { BottleReturnLine, ManagerApproval, PaymentMethod } from "@/lib/api/types";
 import {
@@ -45,18 +52,15 @@ import {
 import { useHasRole, useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
 
-/** Vasilhames que saem junto com a venda (1 por unidade de produto com vasilhame). */
-export interface BottleLine {
-  bottleTypeId: string;
-  name: string;
-  taken: number;
-}
+export type { BottleLine };
 
 export interface CheckoutPayload {
   paymentMethod: PaymentMethod;
   discount: number;
   customerId?: string;
   bottleReturns: BottleReturnLine[];
+  /** Cascos que o cliente compra (o preço é do tipo de vasilhame; o backend confere). */
+  bottlePurchases: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
   /** Atendente: gerente ou dono digitou o e-mail e a senha para autorizar passar do limite. */
@@ -94,20 +98,26 @@ export function CheckoutDialog({
   const [received, setReceived] = useState<number | undefined>();
   const [customer, setCustomer] = useState<PickedCustomer | null>(initialCustomer ?? null);
   const [returned, setReturned] = useState<Record<string, number | undefined>>({});
+  const [bought, setBought] = useState<Record<string, number | undefined>>({});
+
+  // Preço do casco de cada tipo (da empresa). Enquanto não carrega, a compra fica indisponível.
+  const bottleTypes = useBottleTypes(companyId);
+  const bottleBalance = useMemo(() => {
+    const prices = new Map((bottleTypes.data ?? []).map((t) => [t.id, t.price]));
+    return bottleRows(
+      bottleLines.map((line) => ({ ...line, price: prices.get(line.bottleTypeId) ?? null })),
+      returned,
+      bought,
+    );
+  }, [bottleLines, bottleTypes.data, returned, bought]);
+  const cascos = bottlesTotal(bottleBalance);
 
   const discountValue = discount ?? 0;
-  const total = roundMoney(subtotal - discountValue);
+  // O desconto vale só sobre os produtos; os cascos entram pelo preço cheio.
+  const total = roundMoney(subtotal - discountValue + cascos);
   const discountTooHigh = discountValue > subtotal;
 
-  const bottleBalance = useMemo(
-    () =>
-      bottleLines.map((line) => {
-        const gave = returned[line.bottleTypeId] ?? 0;
-        return { ...line, gave, balance: line.taken - gave };
-      }),
-    [bottleLines, returned],
-  );
-  const bottlesUnbalanced = bottleBalance.some((l) => l.balance !== 0);
+  const bottlesUnbalanced = bottlesNeedCustomer(bottleBalance);
   const customerRequired = method === "CREDIT_STORE" || bottlesUnbalanced;
   const missingCustomer = customerRequired && !customer;
 
@@ -195,6 +205,9 @@ export function CheckoutDialog({
               bottleReturns: bottleBalance
                 .filter((l) => l.gave > 0)
                 .map((l) => ({ bottleTypeId: l.bottleTypeId, quantity: l.gave })),
+              bottlePurchases: bottleBalance
+                .filter((l) => l.bought > 0)
+                .map((l) => ({ bottleTypeId: l.bottleTypeId, quantity: l.bought })),
             });
           }}
         >
@@ -263,12 +276,17 @@ export function CheckoutDialog({
             <fieldset className="space-y-2 rounded-lg border bg-muted/30 p-3">
               <legend className="px-1 text-sm font-medium">Vasilhames</legend>
               <p className="text-xs text-muted-foreground">
-                Cada unidade com vasilhame leva um vasilhame do cliente. Informe quantos ele devolve
-                agora. Se a troca for 1 por 1, não precisa de cliente.
+                Cada unidade com vasilhame leva um vasilhame. Informe quantos vazios o cliente
+                devolve agora e, se ele não tem o vazio e quer ficar com o vasilhame, quantos cascos
+                ele compra. O que sobrar fica emprestado. Troca 1 por 1 ou compra de todos os cascos
+                não precisa de cliente.
               </p>
               {bottleBalance.map((line) => (
-                <div key={line.bottleTypeId} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
+                <div
+                  key={line.bottleTypeId}
+                  className="space-y-1.5 border-t pt-2 first-of-type:border-t-0 first-of-type:pt-0"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
                     <p className="truncate text-sm font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">
                       Saem {line.taken}
@@ -276,16 +294,54 @@ export function CheckoutDialog({
                       {line.balance < 0 && ` · fica com crédito de ${-line.balance}`}
                     </p>
                   </div>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    Devolve
-                    <IntInput
-                      className="w-20"
-                      min={0}
-                      max={100_000}
-                      value={returned[line.bottleTypeId]}
-                      onChange={(v) => setReturned((prev) => ({ ...prev, [line.bottleTypeId]: v }))}
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Devolve
+                      <IntInput
+                        className="w-20"
+                        min={0}
+                        max={100_000}
+                        value={returned[line.bottleTypeId]}
+                        onChange={(v) =>
+                          setReturned((prev) => ({ ...prev, [line.bottleTypeId]: v }))
+                        }
+                      />
+                    </label>
+                    {line.price !== null ? (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <label className="flex items-center gap-1.5">
+                          Compra o casco
+                          <IntInput
+                            className="w-20"
+                            min={0}
+                            max={line.taken}
+                            value={bought[line.bottleTypeId]}
+                            onChange={(v) =>
+                              setBought((prev) => ({ ...prev, [line.bottleTypeId]: v }))
+                            }
+                          />
+                        </label>
+                        <span>× {formatMoney(line.price)}</span>
+                        {line.bought < line.taken && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="xs"
+                            className="h-auto px-0"
+                            onClick={() =>
+                              setBought((prev) => ({ ...prev, [line.bottleTypeId]: line.taken }))
+                            }
+                          >
+                            todos
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Casco sem preço: só troca ou empréstimo.
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </fieldset>
@@ -302,9 +358,17 @@ export function CheckoutDialog({
                 <span className="tabular-nums">- {formatMoney(discountValue)}</span>
               </div>
             )}
+            {cascos > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Cascos ({bottleBalance.reduce((n, l) => n + l.bought, 0)})
+                </span>
+                <span className="tabular-nums">+ {formatMoney(cascos)}</span>
+              </div>
+            )}
             <div className="flex items-baseline justify-between border-t pt-1.5 text-lg font-semibold">
               <span>Total</span>
-              <Money value={discountTooHigh ? subtotal : total} />
+              <Money value={discountTooHigh ? roundMoney(subtotal + cascos) : total} />
             </div>
             {change !== null && (
               <div

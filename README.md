@@ -12,10 +12,11 @@ caixa, comandas, vasilhames e fiado (com abatimento entre lojas). Cada cliente d
 > refeito em Next.js e cobre todo o uso diário (PDV, caixa, comandas, vendas, estoque,
 > vasilhames, clientes/fiado, painéis, equipe, assinatura e a Central de Dúvidas); veja o
 > relatório no [plano do frontend](plano_implementacao_frontend.md). Há também a área da
-> plataforma (`/plataforma`) e testes automatizados (96 unitários e 39 de ponta a ponta). Falta
+> plataforma (`/plataforma`) e testes automatizados (121 unitários e 48 de ponta a ponta). Falta
 > a **cobrança com o Asaas** (por enquanto o status da assinatura é ajustado pela plataforma).
 > Depois disso vieram melhorias pedidas no uso (limite de fiado com autorização do gerente,
-> venda antiga, venda em fardo, caixa que abre e fecha sozinho, LGPD e outras), registradas
+> venda antiga, venda em fardo, categorias de produto e nome da embalagem, caixa que abre e
+> fecha sozinho, LGPD e outras), registradas
 > nos planos e no [docs/a_fazer.md](docs/a_fazer.md).
 
 ## Documentação

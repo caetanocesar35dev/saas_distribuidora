@@ -24,7 +24,7 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [x] Entrar, sair, e usar "Sair de todos os aparelhos" em Minha conta.
 - [x] Nos campos de senha (login, cadastro, redefinição e Minha conta), o olho mostra e esconde o
   que foi digitado.
-- [ ] Deixar a aba parada por mais de 15 minutos e continuar usando: não pode pedir login de novo.
+- [x] Deixar a aba parada por mais de 15 minutos e continuar usando: não pode pedir login de novo.
 - [x] "Esqueci a senha" com uma conta de e-mail real: o e-mail chega (confira também o spam),
   o botão abre a tela de nova senha e o link não funciona uma segunda vez.
 - [x] Errar a senha 6 vezes seguidas: aparece a mensagem de muitas tentativas.
@@ -39,16 +39,19 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   com menos de 8 números é recusado; números na UF não entram.
 - [ ] Convidar um funcionário (o link aparece no log do backend), mudar o papel dele por loja e
   revogar o acesso.
+- [x] Com 2 lojas ou mais, em Convidar pessoa: "Todas as lojas" marca todas de uma vez (como
+  atendente), o seletor ao lado põe o mesmo papel em todas, e desmarcar limpa a escolha. Um papel
+  diferente numa loja faz o seletor mostrar "Papéis diferentes".
 - [x] Editar os dados da empresa; o CNPJ deve estar bloqueado.
 - [x] Ver o painel da empresa e o gráfico de 7 dias.
-- [ ] Excluir uma loja e, em Lojas, marcar "Mostrar as lojas excluídas": ela aparece com o endereço
+- [x] Excluir uma loja e, em Lojas, marcar "Mostrar as lojas excluídas": ela aparece com o endereço
   e a data. Reativar traz a loja de volta com as vendas e o estoque (se o plano estiver no limite
   de lojas, aparece o aviso do plano).
 - [x] Em Assinatura › Planos: aparecem Essencial, Básico, Profissional e Rede (o Trial não). Com 2
   lojas, o Essencial fica apagado com o motivo. Fazer upgrade para o Básico: vale na hora e o
   cartão fica marcado "Seu plano". Voltar para um plano menor que caiba também funciona. Como
   gerente, os planos aparecem sem os botões.
-- [ ] Remover alguém da empresa e, em Equipe, marcar "Mostrar quem foi removido": aparecem a data e
+- [x] Remover alguém da empresa e, em Equipe, marcar "Mostrar quem foi removido": aparecem a data e
   as lojas e papéis que a pessoa tinha. Reativar devolve os mesmos acessos.
 
 ## 3. PDV
@@ -60,21 +63,30 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   venda, "2 fardos de 12 + 3 un.". O estoque baixa em unidades. Na comanda, "+ fardo" lança o
   fardo inteiro.
 - [x] Pagar em dinheiro e conferir o troco; dar desconto e tentar um desconto maior que o total.
-- [ ] Vender produto com vasilhame: na troca 1 por 1 não pede cliente; se o cliente sai devendo,
+- [x] Vender produto com vasilhame: na troca 1 por 1 não pede cliente; se o cliente sai devendo,
   exige cliente.
+- [x] Compra do casco (com o preço do casco definido em Vasilhames › Tipos, ex.: Litrão R$ 8,00):
+  vender 3 litrões, digitar 2 em "Compra o casco" e 1 em "Devolve": o total soma R$ 16,00 de cascos
+  (o desconto não vale sobre eles) e nada fica devendo; com "todos" comprados, a venda sai sem
+  cliente. No detalhe da venda aparecem "Cascos de vasilhame comprados" e o preço de cada um; o
+  estoque de vasilhame da loja baixa 2. Cancelar a venda devolve os cascos ao estoque e o dinheiro.
+- [x] Tipo de vasilhame sem preço do casco: o PDV mostra "Casco sem preço: só troca ou empréstimo".
+- [x] Painel e Histórico de vendas: o faturamento e o lucro não contam os cascos; o cartão de
+  Faturamento mostra "fora R$ ... em cascos de vasilhame vendidos". O caixa conta o dinheiro todo.
+- [x] Fechar uma comanda com produto de vasilhame comprando o casco: funciona igual ao PDV.
 - [x] Fiado para um cliente sem dívida: vende direto, sem aviso.
 - [x] Fiado para um cliente que já deve: aparece o aviso com valor, número de vendas e data da
   mais antiga. "Não, voltar" não vende; "Sim, vender no fiado" vende.
 - [x] Tentar vender com estoque insuficiente ("Estoque insuficiente").
-- [ ] Com o caixa fechado, vender: a venda sai e o caixa abre sozinho, com o saldo do último
+- [x] Com o caixa fechado, vender: a venda sai e o caixa abre sozinho, com o saldo do último
   fechamento (o PDV só avisa, não bloqueia).
 
 ## 4. Caixa
 
-- [ ] Abrir o caixa à mão com outro saldo inicial, lançar entrada e sangria, e fechar conferindo
+- [x] Abrir o caixa à mão com outro saldo inicial, lançar entrada e sangria, e fechar conferindo
   o resumo por forma de pagamento.
 - [x] Ver o histórico de caixas.
-- [ ] Como dono, em Lojas › Editar, mudar o "Fechamento automático do caixa" para daqui a poucos
+- [x] Como dono, em Lojas › Editar, mudar o "Fechamento automático do caixa" para daqui a poucos
   minutos e deixar o caixa aberto: até 5 minutos depois do horário ele fecha sozinho e aparece
   com a marca "automático" em Caixas anteriores.
 
@@ -88,10 +100,10 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [x] Filtrar por período e forma de pagamento e abrir o detalhe.
 
-- [ ] No Início, vender no fiado: o cartão Faturamento mostra "R$ ... disso foi vendido no
+- [x] No Início, vender no fiado: o cartão Faturamento mostra "R$ ... disso foi vendido no
   fiado"; receber um pagamento de fiado e ver o cartão "Fiado recebido".
 
-- [ ] Cancelar uma venda em dinheiro (sai do caixa) e uma fiada (sai da dívida).
+- [x] Cancelar uma venda em dinheiro (sai do caixa) e uma fiada (sai da dívida).
 - [x] Ver o histórico de alterações da venda.
 - [x] Como gerente ou dono, no menu "Lançar venda antiga" (abaixo de Histórico de vendas), lançar uma venda de ontem: ela
   aparece no filtro de ontem com a marca "lançada depois", o estoque baixa e o dinheiro entra no
@@ -102,33 +114,31 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 - [x] Ver a lista com as colunas "Dívida nesta loja", "Outras lojas" e "Dívida total".
 - [x] Marcar o filtro "Só quem deve no fiado".
--- CORRIGIR ABAIXO, pois salva sem adicionar um numero do endereco
-- [ ] Cadastrar um cliente com endereço: digitar um CEP real (ex.: 50030-230) e ver rua, bairro,
+- [x] Cadastrar um cliente com endereço: digitar um CEP real (ex.: 50030-230) e ver rua, bairro,
   cidade e UF preencherem sozinhos; completar número e complemento; conferir o endereço no
   detalhe do cliente. Cadastrar outro sem endereço (é opcional) e testar um CEP inexistente.
 
 - [x] Receber um pagamento automático e um manual (escolhendo por loja).
-- [ ] Nos campos de dinheiro (receber fiado, PDV, produto): digitar "1234" mostra "1.234"; o "."
+- [x] Nos campos de dinheiro (receber fiado, PDV, produto): digitar "1234" mostra "1.234"; o "."
   do teclado numérico vira vírgula; ao sair do campo fica "1.234,00".
 
 
 - [x] Pagar na Loja B a dívida da Loja A.
 
 
--- MELHORAR ABAIXO, receber valor e dar troco
-- [ ] Tentar receber mais do que o cliente deve.
+- [x] Tentar receber mais do que o cliente deve.
 
 
 - [ ] Emprestar vasilhame; devolver na mesma loja (funciona) e em outra loja (recusado).
 - [x] Tentar excluir um cliente que deve: deve ser recusado.
-- [ ] Como gerente ou dono, excluir um cliente sem dívida e marcar "Mostrar só os excluídos": ele
+- [x] Como gerente ou dono, excluir um cliente sem dívida e marcar "Mostrar só os excluídos": ele
   aparece com telefone, endereço e data da exclusão; Reativar o traz de volta. Como atendente, a
   caixa "Mostrar só os excluídos" não aparece.
 - [x] Como gerente ou dono, definir um limite de crédito no cliente (Editar) e ver o cartão
   "Limite de crédito" com o valor disponível.
 
 
-- [ ] Vender no fiado passando do limite: como atendente, aparece o pedido de autorização; o
+- [x] Vender no fiado passando do limite: como atendente, aparece o pedido de autorização; o
   gerente digita o e-mail e a senha dele e a venda sai (senha errada é recusada, e o navegador não
   oferece salvar a senha). Gerente e dono veem o aviso e vendem em "Sim, vender acima do limite".
   No detalhe da venda aparece "Acima do limite, autorizado por" com o nome de quem autorizou.
@@ -144,23 +154,39 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   estoque nas lojas).
 - [ ] Novo produto com "Preço de venda padrão": as lojas marcadas sem preço próprio usam ele.
 - [ ] Criar tipos de vasilhame e lançar movimentações com o fornecedor.
+- [ ] Vasilhames › Tipos › Editar: pôr, mudar e apagar o "Preço do casco" (vale para todas as lojas;
+  a lista mostra "Casco: R$ ..." ou "Casco não é vendido"). Preço zero é recusado.
+- [ ] Produtos › Categorias: criar, renomear, tentar excluir uma com produto (recusa), excluir uma
+  vazia e reativar em "Mostrar só as excluídas".
+- [ ] Filtrar por categoria e por "Sem categoria" em Produtos, Estoque, PDV e comanda.
+- [ ] Cigarro com embalagem "maço" de 20, maço a R$ 12,00 e custo do maço a R$ 9,50: com a unidade
+  vazia, ela sai a R$ 0,60; com R$ 1,00, 1 maço + 3 cigarros dão R$ 15,00. O PDV mostra "+ maço (20)"
+  com o preço e "Maços de 20" no carrinho, e a venda e a comanda mostram "1 maço de 20 + 3 un." e o
+  mesmo total. O lucro confere nas duas formas. Sem nome, continua "fardo".
+- [ ] Produto com fardo e sem preço próprio (ex.: cerveja): continua unidade × quantidade.
+- [ ] Vender em duas categorias, com desconto: o painel mostra "Por categoria (este mês)".
+- [ ] Entrar como atendente: o filtro aparece, mas sem custo nem lucro.
 
-## 9. Permissões (entrar com cada papel)
+## 9. Permissões (entrar com cada papel) 
 
-- [ ] Atendente (`funcionario@exemplo.com`): não vê Produtos, custo, lucro, sangria, painel da
+- [x] Atendente (`funcionario@exemplo.com`): não vê Produtos, custo, lucro, sangria, painel da
   empresa nem "Dívida total".
-- [ ] Logado como atendente, abrir no navegador `/api/stores/<id da loja>/sales`: a resposta
+- [x] Logado como atendente, abrir no navegador `/api/stores/<id da loja>/sales`: a resposta
   não pode ter `costPrice`, `totalCost` nem `totalProfit`.
   
   
 - [x] Gerente (`gerente@exemplo.com`): vê produtos e sangria, mas não a empresa.
-- [ ] Gerente geral: como dono, em Equipe, clicar em "Tornar gerente geral" no cartão do gerente. Ele
+- [x] Gerente geral: como dono, em Equipe, clicar em "Tornar gerente geral" no cartão do gerente. Ele
   ganha o selo "Gerente geral" e fica gerente em todas as lojas (o papel dele nas lojas fica travado).
-- [ ] Entrar como esse gerente: aparece "Painel da empresa" no menu; vê o painel, Lojas (Editar sim;
+- [x] Entrar como esse gerente: aparece "Painel da empresa" no menu; vê o painel, Lojas (Editar sim;
   Nova loja e Excluir não) e Equipe; não vê "Dados da empresa" nem "Mostrar quem foi removido".
 - [ ] Como gerente geral, em Equipe: convidar um atendente e mudar o papel dele funcionam; a opção
   "Dono" não aparece; no cartão do dono não há botões.
-- [ ] Como dono, criar uma loja nova: o gerente geral já aparece nela como gerente. Depois, "Tirar de
+- [x] Como dono, em Equipe, tentar mudar o papel ou tirar o acesso do gerente geral numa loja: não dá
+  (o papel fica travado enquanto ele for gerente geral; é preciso "Tirar de gerente geral" antes).
+- [x] Como gerente geral, abrir o histórico de alterações de um produto (Produtos › ícone de
+  histórico) e o painel da empresa: os dois abrem. Um gerente comum não vê o painel da empresa.
+- [x] Como dono, criar uma loja nova: o gerente geral já aparece nela como gerente. Depois, "Tirar de
   gerente geral": ele continua gerente nas lojas, mas perde o painel da empresa.
 
 
@@ -202,8 +228,9 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   comissão já paga não pode ser cancelada.
 - [ ] Conferir o painel de Indicações: totais, representantes, clientes que mais indicam e
   organizações com desconto a usar; filtros da lista (situação, origem, representante, comissão).
-- [ ] Excluir o representante: o código dele deixa de valer no cadastro; marcar "Mostrar os
-  representantes excluídos" e Reativar.
+- [ ] Excluir o representante e tentar criar uma conta com o código dele: aparece "Código de
+  indicação não encontrado." Depois, marcar "Mostrar os representantes excluídos", Reativar e criar
+  a conta de novo com o mesmo código: agora é aceito.
 
 ## 10b. Página de apresentação e contato
 
@@ -218,13 +245,25 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 ## 11. Geral
 
-- [ ] Usar no celular e no tablet, principalmente o PDV.
-- [ ] Botão "?" de várias telas: cada um abre o artigo certo da Central de Dúvidas.
-- [ ] Modo escuro, se você usa.
+- [x] Usar no celular e no tablet, principalmente o PDV.
+- [x] Botão "?" de várias telas: cada um abre o artigo certo da Central de Dúvidas.
 - [x] testar emails, especialmente de redefinir senha
-- [ ] Rodar `npm run mail:test -- seu@email.com` em `backend/` e conferir os 6 e-mails no Gmail e no
-  celular (boas-vindas, senha alterada e indicação confirmada são novos).
-- [ ] Criar uma conta com um e-mail real: chega o de boas-vindas com a data do fim do teste.
-- [ ] Trocar a senha em Minha conta: chega "Sua senha foi alterada".
+- [ ] Rodar `npm run mail:test -- seu@email.com` em `backend/` e conferir os 7 e-mails no Gmail e no
+  celular (boas-vindas, senha alterada e indicação confirmada são novos; o convite vem nas duas
+  versões).
+- [x] Criar uma conta com um e-mail real: chega o de boas-vindas com a data do fim do teste.
+- [x] Trocar a senha em Minha conta: chega "Sua senha foi alterada".
+- [x] Convidar uma pessoa com e-mail real em Equipe: chega o convite com o nome da empresa e de quem
+  convidou, e o botão "Criar minha senha e acessar" abre a tela de criar senha.
+- [ ] Convidar de novo a mesma pessoa antes de ela criar a senha (por exemplo, para outra loja): o
+  segundo e-mail também traz "Criar minha senha e acessar", e o link funciona.
+- [x] Convidar o e-mail de quem já usa o sistema (por exemplo, o dono de outra distribuidora): o
+  e-mail diz que a pessoa já tem conta e o botão é "Entrar no sistema"; depois de entrar, a empresa
+  nova aparece na lista de empresas.
+- [ ] Lembretes da assinatura (a rotina roda todo dia às 9h, horário de Brasília): como
+  `admin@plataforma.com`, numa organização em teste com e-mail real, pôr o fim do teste para daqui a
+  3 dias e esperar as 9h do dia seguinte, ou conferir o texto pelo `mail:test`. Chega "Seu período
+  de teste termina em 3 dias" (e, com 1 dia, o de amanhã).
 - [ ] Indicação: com um e-mail real no dono que indicou, pôr o indicado em Ativa na plataforma: chega
   "Você ganhou 2 meses com 20% de desconto".
+- [ ] notificacoes estao sendo recebidas por pooling ou socket?

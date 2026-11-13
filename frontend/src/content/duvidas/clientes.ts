@@ -12,7 +12,7 @@ export const clientes: Article[] = [
     steps: [
       "Abra Menu › Clientes e fiado e clique em Novo cliente.",
       "Digite o nome e, se quiser, o telefone. Gerentes e donos também podem definir o Limite de crédito no fiado.",
-      "Se quiser, preencha o Endereço (opcional): digite o CEP e o sistema busca rua, bairro, cidade e UF sozinho; você completa o número e o complemento. O que você já digitou não é trocado. Se o CEP não for encontrado ou a consulta estiver fora do ar, preencha à mão. Salve.",
+      "Se quiser, preencha o Endereço (opcional): digite o CEP e o sistema busca rua, bairro, cidade e UF sozinho; você completa o número e o complemento. O que você já digitou não é trocado; ao editar e trocar o CEP, o endereço salvo passa a ser o do CEP novo. Se o CEP não for encontrado ou a consulta estiver fora do ar, preencha à mão. Salve.",
       "Para achar alguém, use a busca por nome ou telefone. A lista já mostra quanto cada cliente deve no fiado.",
       "Para mudar os dados, abra o cliente e clique em Editar.",
       "O endereço aparece embaixo do nome na tela do cliente. Para apagar, abra Editar e limpe os campos.",
@@ -114,9 +114,11 @@ export const clientes: Article[] = [
     steps: [
       "O dinheiro entra no caixa desta loja. Se ele estiver fechado, abre sozinho ao receber.",
       "Abra o cliente e clique em Receber pagamento.",
-      "Digite o valor e escolha a forma de pagamento (dinheiro, PIX ou cartão).",
+      "Digite o Valor a abater e escolha a forma de pagamento (dinheiro, PIX ou cartão).",
+      "Em dinheiro, se o cliente deu uma nota maior, preencha Valor entregue pelo cliente: o sistema mostra o Troco. Ex.: entregou R$ 200,00 e quer abater R$ 180,00, troco de R$ 20,00. Só o valor abatido entra no caixa; devolva o troco ao cliente.",
+      "Se em dinheiro você digitar no Valor a abater mais do que o cliente deve, o sistema quita a dívida inteira e mostra o resto como troco.",
       "No modo Automático o sistema abate primeiro a dívida desta loja e depois as outras, da mais antiga para a mais nova.",
-      "Se o cliente deve em mais de uma loja e você quer escolher, use Escolher por loja e divida o valor. A soma tem que fechar com o valor recebido.",
+      "Se o cliente deve em mais de uma loja e você quer escolher, use Escolher por loja e divida o valor. A soma tem que fechar com o valor a abater.",
       "Clique em Receber pagamento.",
     ],
     problems: [
@@ -126,7 +128,7 @@ export const clientes: Article[] = [
       },
       {
         message: "O valor é maior que a dívida total do cliente.",
-        fix: "Não existe saldo a favor. Digite no máximo o valor que ele deve.",
+        fix: "Não existe saldo a favor. Em PIX ou cartão, digite no máximo o valor que ele deve. Em dinheiro, o sistema calcula o troco sozinho (no modo Automático).",
       },
       {
         message: "A soma das alocações precisa ser igual ao valor do pagamento.",

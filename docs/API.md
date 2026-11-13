@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **118 rotas**. Todas começam com `/api`.
+Total: **123 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -84,6 +84,11 @@ Total: **118 rotas**. Todas começam com `/api`.
 | DELETE | `/api/companies/:companyId/bottle-types/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | PATCH | `/api/companies/:companyId/bottle-types/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | POST | `/api/companies/:companyId/bottle-types/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| GET | `/api/companies/:companyId/product-categories` | Empresa: EMPLOYEE ou mais | Funciona |
+| POST | `/api/companies/:companyId/product-categories` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| DELETE | `/api/companies/:companyId/product-categories/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| PATCH | `/api/companies/:companyId/product-categories/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/product-categories/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/companies/:companyId/products` | Empresa: EMPLOYEE ou mais | Funciona |
 | POST | `/api/companies/:companyId/products` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/companies/:companyId/products/:id` | Empresa: EMPLOYEE ou mais | Funciona |

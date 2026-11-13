@@ -88,6 +88,7 @@ export function CustomerFormDialog({
     get: (name) => addressRef.current[name],
     set: setField,
     pick: (data) => data,
+    initial: address,
   });
 
   return (

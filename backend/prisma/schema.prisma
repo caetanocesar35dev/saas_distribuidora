@@ -72,6 +72,7 @@ enum TabStatus {
 enum BottleMovementType {
   CUSTOMER_BORROW // Cliente pegou vasilhame emprestado (sai do estoque da loja, aumenta o saldo devedor do cliente)
   CUSTOMER_RETURN // Cliente devolveu vasilhame (entra no estoque da loja, reduz o saldo devedor do cliente)
+  CUSTOMER_PURCHASE // Cliente comprou o casco na venda (sai do estoque da loja e fica dele: não vira dívida). Positivo = estorno do cancelamento
   SUPPLIER_SEND // Loja enviou vasilhame para fornecedor (sai do estoque da loja)
   SUPPLIER_RECEIVE // Loja recebeu vasilhame do fornecedor (entra no estoque da loja)
   MANUAL_ADJUSTMENT // Ajuste manual de estoque
@@ -165,6 +166,8 @@ model Company {
   products    Product[]
   bottleTypes BottleType[]
   customers   Customer[]
+
+  productCategories ProductCategory[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -359,9 +362,16 @@ model Product {
   code         String
   name         String
   packQuantity Int    @default(1)
+  /// Nome da embalagem na tela (caixa, pacote, display...). null = "fardo". Só muda o texto: a conta
+  /// continua em unidades, com `packQuantity`.
+  packName     String?
 
   bottleTypeId String?
   bottleType   BottleType? @relation(fields: [bottleTypeId], references: [id])
+
+  /// Categoria do produto (opcional), usada em filtros e no painel.
+  categoryId String?
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   storeProducts StoreProduct[]
@@ -376,7 +386,30 @@ model Product {
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([categoryId])
   @@map("tb_products")
+}
+
+/// Categoria de produto (Bebidas, Cigarros, Salgadinhos...): catálogo editável de cada Company.
+model ProductCategory {
+  id        String @id @default(uuid())
+  companyId String
+  name      String
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_product_categories")
 }
 
 /// A "oferta" do produto dentro de uma loja específica: preço, custo, estoque e status,
@@ -386,7 +419,12 @@ model StoreProduct {
   storeId   String
   productId String
 
+  /// Preço da unidade.
   price     Float
+  /// Preço próprio da embalagem nesta loja (ex.: maço a R$ 12 e cigarro a R$ 1). null = `price` ×
+  /// `Product.packQuantity`.
+  packPrice Float?
+  /// Custo da unidade, com até 4 casas (a tela pede o custo da embalagem e divide).
   costPrice Float   @default(0)
   stock     Int     @default(0)
   isActive  Boolean @default(true)
@@ -420,6 +458,9 @@ model BottleType {
   id        String @id @default(uuid())
   companyId String
   name      String
+  /// Preço do casco quando o cliente compra o vasilhame (fica dele; vale para todas as lojas da
+  /// empresa). null = o casco não é vendido: na venda, só troca ou empréstimo.
+  price     Float?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -609,9 +650,13 @@ model CustomerStoreBottleBalance {
 model Sale {
   id            String        @id @default(uuid())
   storeId       String
+  /// O que o cliente pagou: produtos − desconto + cascos comprados (`bottlesTotal`).
   total         Float
   totalCost     Float         @default(0)
   discount      Float         @default(0)
+  /// Cascos de vasilhame comprados nesta venda (já incluídos em `total`). Não é faturamento de
+  /// produto nem tem lucro: o painel mostra separado.
+  bottlesTotal  Float         @default(0)
   paymentMethod PaymentMethod
   status        SaleStatus    @default(COMPLETED)
   /// Data e hora em que a venda aconteceu (é a que conta em relatórios e painéis).
@@ -660,6 +705,8 @@ model SaleItem {
   /// quantas unidades tinha o fardo na hora. 0 / null = vendido só por unidade.
   packs          Int    @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float  @default(0)
 
@@ -755,6 +802,8 @@ model CommandItem {
   /// Venda em lote (igual a SaleItem): fardos contidos em `quantity` e unidades por fardo.
   packs          Int      @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float    @default(0)
   addedAt        DateTime @default(now())
@@ -780,6 +829,8 @@ model BottleMovement {
   bottleTypeId String
   quantity     Int // positivo (entra na loja/devolve) ou negativo (sai da loja/empresta)
   type         BottleMovementType
+  /// Compra do casco (CUSTOMER_PURCHASE): preço de cada casco no momento da venda. null nos outros tipos.
+  unitPrice    Float?
   description  String?
   createdAt    DateTime           @default(now())
 
@@ -1183,7 +1234,9 @@ model ProductHistory {
   code         String
   name         String
   packQuantity Int
+  packName     String?
   bottleTypeId String?
+  categoryId   String?
   createdAt    DateTime
 
   modifierId       String?
@@ -1196,6 +1249,23 @@ model ProductHistory {
   @@map("th_product_history")
 }
 
+model ProductCategoryHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_product_category_history_vigente")
+  @@map("th_product_category_history")
+}
+
 /// Inclui stock: entradas de mercadoria e ajustes manuais não são registrados em outra tabela.
 model StoreProductHistory {
   historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
@@ -1203,6 +1273,7 @@ model StoreProductHistory {
   storeId   String
   productId String
   price     Float
+  packPrice Float?
   costPrice Float
   stock     Int
   isActive  Boolean
@@ -1224,6 +1295,7 @@ model BottleTypeHistory {
   id        String
   companyId String
   name      String
+  price     Float?
   createdAt DateTime
 
   modifierId       String?
@@ -1357,6 +1429,7 @@ model SaleHistory {
   total              Float
   totalCost          Float
   discount           Float
+  bottlesTotal       Float         @default(0)
   paymentMethod      PaymentMethod
   status             SaleStatus
   createdAt          DateTime
@@ -1384,6 +1457,8 @@ model SaleItemHistory {
   quantity       Int
   packs          Int    @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float
 
@@ -1464,6 +1539,8 @@ model CommandItemHistory {
   quantity       Int
   packs          Int      @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float
   addedAt        DateTime
@@ -1485,6 +1562,7 @@ model BottleMovementHistory {
   bottleTypeId String
   quantity     Int
   type         BottleMovementType
+  unitPrice    Float?
   description  String?
   createdAt    DateTime
   customerId   String?

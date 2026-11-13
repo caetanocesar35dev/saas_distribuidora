@@ -13,6 +13,7 @@ function product(
     storeId: "loja",
     productId: `p-${id}`,
     price,
+    packPrice: null,
     costPrice: 1,
     stock: 100,
     isActive: true,
@@ -20,8 +21,11 @@ function product(
       code: id,
       name: `Produto ${id}`,
       packQuantity,
+      packName: null,
       bottleTypeId: bottle?.id ?? null,
       bottleType: bottle ?? null,
+      categoryId: null,
+      category: null,
     },
   };
 }

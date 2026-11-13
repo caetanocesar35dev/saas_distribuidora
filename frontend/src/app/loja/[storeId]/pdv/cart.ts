@@ -1,6 +1,7 @@
 import type { StoreProduct } from "@/lib/api/types";
 import type { BottleLine } from "@/components/app/pos/checkout-dialog";
 import { roundMoney } from "@/lib/format";
+import { itemTotal } from "@/lib/pack-pricing";
 
 /**
  * Linha do carrinho. Venda em lote: `quantity` são as unidades avulsas e `packs` os fardos; o
@@ -69,7 +70,18 @@ export function cartReducer(state: CartLine[], action: CartAction): CartLine[] {
 
 /** Prévia do subtotal (o valor oficial é o que o backend devolve ao concluir a venda). */
 export function cartSubtotal(lines: CartLine[]): number {
-  return roundMoney(lines.reduce((sum, l) => sum + roundMoney(l.item.price * lineUnits(l)), 0));
+  return roundMoney(lines.reduce((sum, l) => sum + lineTotal(l), 0));
+}
+
+/** Valor da linha: a embalagem com o preço dela, as avulsas com o preço da unidade. */
+export function lineTotal(line: CartLine): number {
+  return itemTotal({
+    quantity: lineUnits(line),
+    packs: line.packs ?? 0,
+    packSize: packSizeOf(line.item),
+    price: line.item.price,
+    packPrice: line.item.packPrice,
+  });
 }
 
 /** Vasilhames que saem com a venda: um por unidade de cada produto que usa vasilhame. */

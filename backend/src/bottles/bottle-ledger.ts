@@ -78,6 +78,8 @@ export interface BottleMovementInput {
   /** Com sinal: positivo entra na loja (devolução/recebimento), negativo sai (empréstimo/envio). */
   quantity: number;
   type: BottleMovementType;
+  /** Compra do casco: preço de cada um no momento da venda. */
+  unitPrice?: number | null;
   customerId?: string | null;
   saleId?: string | null;
   description?: string | null;
@@ -90,6 +92,7 @@ export function recordBottleMovement(tx: PrismaTx, input: BottleMovementInput) {
       bottleTypeId: input.bottleTypeId,
       quantity: input.quantity,
       type: input.type,
+      unitPrice: input.unitPrice ?? null,
       customerId: input.customerId ?? null,
       saleId: input.saleId ?? null,
       description: input.description ?? null,

@@ -14,7 +14,12 @@ import {
 } from '../bottles/bottle-ledger';
 import { lockCashShared } from '../cash-register/cash-lock';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
-import { fromCents, roundMoney, toCents } from '../common/utils/money';
+import {
+  fromCents,
+  roundMoney,
+  roundUnitCost,
+  toCents,
+} from '../common/utils/money';
 import { addDays, startOfDayInTz } from '../common/utils/time';
 import { Env } from '../config/env';
 import { assertCreditLimit } from '../customers/credit-limit';
@@ -31,7 +36,7 @@ import {
   CreateSaleDto,
   ListSalesQuery,
 } from './dto/sales.dto';
-import { toUnits } from './packs';
+import { itemTotalCents, toUnits } from './packs';
 
 export interface SaleLineInput {
   storeProductId: string;
@@ -43,6 +48,7 @@ export interface SaleLineInput {
   packSize?: number | null;
   /** Só para uso interno (comanda: preço do momento em que o item foi adicionado). */
   price?: number;
+  packPrice?: number | null;
   costPrice?: number;
 }
 
@@ -55,6 +61,8 @@ export interface CreateSaleInput {
   discount?: number;
   lines: SaleLineInput[];
   bottleReturns?: { bottleTypeId: string; quantity: number }[];
+  /** Cascos que o cliente compra (o preço vem do tipo de vasilhame). */
+  bottlePurchases?: { bottleTypeId: string; quantity: number }[];
   commandTabId?: string;
   /** O estoque já foi baixado antes (itens da comanda): não baixa de novo. */
   skipStock?: boolean;
@@ -74,12 +82,29 @@ export interface CreateSaleInput {
   soldAt?: Date;
 }
 
+/** Vasilhames de uma venda, por tipo, já conferidos (ver `planBottles`). */
+interface BottlePlan {
+  rows: {
+    typeId: string;
+    /** Saem emprestados (viram dívida do cliente). */
+    borrowed: number;
+    /** Vazios devolvidos na hora. */
+    gave: number;
+    /** Cascos comprados (ficam do cliente). */
+    purchased: number;
+    unitPrice: number | null;
+  }[];
+  /** Valor dos cascos comprados, em centavos (entra no total da venda). */
+  purchaseCents: number;
+}
+
 const SALE_SELECT = {
   id: true,
   storeId: true,
   total: true,
   totalCost: true,
   discount: true,
+  bottlesTotal: true,
   paymentMethod: true,
   status: true,
   createdAt: true,
@@ -98,10 +123,13 @@ const SALE_SELECT = {
       quantity: true,
       packs: true,
       packSize: true,
+      packPrice: true,
       price: true,
       costPrice: true,
       storeProduct: {
-        select: { product: { select: { code: true, name: true } } },
+        select: {
+          product: { select: { code: true, name: true, packName: true } },
+        },
       },
     },
   },
@@ -112,6 +140,7 @@ const SALE_SELECT = {
       id: true,
       type: true,
       quantity: true,
+      unitPrice: true,
       bottleTypeId: true,
       bottleType: { select: { name: true } },
       description: true,
@@ -190,6 +219,7 @@ export class SalesService {
           ...line,
         })),
         bottleReturns: dto.bottleReturns,
+        bottlePurchases: dto.bottlePurchases,
         ...credit,
         soldAt,
       }),
@@ -269,6 +299,7 @@ export class SalesService {
       select: {
         id: true,
         price: true,
+        packPrice: true,
         costPrice: true,
         stock: true,
         product: {
@@ -325,17 +356,26 @@ export class SalesService {
     const itemRows = lines.map((line) => {
       const p = byId.get(line.storeProductId)!;
       const price = roundMoney(line.price ?? p.price);
-      const costPrice = roundMoney(line.costPrice ?? p.costPrice);
-      subtotalCents += toCents(roundMoney(price * line.quantity));
-      costCents += toCents(roundMoney(costPrice * line.quantity));
-      return {
+      // Item de comanda traz o preço do momento em que entrou, inclusive o da embalagem.
+      const packPrice =
+        line.packs > 0
+          ? line.price === undefined
+            ? p.packPrice
+            : (line.packPrice ?? null)
+          : null;
+      const costPrice = roundUnitCost(line.costPrice ?? p.costPrice);
+      const row = {
         storeProductId: line.storeProductId,
         quantity: line.quantity,
         packs: line.packs,
         packSize: line.packSize,
         price,
+        packPrice,
         costPrice,
       };
+      subtotalCents += itemTotalCents(row);
+      costCents += toCents(roundMoney(costPrice * line.quantity));
+      return row;
     });
     const discountCents = toCents(input.discount ?? 0);
     if (discountCents > subtotalCents) {
@@ -343,7 +383,17 @@ export class SalesService {
         'O desconto não pode ser maior que o valor total da venda.',
       );
     }
-    const total = fromCents(subtotalCents - discountCents);
+    // `lines` já está em unidades: 2 fardos de 12 com vasilhame levam 24 vasilhames.
+    const bottles = await this.planBottles(
+      tx,
+      { ...input, lines },
+      byId,
+      customerId,
+    );
+    // O desconto vale só sobre os produtos; os cascos comprados entram depois, pelo preço cheio.
+    const total = fromCents(
+      subtotalCents - discountCents + bottles.purchaseCents,
+    );
 
     // Limite de crédito antes de gravar a venda: passando dele, a venda guarda quem autorizou.
     const overCreditLimit =
@@ -364,6 +414,7 @@ export class SalesService {
         total,
         totalCost: fromCents(costCents),
         discount: fromCents(discountCents),
+        bottlesTotal: fromCents(bottles.purchaseCents),
         paymentMethod: input.paymentMethod,
         status: 'COMPLETED',
         userId: input.userId,
@@ -397,31 +448,23 @@ export class SalesService {
       });
     }
 
-    // `lines` já está em unidades: 2 fardos de 12 com vasilhame levam 24 vasilhames.
-    await this.registerBottles(
-      tx,
-      { ...input, lines },
-      byId,
-      sale.id,
-      customerId,
-    );
+    await this.registerBottles(tx, storeId, bottles, sale.id, customerId);
     return sale.id;
   }
 
   /**
-   * Vasilhames da venda: cada produto com vasilhame leva `quantidade` vasilhames emprestados (sai
-   * do estoque da loja e vira dívida do cliente) e o cliente pode devolver na hora. Quem sai
-   * devendo (ou com crédito) precisa estar identificado na venda.
+   * Vasilhames da venda, ANTES de gravá-la (o valor dos cascos comprados entra no total). Cada
+   * unidade de produto com vasilhame leva 1 vasilhame; desses, o cliente compra alguns cascos
+   * (ficam dele) e o resto vai emprestado (vira dívida). Ele também pode devolver vazios na hora.
+   * Quem sai devendo (ou com crédito) precisa estar identificado; quem só compra o casco, não.
    */
-  private async registerBottles(
+  private async planBottles(
     tx: PrismaTx,
     input: CreateSaleInput,
     products: Map<string, { product: { bottleTypeId: string | null } }>,
-    saleId: string,
     customerId: string | null,
-  ) {
-    // Cada unidade de produto com vasilhame leva 1 vasilhame (como no sistema antigo). Na venda em
-    // lote, `quantity` já é o total em unidades (fardos convertidos).
+  ): Promise<BottlePlan> {
+    // Na venda em lote, `quantity` já é o total em unidades (fardos convertidos).
     const taken = new Map<string, number>();
     for (const line of input.lines) {
       const bottleTypeId = products.get(line.storeProductId)!.product
@@ -429,47 +472,101 @@ export class SalesService {
       if (bottleTypeId)
         taken.set(bottleTypeId, (taken.get(bottleTypeId) ?? 0) + line.quantity);
     }
-    const returned = new Map<string, number>();
-    for (const r of input.bottleReturns ?? []) {
-      returned.set(
-        r.bottleTypeId,
-        (returned.get(r.bottleTypeId) ?? 0) + r.quantity,
-      );
-    }
+    const sum = (list?: { bottleTypeId: string; quantity: number }[]) => {
+      const map = new Map<string, number>();
+      for (const r of list ?? [])
+        map.set(r.bottleTypeId, (map.get(r.bottleTypeId) ?? 0) + r.quantity);
+      return map;
+    };
+    const returned = sum(input.bottleReturns);
+    const bought = sum(input.bottlePurchases);
 
-    const typeIds = [...new Set([...taken.keys(), ...returned.keys()])].sort();
-    if (typeIds.length === 0) return;
+    const typeIds = [
+      ...new Set([...taken.keys(), ...returned.keys(), ...bought.keys()]),
+    ].sort();
+    if (typeIds.length === 0) return { rows: [], purchaseCents: 0 };
 
-    const valid = await tx.bottleType.count({
+    const types = await tx.bottleType.findMany({
       where: { id: { in: typeIds }, companyId: input.companyId },
+      select: { id: true, name: true, price: true },
     });
-    if (valid !== typeIds.length)
+    if (types.length !== typeIds.length)
       throw new NotFoundException(
         'Tipo de vasilhame não encontrado nesta empresa.',
       );
+    const typeById = new Map(types.map((t) => [t.id, t]));
 
-    const { storeId } = input;
-    const shortId = saleId.slice(0, 8);
-    for (const typeId of typeIds) {
+    let purchaseCents = 0;
+    const rows = typeIds.map((typeId) => {
+      const type = typeById.get(typeId)!;
       const took = taken.get(typeId) ?? 0;
       const gave = returned.get(typeId) ?? 0;
-      if (took !== gave && !customerId) {
+      const purchased = bought.get(typeId) ?? 0;
+      let unitPrice: number | null = null;
+      if (purchased > 0) {
+        if (type.price === null)
+          throw new BadRequestException(
+            `O casco "${type.name}" não tem preço cadastrado. Defina o preço em Vasilhames ou deixe o vasilhame como troca ou empréstimo.`,
+          );
+        if (purchased > took)
+          throw new BadRequestException(
+            `Só dá para comprar o casco dos vasilhames que saem nesta venda: ${took} de "${type.name}".`,
+          );
+        unitPrice = roundMoney(type.price);
+        purchaseCents += toCents(unitPrice) * purchased;
+      }
+      const borrowed = took - purchased;
+      if (borrowed !== gave && !customerId) {
         throw new BadRequestException(
           'Para ficar com saldo devedor ou credor de vasilhames, é obrigatório selecionar um cliente na venda.',
         );
       }
+      return { typeId, borrowed, gave, purchased, unitPrice };
+    });
+    return { rows, purchaseCents };
+  }
 
+  /** Grava os movimentos de vasilhame planejados em `planBottles`, já com a venda criada. */
+  private async registerBottles(
+    tx: PrismaTx,
+    storeId: string,
+    plan: BottlePlan,
+    saleId: string,
+    customerId: string | null,
+  ) {
+    const shortId = saleId.slice(0, 8);
+    for (const { typeId, borrowed, gave, purchased, unitPrice } of plan.rows) {
       // TODO(decisão-produto): o estoque de vasilhame pode ficar negativo numa venda (não se barra o PDV);
       // nas movimentações manuais ele nunca fica negativo.
       // Na venda o estoque de vasilhame pode ficar negativo: não se barra a venda por isso.
-      if (took > 0) {
-        await addStoreBottleStock(tx, storeId, typeId, -took, true);
-        if (customerId)
-          await addCustomerBottleBalance(tx, customerId, storeId, typeId, took);
+      if (purchased > 0) {
+        // O casco é do cliente agora: sai do estoque da loja, sem virar dívida.
+        await addStoreBottleStock(tx, storeId, typeId, -purchased, true);
         await recordBottleMovement(tx, {
           storeId,
           bottleTypeId: typeId,
-          quantity: -took,
+          quantity: -purchased,
+          type: 'CUSTOMER_PURCHASE',
+          unitPrice,
+          customerId,
+          saleId,
+          description: `Casco comprado (venda #${shortId})`,
+        });
+      }
+      if (borrowed > 0) {
+        await addStoreBottleStock(tx, storeId, typeId, -borrowed, true);
+        if (customerId)
+          await addCustomerBottleBalance(
+            tx,
+            customerId,
+            storeId,
+            typeId,
+            borrowed,
+          );
+        await recordBottleMovement(tx, {
+          storeId,
+          bottleTypeId: typeId,
+          quantity: -borrowed,
           type: 'CUSTOMER_BORROW',
           customerId,
           saleId,
@@ -542,19 +639,22 @@ export class SalesService {
       // Receita e lucro: só vendas concluídas dentro do mesmo filtro.
       this.prisma.sale.aggregate({
         where: { ...where, status: 'COMPLETED' },
-        _sum: { total: true, totalCost: true },
+        _sum: { total: true, totalCost: true, bottlesTotal: true },
       }),
     ]);
 
-    const revenue = roundMoney(totals._sum.total ?? 0);
-    const cost = roundMoney(totals._sum.totalCost ?? 0);
+    // Faturamento é só dos produtos: os cascos comprados vêm à parte (não têm lucro).
+    const bottlesCents = toCents(totals._sum.bottlesTotal ?? 0);
+    const revenueCents = toCents(totals._sum.total ?? 0) - bottlesCents;
+    const costCents = toCents(totals._sum.totalCost ?? 0);
     const result = paginate(data, totalItems, query.page, query.limit);
     return {
       ...result,
       meta: {
         ...result.meta,
-        totalRevenue: revenue,
-        totalProfit: roundMoney(revenue - cost),
+        totalRevenue: fromCents(revenueCents),
+        totalProfit: fromCents(revenueCents - costCents),
+        totalBottles: fromCents(bottlesCents),
       },
     };
   }
@@ -630,7 +730,9 @@ export class SalesService {
       const movements = await tx.bottleMovement.findMany({
         where: {
           saleId: id,
-          type: { in: ['CUSTOMER_BORROW', 'CUSTOMER_RETURN'] },
+          type: {
+            in: ['CUSTOMER_BORROW', 'CUSTOMER_RETURN', 'CUSTOMER_PURCHASE'],
+          },
         },
         orderBy: { createdAt: 'asc' },
       });
@@ -642,6 +744,20 @@ export class SalesService {
           -m.quantity,
           true,
         );
+        // Casco comprado: volta ao estoque da loja (o dinheiro sai junto com o total da venda).
+        if (m.type === 'CUSTOMER_PURCHASE') {
+          await recordBottleMovement(tx, {
+            storeId,
+            bottleTypeId: m.bottleTypeId,
+            quantity: -m.quantity,
+            type: 'CUSTOMER_PURCHASE',
+            unitPrice: m.unitPrice,
+            customerId: m.customerId,
+            saleId: id,
+            description: `Estorno do casco (cancelamento da venda #${id.slice(0, 8)})`,
+          });
+          continue;
+        }
         if (m.customerId)
           await addCustomerBottleBalance(
             tx,

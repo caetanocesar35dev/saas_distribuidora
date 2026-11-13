@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
-import { roundMoney, toCents, fromCents } from '../common/utils/money';
+import { fromCents } from '../common/utils/money';
 import { PrismaTx } from '../prisma/prisma.extension';
 import { PrismaService } from '../prisma/prisma.service';
 import { ensureOpenCash } from '../cash-register/cash-auto';
@@ -15,7 +15,7 @@ import {
   CloseCommandTabDto,
   CreateCommandTabDto,
 } from './dto/sales.dto';
-import { toUnits } from './packs';
+import { itemTotalCents, toUnits } from './packs';
 import { SalesService } from './sales.service';
 
 const ITEM_SELECT = {
@@ -24,10 +24,15 @@ const ITEM_SELECT = {
   quantity: true,
   packs: true,
   packSize: true,
+  packPrice: true,
   price: true,
   costPrice: true,
   addedAt: true,
-  storeProduct: { select: { product: { select: { code: true, name: true } } } },
+  storeProduct: {
+    select: {
+      product: { select: { code: true, name: true, packName: true } },
+    },
+  },
 } satisfies Prisma.CommandItemSelect;
 
 const TAB_SELECT = {
@@ -48,10 +53,7 @@ const TAB_SELECT = {
 type TabRow = Prisma.CommandTabGetPayload<{ select: typeof TAB_SELECT }>;
 
 function withTotal(tab: TabRow) {
-  const cents = tab.items.reduce(
-    (sum, i) => sum + toCents(roundMoney(i.price * i.quantity)),
-    0,
-  );
+  const cents = tab.items.reduce((sum, i) => sum + itemTotalCents(i), 0);
   return { ...tab, total: fromCents(cents) };
 }
 
@@ -112,6 +114,7 @@ export class CommandTabsService {
         select: {
           id: true,
           price: true,
+          packPrice: true,
           costPrice: true,
           stock: true,
           product: { select: { name: true, packQuantity: true } },
@@ -147,6 +150,7 @@ export class CommandTabsService {
           packs,
           packSize,
           price: product.price,
+          packPrice: packs > 0 ? product.packPrice : null,
           costPrice: product.costPrice,
         },
       });
@@ -225,9 +229,11 @@ export class CommandTabsService {
           packs: i.packs,
           packSize: i.packSize,
           price: i.price,
+          packPrice: i.packPrice,
           costPrice: i.costPrice,
         })),
         bottleReturns: dto.bottleReturns,
+        bottlePurchases: dto.bottlePurchases,
         commandTabId: tabId,
         skipStock: true,
         ...credit,

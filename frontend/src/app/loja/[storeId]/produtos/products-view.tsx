@@ -1,8 +1,9 @@
 "use client";
 
-import { PencilIcon, PlusIcon, RotateCcwIcon, SearchIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, RotateCcwIcon, SearchIcon, TagsIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CategoryFilter, NO_CATEGORY, useCategoryOptions } from "@/components/app/category-filter";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState, ErrorState, LoadingRows, PageHeader } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
@@ -10,6 +11,7 @@ import { ActionButton, PageGuard } from "@/components/app/guards";
 import { HistoryButton } from "@/components/app/history-dialog";
 import { IntInput, SelectField } from "@/components/app/inputs";
 import { LinkButton } from "@/components/app/link-button";
+import { PackNameInput } from "@/components/app/pack-name-input";
 import { Pagination } from "@/components/app/pagination";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,7 +41,9 @@ import {
   useUpdateProduct,
 } from "@/lib/api/hooks/catalog";
 import type { Product } from "@/lib/api/types";
+import { capitalize, hasMinRole, packLabel } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
+import { CategoriesDialog } from "./categories-dialog";
 
 const NO_BOTTLE = "none";
 
@@ -53,9 +57,12 @@ function EditProductDialog({
   const { companyId, storeId } = useStore();
   const update = useUpdateProduct(companyId, storeId);
   const bottleTypes = useBottleTypes(companyId);
+  const categoryOptions = useCategoryOptions(companyId);
   const [name, setName] = useState(product.name);
   const [pack, setPack] = useState<number | undefined>(product.packQuantity);
+  const [packName, setPackName] = useState(product.packName ?? "");
   const [bottleTypeId, setBottleTypeId] = useState(product.bottleTypeId ?? NO_BOTTLE);
+  const [categoryId, setCategoryId] = useState(product.categoryId ?? NO_CATEGORY);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -77,7 +84,9 @@ function EditProductDialog({
                 body: {
                   name: name.trim(),
                   packQuantity: pack,
+                  packName: packName.trim() || null,
                   bottleTypeId: bottleTypeId === NO_BOTTLE ? null : bottleTypeId,
+                  categoryId: categoryId === NO_CATEGORY ? null : categoryId,
                 },
               },
               {
@@ -92,9 +101,26 @@ function EditProductDialog({
           <FormField label="Nome do produto" htmlFor="edit-name">
             <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           </FormField>
-          <FormField label="Unidades por fardo" htmlFor="edit-pack">
-            <IntInput id="edit-pack" min={1} value={pack} onChange={setPack} />
+          <FormField label="Categoria" htmlFor="edit-category">
+            <SelectField
+              id="edit-category"
+              value={categoryId}
+              onChange={setCategoryId}
+              options={categoryOptions}
+            />
           </FormField>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FormField
+              label="Nome da embalagem"
+              htmlFor="edit-pack-name"
+              hint="Fardo, caixa, pacote... Só muda o nome nas telas."
+            >
+              <PackNameInput id="edit-pack-name" value={packName} onChange={setPackName} />
+            </FormField>
+            <FormField label={`Unidades por ${packLabel(packName)}`} htmlFor="edit-pack">
+              <IntInput id="edit-pack" min={1} value={pack} onChange={setPack} />
+            </FormField>
+          </div>
           <FormField
             label="Vasilhame"
             htmlFor="edit-bottle"
@@ -129,9 +155,11 @@ function ProductsList() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const debounced = useDebounced(search);
   const list = useProducts(companyId, {
     search: debounced || undefined,
+    categoryId,
     page,
     limit: 20,
     deleted: showDeleted || undefined,
@@ -157,6 +185,15 @@ function ProductsList() {
             aria-label="Buscar produtos"
           />
         </div>
+        <CategoryFilter
+          className="w-52"
+          companyId={companyId}
+          value={categoryId}
+          onChange={(value) => {
+            setCategoryId(value);
+            setPage(1);
+          }}
+        />
         <label className="flex cursor-pointer items-center gap-2 text-sm">
           <Checkbox
             checked={showDeleted}
@@ -177,14 +214,15 @@ function ProductsList() {
         <EmptyState
           title={showDeleted ? "Nenhum produto excluído" : "Nenhum produto cadastrado"}
           description={
-            debounced
-              ? "Tente outra busca."
+            debounced || categoryId
+              ? "Tente outra busca ou outra categoria."
               : showDeleted
                 ? "Os produtos que você excluir aparecem aqui para reativar."
                 : "Cadastre o primeiro produto da empresa."
           }
           action={
             !debounced &&
+            !categoryId &&
             !showDeleted && (
               <LinkButton href={`/loja/${storeId}/produtos/novo`}>
                 <PlusIcon /> Novo produto
@@ -199,8 +237,9 @@ function ProductsList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Produto</TableHead>
+                  <TableHead>Categoria</TableHead>
                   <TableHead>Código de barras</TableHead>
-                  <TableHead className="text-right">Por fardo</TableHead>
+                  <TableHead>Embalagem</TableHead>
                   <TableHead>Vasilhame</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -209,8 +248,13 @@ function ProductsList() {
                 {list.data.data.map((product) => (
                   <TableRow key={product.id}>
                     <TableCell className="font-medium">{product.name}</TableCell>
+                    <TableCell>{product.category?.name ?? "—"}</TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">{product.code}</TableCell>
-                    <TableCell className="text-right tabular-nums">{product.packQuantity}</TableCell>
+                    <TableCell className="tabular-nums">
+                      {product.packQuantity > 1
+                        ? `${capitalize(packLabel(product.packName))} de ${product.packQuantity}`
+                        : "—"}
+                    </TableCell>
                     <TableCell>{product.bottleType?.name ?? "—"}</TableCell>
                     <TableCell>
                       {product.deletedAt ? (
@@ -299,7 +343,8 @@ function ProductsList() {
 }
 
 export function ProductsView() {
-  const { storeId } = useStore();
+  const { companyId, storeId, role } = useStore();
+  const [managingCategories, setManagingCategories] = useState(false);
   return (
     <div>
       <PageHeader
@@ -307,14 +352,28 @@ export function ProductsView() {
         description="O catálogo da empresa. O preço e o estoque de cada loja ficam em Estoque."
         help="produtos-cadastrar"
         actions={
-          <LinkButton href={`/loja/${storeId}/produtos/novo`}>
-            <PlusIcon /> Novo produto
-          </LinkButton>
+          <>
+            {hasMinRole(role, "MANAGER") && (
+              <ActionButton
+                variant="outline"
+                minRole="MANAGER"
+                onClick={() => setManagingCategories(true)}
+              >
+                <TagsIcon /> Categorias
+              </ActionButton>
+            )}
+            <LinkButton href={`/loja/${storeId}/produtos/novo`}>
+              <PlusIcon /> Novo produto
+            </LinkButton>
+          </>
         }
       />
       <PageGuard min="MANAGER">
         <ProductsList />
       </PageGuard>
+      {managingCategories && (
+        <CategoriesDialog companyId={companyId} onClose={() => setManagingCategories(false)} />
+      )}
     </div>
   );
 }

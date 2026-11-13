@@ -63,6 +63,58 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByRole("dialog").getByText(/Histórico de/)).toBeVisible();
   });
 
+  test("categoria e embalagem: cria a categoria, usa no produto, filtra e vende pelo nome da embalagem", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    const sufixo = Date.now() % 100000;
+    const categoria = `Categoria E2E ${sufixo}`;
+    const nome = `Cigarro E2E ${sufixo}`;
+
+    await goToStore(page, storeId, "/produtos");
+    await page.getByRole("button", { name: "Categorias" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Nome da nova categoria").fill(categoria);
+    await dialog.getByRole("button", { name: "Adicionar" }).click();
+    await expect(page.getByText("Categoria cadastrada.")).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await goToStore(page, storeId, "/produtos/novo");
+    await page.getByLabel("Nome do produto").fill(nome);
+    await page.getByLabel("Categoria (opcional)").click();
+    await page.getByRole("option", { name: categoria }).click();
+    await page.getByLabel("Nome da embalagem (opcional)").fill("maço");
+    await page.getByLabel("Unidades por maço").fill("20");
+    await page.getByLabel("Preço do maço padrão").fill("12");
+    await page.getByLabel("Custo do maço padrão").fill("9,5");
+    await page.getByLabel("Preço da unidade nesta loja").first().fill("1");
+    await page.getByRole("button", { name: "Cadastrar produto" }).click();
+    await page.waitForURL(/\/estoque/);
+
+    await page.getByRole("button", { name: "Entrada" }).first().waitFor();
+    await page.getByLabel("Filtrar por categoria").click();
+    await page.getByRole("option", { name: categoria }).click();
+    await expect(page.getByRole("row")).toHaveCount(2);
+    await expect(page.getByRole("row").nth(1)).toContainText(nome);
+    await page.getByRole("button", { name: "Entrada" }).first().click();
+    await page.getByRole("dialog").getByRole("spinbutton").fill("100");
+    await page.getByRole("button", { name: "Registrar entrada" }).click();
+    await expect(page.getByText(/Entrada registrada/)).toBeVisible();
+
+    await goToStore(page, storeId, "/pdv");
+    await page.getByLabel("Filtrar por categoria").click();
+    await page.getByRole("option", { name: categoria }).click();
+    // 1 maço a R$ 12,00 + 3 cigarros picados a R$ 1,00
+    await page.getByRole("button", { name: `Adicionar 1 maço de 20 de ${nome}` }).click();
+    await expect(page.getByText("Maços de 20")).toBeVisible();
+    for (let i = 0; i < 3; i++) {
+      await page.getByRole("button", { name: `Adicionar 1 unidade de ${nome}` }).click();
+    }
+    await expect(page.getByText(/Subtotal/).locator("..")).toContainText("15,00");
+    expect(errors).toEqual([]);
+  });
+
   test("vasilhames: recebimento do fornecedor, tipo repetido, empréstimo e devolução do cliente", async ({
     page,
   }) => {

@@ -4,8 +4,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuditContext } from '../audit/audit-context';
+import { roundMoney } from '../common/utils/money';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBottleTypeDto, UpdateBottleTypeDto } from './dto/catalog.dto';
+
+const BOTTLE_TYPE_SELECT = {
+  id: true,
+  companyId: true,
+  name: true,
+  price: true,
+  createdAt: true,
+} as const;
+
+/** `undefined` não mexe; `null` tira o preço do casco. */
+const priceOf = (price: number | null | undefined) =>
+  price === undefined || price === null ? price : roundMoney(price);
 
 @Injectable()
 export class BottleTypesService {
@@ -17,7 +30,7 @@ export class BottleTypesService {
   list(companyId: string) {
     return this.prisma.bottleType.findMany({
       where: { companyId },
-      select: { id: true, companyId: true, name: true, createdAt: true },
+      select: BOTTLE_TYPE_SELECT,
       orderBy: { name: 'asc' },
     });
   }
@@ -25,7 +38,7 @@ export class BottleTypesService {
   async get(companyId: string, id: string) {
     const bottleType = await this.prisma.bottleType.findFirst({
       where: { id, companyId },
-      select: { id: true, companyId: true, name: true, createdAt: true },
+      select: BOTTLE_TYPE_SELECT,
     });
     if (!bottleType)
       throw new NotFoundException('Tipo de vasilhame não encontrado.');
@@ -35,8 +48,8 @@ export class BottleTypesService {
   async create(companyId: string, dto: CreateBottleTypeDto) {
     await this.assertNameFree(companyId, dto.name);
     return this.prisma.bottleType.create({
-      data: { companyId, name: dto.name },
-      select: { id: true, companyId: true, name: true, createdAt: true },
+      data: { companyId, name: dto.name, price: priceOf(dto.price) ?? null },
+      select: BOTTLE_TYPE_SELECT,
     });
   }
 
@@ -45,8 +58,8 @@ export class BottleTypesService {
     if (dto.name) await this.assertNameFree(companyId, dto.name, id);
     return this.prisma.bottleType.update({
       where: { id },
-      data: { name: dto.name },
-      select: { id: true, companyId: true, name: true, createdAt: true },
+      data: { name: dto.name, price: priceOf(dto.price) },
+      select: BOTTLE_TYPE_SELECT,
     });
   }
 

@@ -45,6 +45,23 @@ function assertCanManage(
   }
 }
 
+/**
+ * O responsável pela assinatura (quem criou a conta, `Organization.ownerUserId`) não tem os
+ * acessos alterados por outra pessoa, nem por outro dono (decisão do usuário, 2026-11-13): um
+ * funcionário promovido a dono não consegue tirar o dono original da empresa.
+ */
+function assertNotBillingOwner(
+  actorMembershipId: string,
+  membershipId: string,
+  target: { isBillingOwner: boolean },
+) {
+  if (target.isBillingOwner && actorMembershipId !== membershipId) {
+    throw new ForbiddenException(
+      'Os acessos do responsável pela assinatura só podem ser alterados por ele mesmo.',
+    );
+  }
+}
+
 /** Só o dono dá o papel de dono. */
 function assertCanGrantOwner(actor: CompanyTenant) {
   if (actor.role !== 'OWNER')
@@ -64,6 +81,7 @@ export class MembershipsService {
 
   /** Membros da empresa com o papel em cada loja (só quem ainda tem acesso a alguma loja). */
   async list(companyId: string) {
+    const billingOwnerId = await this.billingOwnerIdOf(companyId);
     const members = await this.prisma.membership.findMany({
       where: { companyId },
       select: {
@@ -85,6 +103,8 @@ export class MembershipsService {
       .map((m) => ({
         membershipId: m.id,
         isGeneralManager: m.isGeneralManager,
+        /** Responsável pela assinatura: só ele mesmo altera os próprios acessos. */
+        isBillingOwner: m.user.id === billingOwnerId,
         user: m.user,
         stores: m.stores
           .map((s) => ({
@@ -140,11 +160,19 @@ export class MembershipsService {
       });
       if (current) {
         const target = await this.targetOf(companyId, current.id);
+        assertNotBillingOwner(actor.membershipId, current.id, target);
         if (target.isGeneralManager)
           throw new ConflictException(GENERAL_MANAGER_ALL_STORES);
         assertCanManage(actor, target);
       }
     }
+    // Quem já tem conta mas nunca entrou (convidado antes e não criou a senha) recebe de novo o
+    // link para criar a senha: só o login não serviria, porque essa pessoa não tem senha.
+    const hasUsedAccount = existing
+      ? (await this.audit.withDeleted(() =>
+          this.prisma.refreshToken.count({ where: { userId: existing.id } }),
+        )) > 0
+      : false;
     const passwordHash = existing
       ? null
       : await this.auth.unusablePasswordHash();
@@ -188,11 +216,14 @@ export class MembershipsService {
 
     const companyName = company.nomeFantasia || company.razaoSocial;
     const appUrl = this.config.get('APP_URL', { infer: true });
-    const link = existing
+    const link = hasUsedAccount
       ? `${appUrl}/login`
       : `${appUrl}/redefinir-senha?token=${encodeURIComponent(
           await this.tokens.signPasswordToken(
-            { id: user.id, passwordHash: passwordHash! },
+            {
+              id: user.id,
+              passwordHash: existing?.passwordHash ?? passwordHash!,
+            },
             '7d',
           ),
         )}`;
@@ -202,12 +233,15 @@ export class MembershipsService {
       companyName,
       inviter.name,
       link,
+      hasUsedAccount,
     );
 
     return {
       membershipId: membership.id,
       userId: user.id,
       invitedNewUser: !existing,
+      /** true = foi o link para criar a senha; false = a pessoa já usa o sistema e só entra. */
+      passwordSetupSent: !hasUsedAccount,
     };
   }
 
@@ -224,6 +258,7 @@ export class MembershipsService {
     }
     await this.assertMembershipAndStore(companyId, membershipId, storeId);
     const target = await this.targetOf(companyId, membershipId);
+    assertNotBillingOwner(actor.membershipId, membershipId, target);
     if (target.isGeneralManager)
       throw new ConflictException(GENERAL_MANAGER_ALL_STORES);
     assertCanManage(actor, target);
@@ -249,6 +284,7 @@ export class MembershipsService {
     const companyId = actor.companyId;
     await this.assertMembershipAndStore(companyId, membershipId, storeId);
     const target = await this.targetOf(companyId, membershipId);
+    assertNotBillingOwner(actor.membershipId, membershipId, target);
     if (target.isGeneralManager)
       throw new ConflictException(GENERAL_MANAGER_ALL_STORES);
     assertCanManage(actor, target);
@@ -283,7 +319,9 @@ export class MembershipsService {
       where: { id: membershipId, companyId },
     });
     if (!membership) throw new NotFoundException('Membro não encontrado.');
-    assertCanManage(actor, await this.targetOf(companyId, membershipId));
+    const target = await this.targetOf(companyId, membershipId);
+    assertNotBillingOwner(actor.membershipId, membershipId, target);
+    assertCanManage(actor, target);
 
     await this.prisma.$transaction(async (tx) => {
       // A mesma data no vínculo e nos acessos: a reativação devolve exatamente estes acessos.
@@ -411,6 +449,7 @@ export class MembershipsService {
     });
     if (!membership) throw new NotFoundException('Membro não encontrado.');
     const target = await this.targetOf(companyId, membershipId);
+    assertNotBillingOwner(actorMembershipId, membershipId, target);
     if (isGeneralManager && target.isOwner) {
       throw new ConflictException(
         'Esta pessoa é dona da empresa e já tem acesso total.',
@@ -434,21 +473,32 @@ export class MembershipsService {
     };
   }
 
-  /** Se o membro é dono (OWNER em alguma loja ativa) ou gerente geral. */
+  /** Se o membro é dono (OWNER em alguma loja ativa), gerente geral ou responsável pela assinatura. */
   private async targetOf(companyId: string, membershipId: string) {
-    const [membership, ownerRows] = await Promise.all([
+    const [membership, ownerRows, billingOwnerId] = await Promise.all([
       this.prisma.membership.findFirst({
         where: { id: membershipId, companyId },
-        select: { isGeneralManager: true },
+        select: { isGeneralManager: true, userId: true },
       }),
       this.prisma.membershipStore.count({
         where: { membershipId, role: 'OWNER', store: { deletedAt: null } },
       }),
+      this.billingOwnerIdOf(companyId),
     ]);
     return {
       isOwner: ownerRows > 0,
       isGeneralManager: membership?.isGeneralManager ?? false,
+      isBillingOwner: !!membership && membership.userId === billingOwnerId,
     };
+  }
+
+  /** Usuário responsável pela assinatura da organização da empresa. */
+  private async billingOwnerIdOf(companyId: string) {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId },
+      select: { organization: { select: { ownerUserId: true } } },
+    });
+    return company?.organization.ownerUserId ?? null;
   }
 
   private async assertMembershipAndStore(

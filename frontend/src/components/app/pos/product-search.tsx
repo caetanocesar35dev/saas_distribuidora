@@ -3,13 +3,15 @@
 import { ScanBarcodeIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { CategoryFilter } from "@/components/app/category-filter";
 import { ErrorState, LoadingRows, Money } from "@/components/app/common";
 import { Input } from "@/components/ui/input";
 import { useDebounced } from "@/hooks/use-debounced";
 import { ApiError, storeApi } from "@/lib/api/client";
 import { useStoreProducts } from "@/lib/api/hooks/catalog";
 import type { StoreProduct } from "@/lib/api/types";
-import { formatInt } from "@/lib/format";
+import { formatInt, packLabel } from "@/lib/format";
+import { useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,9 +34,11 @@ export function ProductSearch({
   inputRef?: React.RefObject<HTMLInputElement | null>;
   disabled?: boolean;
 }) {
+  const { companyId } = useStore();
   const ownRef = useRef<HTMLInputElement>(null);
   const ref = inputRef ?? ownRef;
   const [text, setText] = useState("");
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const debounced = useDebounced(text, 250);
   const [scanning, setScanning] = useState(false);
   const term = debounced.trim();
@@ -42,6 +46,7 @@ export function ProductSearch({
   const results = useStoreProducts(storeId, {
     search: term || undefined,
     isActive: true,
+    categoryId,
     limit: 18,
   });
 
@@ -85,7 +90,8 @@ export function ProductSearch({
 
   return (
     <div className="space-y-3">
-      <div className="relative">
+      <div className="flex flex-wrap gap-2">
+      <div className="relative min-w-60 flex-1">
         <ScanBarcodeIcon className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={ref}
@@ -105,6 +111,16 @@ export function ProductSearch({
           aria-label="Buscar produto por nome ou código de barras"
         />
       </div>
+      <CategoryFilter
+        className="h-11 w-full sm:w-52"
+        companyId={companyId}
+        value={categoryId}
+        onChange={(value) => {
+          setCategoryId(value);
+          ref.current?.focus();
+        }}
+      />
+      </div>
 
       {results.isPending ? (
         <LoadingRows rows={3} />
@@ -112,7 +128,7 @@ export function ProductSearch({
         <ErrorState error={results.error} onRetry={() => void results.refetch()} />
       ) : results.data.data.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          {term ? "Nenhum produto encontrado." : "Nenhum produto à venda nesta loja."}
+          {term || categoryId ? "Nenhum produto encontrado." : "Nenhum produto à venda nesta loja."}
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
@@ -120,6 +136,7 @@ export function ProductSearch({
             const out = item.stock <= 0;
             const packSize = item.product.packQuantity;
             const sellsPack = !!onPickPack && packSize > 1;
+            const packText = packLabel(item.product.packName);
             return (
               // Um card só por produto: a faixa de fardo fica DENTRO da borda do card, para não
               // haver dúvida sobre a qual produto ela pertence numa grade cheia.
@@ -167,10 +184,13 @@ export function ProductSearch({
                       type="button"
                       disabled={disabled || out}
                       onClick={() => pick(item, true)}
-                      aria-label={`Adicionar 1 fardo de ${packSize} de ${item.product.name}`}
-                      className="whitespace-nowrap px-2 py-2 text-primary transition-colors hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground"
+                      aria-label={`Adicionar 1 ${packText} de ${packSize} de ${item.product.name}`}
+                      className="px-2 py-2 text-primary transition-colors hover:bg-primary/5 active:bg-primary/10 disabled:cursor-not-allowed disabled:text-muted-foreground"
                     >
-                      + fardo ({packSize})
+                      + {packText} ({packSize})
+                      {item.packPrice !== null && (
+                        <Money value={item.packPrice} className="block font-normal" />
+                      )}
                     </button>
                   </div>
                 )}

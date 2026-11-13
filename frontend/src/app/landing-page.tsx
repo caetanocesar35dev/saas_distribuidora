@@ -31,7 +31,7 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: ContainerIcon,
     title: "Vasilhame por cliente",
-    text: "Saiba quem levou, quantos cascos deve e em qual loja. A venda já registra o empréstimo, e a devolução abate a dívida.",
+    text: "Saiba quem levou, quantos cascos deve e em qual loja. Na venda, o cliente troca o vazio, leva emprestado ou compra o casco, e a devolução abate a dívida.",
   },
   {
     icon: WalletIcon,
@@ -55,8 +55,8 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   },
   {
     icon: BoxesIcon,
-    title: "Fardo e unidade na mesma venda",
-    text: "Venda 2 fardos e mais 3 unidades sem fazer conta. O preço e o estoque continuam certos, sempre em unidades.",
+    title: "Fardo, caixa e unidade na mesma venda",
+    text: "Venda 2 fardos e mais 3 unidades sem fazer conta. Cigarro picado ou no maço, salgadinho na caixa: cada produto com a sua embalagem e o seu preço, e o estoque sempre certo.",
   },
 ];
 

@@ -21,6 +21,7 @@ import type { CustomerBalances, PaymentMethod } from "@/lib/api/types";
 import { formatMoney, PAYMENT_METHOD_LABEL, roundMoney } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
+import { splitCashPayment } from "./pay-change";
 
 type PayMethod = Exclude<PaymentMethod, "CREDIT_STORE">;
 const PAY_METHODS: PayMethod[] = ["MONEY", "PIX", "DEBIT", "CREDIT"];
@@ -51,6 +52,8 @@ export function PayDialog({
   const visibleTotal = roundMoney(debts.reduce((s, d) => s + d.balance, 0));
 
   const [amount, setAmount] = useState<number | undefined>();
+  // Só em dinheiro: a nota que o cliente entregou, para calcular o troco.
+  const [tendered, setTendered] = useState<number | undefined>();
   const [method, setMethod] = useState<PayMethod>("MONEY");
   const [mode, setMode] = useState<Mode>("auto");
   const [parts, setParts] = useState<Record<string, number | undefined>>({});
@@ -61,11 +64,23 @@ export function PayDialog({
   const overDebt = debts.find((d) => (parts[d.storeId] ?? 0) > d.balance);
 
   const cashClosed = !cash.isPending && !cash.data;
-  const tooMuch = mode === "auto" && knownTotal !== null && (amount ?? 0) > knownTotal;
+  // Em dinheiro: troco da nota entregue; acima da dívida (automático) quita tudo e o resto é troco.
+  const split = splitCashPayment({
+    toPay: amount ?? 0,
+    tendered,
+    debt: knownTotal,
+    method,
+    capAtDebt: mode === "auto",
+  });
+  const tooMuch = mode === "auto" && knownTotal !== null && split.amount > knownTotal;
 
   let invalid: string | null = null;
-  if (!amount || amount < 0.01) invalid = "Informe o valor recebido.";
-  else if (tooMuch) invalid = "O valor é maior que a dívida total do cliente.";
+  if (!amount || amount < 0.01) invalid = "Informe o valor a abater.";
+  else if (tooMuch)
+    invalid =
+      "O valor é maior que a dívida total do cliente. Troco só no pagamento em dinheiro.";
+  else if (split.short > 0)
+    invalid = `O valor entregue é menor que o valor a abater: faltam ${formatMoney(split.short)}.`;
   else if (mode === "manual" && remaining !== 0) {
     invalid = remaining > 0 ? `Falta distribuir ${formatMoney(remaining)}.` : `Passou ${formatMoney(-remaining)} do valor.`;
   } else if (mode === "manual" && overDebt) {
@@ -95,9 +110,10 @@ export function PayDialog({
             e.preventDefault();
             if (invalid || !amount) return;
             setError(null);
+            const { amount: paid, change } = split;
             pay.mutate(
               {
-                amount,
+                amount: paid,
                 paymentMethod: method,
                 allocations:
                   mode === "manual"
@@ -108,7 +124,11 @@ export function PayDialog({
               },
               {
                 onSuccess: () => {
-                  toast.success(`Pagamento de ${formatMoney(amount)} recebido.`);
+                  toast.success(
+                    change > 0
+                      ? `Pagamento de ${formatMoney(paid)} recebido. Devolva ${formatMoney(change)} de troco.`
+                      : `Pagamento de ${formatMoney(paid)} recebido.`,
+                  );
                   onClose();
                 },
                 onError: (err) => setError(errorMessage(err)),
@@ -135,7 +155,7 @@ export function PayDialog({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Valor recebido" htmlFor="pay-amount">
+            <FormField label="Valor a abater" htmlFor="pay-amount">
               <MoneyInput id="pay-amount" value={amount} onChange={setAmount} autoFocus />
             </FormField>
             <div>
@@ -146,7 +166,10 @@ export function PayDialog({
                     key={m}
                     type="button"
                     aria-pressed={method === m}
-                    onClick={() => setMethod(m)}
+                    onClick={() => {
+                      setMethod(m);
+                      if (m !== "MONEY") setTendered(undefined);
+                    }}
                     className={cn(
                       "rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors",
                       method === m ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted",
@@ -158,6 +181,21 @@ export function PayDialog({
               </div>
             </div>
           </div>
+
+          {method === "MONEY" && (
+            <FormField
+              label="Valor entregue pelo cliente (opcional)"
+              htmlFor="pay-tendered"
+              hint="Para calcular o troco. Ex.: entregou R$ 200,00 e vai abater R$ 180,00."
+            >
+              <MoneyInput
+                id="pay-tendered"
+                className="sm:w-1/2"
+                value={tendered}
+                onChange={setTendered}
+              />
+            </FormField>
+          )}
 
           {debts.length > 1 && (
             <fieldset>
@@ -226,6 +264,22 @@ export function PayDialog({
                 {remaining === 0 && (amount ?? 0) > 0
                   ? "Tudo distribuído."
                   : `Falta distribuir ${formatMoney(Math.max(remaining, 0))}.`}
+              </p>
+            </div>
+          )}
+
+          {split.change > 0 && (
+            <div
+              aria-live="polite"
+              className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              <p className="flex items-baseline justify-between gap-3 text-base font-semibold">
+                <span>Troco</span>
+                <Money value={split.change} />
+              </p>
+              <p className="mt-0.5">
+                {split.amount < (amount ?? 0) ? "O cliente quita toda a dívida" : "Abate da dívida"}{" "}
+                (<Money value={split.amount} />). Só esse valor entra no caixa.
               </p>
             </div>
           )}

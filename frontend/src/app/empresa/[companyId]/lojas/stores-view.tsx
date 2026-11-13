@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { MaskedInput } from "@/components/app/inputs";
 import { Input } from "@/components/ui/input";
+import { useCepAutofill } from "@/hooks/use-cep-autofill";
 import { useCnpjAutofill } from "@/hooks/use-cnpj-autofill";
 import {
   useDeletedStores,
@@ -222,6 +223,19 @@ function StoreForm({
     pick: storeFieldsFromCnpj,
     hints: STORE_CNPJ_HINTS,
   });
+  // CEP completo busca rua, bairro, cidade e UF; o que não vier, a pessoa preenche.
+  const initial = store ? toValues(store) : EMPTY;
+  const cepLookup = useCepAutofill<"street" | "neighborhood" | "city" | "state">({
+    get: (name) => getValues(name),
+    set: (name, value) => setValue(name, value, { shouldDirty: true, shouldValidate: true }),
+    pick: (data) => data,
+    initial: {
+      street: initial.street,
+      neighborhood: initial.neighborhood,
+      city: initial.city,
+      state: initial.state,
+    },
+  });
 
   return (
     <form
@@ -289,13 +303,20 @@ function StoreForm({
           <MaskedInput
             id="zipCode"
             inputMode="numeric"
+            autoComplete="off"
             placeholder="00000-000"
             maxLength={9}
             mask={maskCep}
             aria-invalid={!!errors.zipCode}
-            {...register("zipCode")}
+            {...register("zipCode", {
+              onChange: (e: ChangeEvent<HTMLInputElement>) =>
+                cepLookup.onCepChange(e.target.value),
+            })}
           />
         </FormField>
+        <p aria-live="polite" className="text-xs text-muted-foreground sm:col-span-3 sm:order-last">
+          {cepLookup.hint}
+        </p>
         <FormField
           label="Rua"
           htmlFor="street"

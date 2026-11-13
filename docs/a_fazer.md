@@ -80,12 +80,11 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
    cadastro do cliente, cartão "Limite de crédito" no detalhe e aviso no PDV e na comanda.
 8. [ ] **Comprovante imprimível ou por WhatsApp** da venda, do pagamento de fiado e do fechamento
    de caixa (não fiscal).
-9. [ ] **Relatórios com exportação** (CSV/Excel): vendas por período e por produto, produtos mais
+9. [ ] **Relatórios com exportação e area do contador** (CSV/Excel): vendas por período e por produto, produtos mais
    vendidos e lista de devedores.
 10. [ ] **Transferência de estoque entre lojas.** Hoje só dá para fazer como saída numa loja e
     entrada na outra.
-11. [ ] **Cobrança de fiado:** botão para mandar mensagem no WhatsApp com o valor devido, a partir
-    da lista de devedores.
+
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
 13. [x] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido anteriormente ou algo do tipo.
@@ -144,9 +143,10 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       que ficarem sem preço próprio.
     - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
       ofertas das lojas (preço e estoque de antes).
-    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
-      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
-      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
+    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. O faturamento conta o
+      vendido no fiado (o cartão mostra quanto foi no fiado), e há o cartão "Fiado recebido"
+      (pagamentos do período). Cancelar a venda já a tira das contas. **Revisto em 2026-11-13:** o
+      lucro ("Lucro recebido") conta o fiado só quando o cliente paga, proporcional ao pagamento.
     - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
       milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
     - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
@@ -155,18 +155,26 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
       limite, autorizado por ...".
 
-25. [ ] **Vender além de bebidas** (pedido do usuário, 2026-10-30: distribuidoras também vendem
-    cigarro, salgadinho, gelo, carvão, descartáveis etc.). Hoje o cadastro já aceita esses produtos
-    (vasilhame é opcional e o "fardo" serve para qualquer embalagem com várias unidades), mas tudo
-    foi pensado para bebida. A decidir com o usuário antes de implementar:
-    - **Categorias de produto** (Bebidas, Cigarros, Salgadinhos, Mercearia, Gelo/Carvão...): filtro
-      no PDV, no Estoque e em Produtos, e faturamento e lucro por categoria no painel. Precisa de
-      tabela ou coluna nova (aprovação do schema).
-    - **Nome da embalagem por produto**: hoje a tela diz sempre "fardo"; cigarro vende em **maço** e
-      **pacote** (10 maços), salgadinho em **caixa** ou **display**. Um campo "nome da embalagem"
-      (fardo, caixa, pacote, display, engradado) muda só o texto, sem mexer na conta.
-    - **Venda por peso ou fração** (gelo em kg, carvão, produtos a granel): hoje a quantidade é
-      inteira. Exige aceitar quantidade decimal em estoque e venda: mudança grande, só se pedirem.
+25. [x] **Vender além de bebidas** (pedido do usuário, 2026-10-30: distribuidoras também vendem
+    cigarro, salgadinho, gelo, carvão, descartáveis etc.). **Feito (marcado pelo usuário em
+    2026-11-03):** o sistema já registra esses produtos, com vasilhame opcional e em quantidades
+    inteiras. Situação de cada ideia (as sem "feito" continuam **em aberto**, a decidir com o usuário
+    antes de implementar):
+    - **Categorias de produto: feito (2026-11-03).** **Decidido pelo usuário:** editáveis por empresa,
+      começando com Bebidas, Cigarros, Salgadinhos, Mercearia e Gelo e carvão. Tela em Produtos ›
+      Categorias, filtro no PDV, nas comandas, no Estoque e em Produtos, e faturamento e lucro do mês
+      por categoria no painel.
+    - **Nome da embalagem por produto: feito (2026-11-03).** **Decidido pelo usuário:** lista com
+      opção livre (fardo, caixa, pacote, display, engradado ou outro). Muda só o texto, sem mexer na
+      conta.
+    - **Preço e custo da embalagem (decidido pelo usuário, 2026-11-03):** o cigarro vende picado e no
+      maço. A embalagem pode ter preço próprio; por padrão, a unidade é o preço da embalagem ÷ a
+      quantidade, e o vendedor pode pôr outro preço na unidade (o picado costuma ser mais caro). O
+      custo é digitado por embalagem, e o sistema guarda o da unidade com até 4 casas. Sem preço da
+      embalagem, continua unidade × quantidade.
+    - **Venda por peso ou fração: não será feita (decidido pelo usuário, 2026-11-03).** Quem vende
+      saco de gelo ou carvão de pesos diferentes cadastra cada peso como um produto. A quantidade
+      continua inteira.
     - **Validade e lote** (salgadinho e alimentos vencem): alerta de produtos perto do vencimento.
       Mudança média; avaliar com os primeiros clientes.
     - **Venda proibida para menores** (bebida alcoólica e cigarro): um aviso opcional no PDV
@@ -277,4 +285,13 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     **Talvez depois:** resumo semanal para o dono (faturamento, fiado em aberto, estoque baixo),
     só se os primeiros clientes quiserem.
 21. [ ] revisar termos de uso
-21. [ ] adicionar whatsapp e instagram
+22. [x] adicionar whatsapp e instagram
+23. [x] ao convidar uma pessoa, ter a opcao de dar acesso a todas as lojas de uma vez. **Feito
+    (2026-11-06):** em Equipe › Convidar pessoa, com 2 lojas ou mais, aparece "Todas as lojas (N)",
+    que marca todas (as já marcadas mantêm o papel), e um seletor que põe o mesmo papel em todas.
+    Só na tela: o backend já recebia a lista de lojas. Vale para as lojas ativas no momento do
+    convite; as criadas depois só entram sozinhas para o gerente geral.
+
+24. [ ] SEO
+25. [ ] CACHE
+26. [ ] busca cep automatica ao editar loja

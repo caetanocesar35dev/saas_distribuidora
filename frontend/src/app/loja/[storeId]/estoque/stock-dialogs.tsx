@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { FormField } from "@/components/app/form";
-import { IntInput, MoneyInput } from "@/components/app/inputs";
+import { IntInput } from "@/components/app/inputs";
+import { PriceFields } from "@/components/app/price-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,6 +22,7 @@ import {
 } from "@/lib/api/hooks/catalog";
 import type { StoreProduct } from "@/lib/api/types";
 import { formatInt } from "@/lib/format";
+import { draftFromOffer, type PriceDraft, resolvePrices } from "@/lib/pack-pricing";
 
 /**
  * Os diálogos abaixo são montados só enquanto há um item escolhido (`item` nunca é nulo aqui),
@@ -162,8 +164,9 @@ export function StockAdjustDialog({ storeId, item, onClose }: DialogProps) {
 /** Preço e custo valem só para esta loja; as outras lojas não são afetadas. */
 export function PriceDialog({ storeId, item, onClose }: DialogProps) {
   const update = useUpdateStoreProduct(storeId);
-  const [price, setPrice] = useState<number | undefined>(item.price);
-  const [cost, setCost] = useState<number | undefined>(item.costPrice);
+  const packSize = item.product.packQuantity;
+  const [draft, setDraft] = useState<PriceDraft>(() => draftFromOffer(item, packSize));
+  const { price, packPrice, costPrice } = resolvePrices(draft, packSize);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -178,9 +181,9 @@ export function PriceDialog({ storeId, item, onClose }: DialogProps) {
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (price === undefined || cost === undefined) return;
+            if (price === undefined || costPrice === undefined) return;
             update.mutate(
-              { id: item.id, body: { price, costPrice: cost } },
+              { id: item.id, body: { price, packPrice: packPrice ?? null, costPrice } },
               {
                 onSuccess: () => {
                   toast.success("Preço e custo atualizados nesta loja.");
@@ -190,21 +193,21 @@ export function PriceDialog({ storeId, item, onClose }: DialogProps) {
             );
           }}
         >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <FormField label="Preço de venda" htmlFor="price">
-              <MoneyInput id="price" value={price} onChange={setPrice} autoFocus />
-            </FormField>
-            <FormField label="Custo" htmlFor="cost">
-              <MoneyInput id="cost" value={cost} onChange={setCost} />
-            </FormField>
-          </div>
+          <PriceFields
+            idPrefix="price"
+            packSize={packSize}
+            packName={item.product.packName}
+            value={draft}
+            onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+            autoFocus
+          />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>
             <Button
               type="submit"
-              disabled={price === undefined || cost === undefined || update.isPending}
+              disabled={price === undefined || costPrice === undefined || update.isPending}
             >
               {update.isPending ? "Salvando..." : "Salvar"}
             </Button>

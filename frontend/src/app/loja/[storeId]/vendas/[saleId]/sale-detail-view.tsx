@@ -25,17 +25,20 @@ import {
   formatDateTime,
   formatInt,
   formatItemQuantity,
+  formatMoney,
   hasMinRole,
   PAYMENT_METHOD_LABEL,
+  packLabel,
   roundMoney,
   SALE_STATUS_LABEL,
 } from "@/lib/format";
+import { itemTotal } from "@/lib/pack-pricing";
 import { useStore } from "@/lib/session/context";
 
 function SaleBody({ sale }: { sale: Sale }) {
   const { role } = useStore();
   const manager = hasMinRole(role, "MANAGER");
-  const subtotal = roundMoney(sale.items.reduce((s, i) => s + roundMoney(i.price * i.quantity), 0));
+  const subtotal = roundMoney(sale.items.reduce((s, i) => s + itemTotal(i), 0));
 
   return (
     <div className="space-y-5">
@@ -98,12 +101,23 @@ function SaleBody({ sale }: { sale: Sale }) {
                     {formatInt(item.quantity)}
                     {item.packs > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {formatItemQuantity(item.quantity, item.packs, item.packSize)}
+                        {formatItemQuantity(
+                          item.quantity,
+                          item.packs,
+                          item.packSize,
+                          item.storeProduct.product.packName,
+                        )}
                       </p>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Money value={item.price} />
+                    {item.packPrice !== null && (
+                      <p className="text-xs text-muted-foreground">
+                        {packLabel(item.storeProduct.product.packName)}{" "}
+                        <Money value={item.packPrice} />
+                      </p>
+                    )}
                   </TableCell>
                   {manager && (
                     <TableCell className="text-right">
@@ -111,7 +125,7 @@ function SaleBody({ sale }: { sale: Sale }) {
                     </TableCell>
                   )}
                   <TableCell className="text-right">
-                    <Money value={roundMoney(item.price * item.quantity)} />
+                    <Money value={itemTotal(item)} />
                   </TableCell>
                 </TableRow>
               ))}
@@ -135,6 +149,16 @@ function SaleBody({ sale }: { sale: Sale }) {
                   </TableCell>
                 </TableRow>
               )}
+              {sale.bottlesTotal > 0 && (
+                <TableRow>
+                  <TableCell colSpan={manager ? 4 : 3} className="text-right text-muted-foreground">
+                    Cascos de vasilhame comprados
+                  </TableCell>
+                  <TableCell className="text-right">
+                    + <Money value={sale.bottlesTotal} />
+                  </TableCell>
+                </TableRow>
+              )}
               <TableRow>
                 <TableCell colSpan={manager ? 4 : 3} className="text-right font-medium">
                   Total
@@ -155,7 +179,10 @@ function SaleBody({ sale }: { sale: Sale }) {
             {sale.bottleMovements.map((m) => (
               <li key={m.id} className="flex flex-wrap items-center gap-2 px-4 py-2 text-sm">
                 <span className="font-medium">{m.bottleType.name}</span>
-                <span className="text-muted-foreground">{BOTTLE_MOVEMENT_LABEL[m.type]}</span>
+                <span className="text-muted-foreground">
+                  {BOTTLE_MOVEMENT_LABEL[m.type]}
+                  {m.unitPrice !== null && ` · ${formatMoney(m.unitPrice)} cada`}
+                </span>
                 <span className="ml-auto tabular-nums">
                   {m.quantity > 0 ? "+" : ""}
                   {formatInt(m.quantity)}

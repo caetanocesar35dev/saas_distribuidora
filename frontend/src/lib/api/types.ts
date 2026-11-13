@@ -17,6 +17,7 @@ export type TabStatus = "OPEN" | "CLOSED";
 export type BottleMovementType =
   | "CUSTOMER_BORROW"
   | "CUSTOMER_RETURN"
+  | "CUSTOMER_PURCHASE"
   | "SUPPLIER_SEND"
   | "SUPPLIER_RECEIVE"
   | "MANUAL_ADJUSTMENT";
@@ -203,6 +204,11 @@ export interface StoreBody {
 export interface Member {
   membershipId: string;
   isGeneralManager: boolean;
+  /**
+   * Responsável pela assinatura (quem criou a conta): só ele mesmo altera os próprios acessos,
+   * nem outro dono pode (a API responde 403). Não vem na lista de removidos.
+   */
+  isBillingOwner?: boolean;
   user: { id: string; name: string; email: string; isActive: boolean };
   stores: MembershipStoreView[];
 }
@@ -222,6 +228,8 @@ export interface InviteMemberResponse {
   membershipId: string;
   userId: string;
   invitedNewUser: boolean;
+  /** true = o e-mail levou o link para criar a senha (conta nova ou que nunca entrou). */
+  passwordSetupSent: boolean;
 }
 
 export interface OrganizationSummary {
@@ -265,12 +273,31 @@ export interface BottleType {
   id: string;
   companyId: string;
   name: string;
+  /** Preço do casco quando o cliente compra (vale para a empresa toda). null = não é vendido. */
+  price: number | null;
   createdAt: string;
+}
+
+/** Ausente não mexe; `price: null` tira o preço do casco. */
+export interface BottleTypeBody {
+  name?: string;
+  price?: number | null;
 }
 
 export interface BottleTypeRef {
   id: string;
   name: string;
+}
+
+export interface ProductCategoryRef {
+  id: string;
+  name: string;
+}
+
+export interface ProductCategory extends ProductCategoryRef {
+  companyId: string;
+  createdAt: string;
+  deletedAt: string | null;
 }
 
 export interface Product {
@@ -279,8 +306,12 @@ export interface Product {
   code: string;
   name: string;
   packQuantity: number;
+  /** Nome da embalagem (caixa, pacote...). null = "fardo". */
+  packName: string | null;
   bottleTypeId: string | null;
   bottleType: BottleTypeRef | null;
+  categoryId: string | null;
+  category: ProductCategoryRef | null;
   createdAt: string;
   /** Só vem na listagem (`GET /products`); preenchido nos excluídos (`deleted=true`). */
   deletedAt?: string | null;
@@ -290,6 +321,7 @@ export interface ProductOfferSummary {
   id: string;
   storeId: string;
   price: number;
+  packPrice: number | null;
   /** Não vem para o atendente (o backend tira custo e lucro das respostas). */
   costPrice?: number;
   stock: number;
@@ -304,15 +336,20 @@ export interface CreateProductBody {
   name: string;
   code?: string;
   packQuantity?: number;
+  packName?: string;
   bottleTypeId?: string;
+  categoryId?: string;
   costPrice?: number;
-  stores?: { storeId: string; price: number; costPrice?: number }[];
+  stores?: { storeId: string; price: number; packPrice?: number; costPrice?: number }[];
 }
 
 export interface UpdateProductBody {
   name?: string;
   packQuantity?: number;
+  /** Vazio ou null volta ao padrão ("fardo"). */
+  packName?: string | null;
   bottleTypeId?: string | null;
+  categoryId?: string | null;
 }
 
 /** Oferta de um produto numa loja (o que o PDV e o estoque listam). */
@@ -320,8 +357,11 @@ export interface StoreProduct {
   id: string;
   storeId: string;
   productId: string;
+  /** Preço da unidade. */
   price: number;
-  /** Não vem para o atendente. */
+  /** Preço próprio da embalagem. null = preço da unidade × unidades da embalagem. */
+  packPrice: number | null;
+  /** Custo da unidade, com até 4 casas. Não vem para o atendente. */
   costPrice?: number;
   stock: number;
   isActive: boolean;
@@ -329,20 +369,26 @@ export interface StoreProduct {
     code: string;
     name: string;
     packQuantity: number;
+    packName: string | null;
     bottleTypeId: string | null;
     bottleType: BottleTypeRef | null;
+    categoryId: string | null;
+    category: ProductCategoryRef | null;
   };
 }
 
 export interface AddStoreProductBody {
   productId: string;
   price: number;
+  packPrice?: number;
   costPrice?: number;
   stock?: number;
 }
 
 export interface UpdateStoreProductBody {
   price?: number;
+  /** null tira o preço próprio da embalagem. */
+  packPrice?: number | null;
   costPrice?: number;
   isActive?: boolean;
 }
@@ -352,6 +398,8 @@ export interface UpdateStoreProductBody {
 export interface BottleStockLine {
   bottleTypeId: string;
   bottleTypeName: string;
+  /** Preço do casco (null = não é vendido). */
+  price: number | null;
   stock: number;
 }
 
@@ -362,6 +410,8 @@ export interface BottleMovement {
   bottleType: BottleTypeRef;
   quantity: number;
   type: BottleMovementType;
+  /** Compra do casco: preço de cada um. null nos outros tipos. */
+  unitPrice: number | null;
   description: string | null;
   customerId: string | null;
   customer: { id: string; name: string } | null;
@@ -449,15 +499,19 @@ export interface SaleItem {
   packs: number;
   /** Unidades por fardo na hora da venda (null = vendido só por unidade). */
   packSize: number | null;
+  /** Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades dela. */
+  packPrice: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
-  storeProduct: { product: { code: string; name: string } };
+  storeProduct: { product: { code: string; name: string; packName: string | null } };
 }
 
 export interface SaleBottleMovement {
   id: string;
   type: BottleMovementType;
   quantity: number;
+  /** Compra do casco: preço de cada um. */
+  unitPrice: number | null;
   bottleTypeId: string;
   bottleType: { name: string };
   description: string | null;
@@ -466,9 +520,12 @@ export interface SaleBottleMovement {
 export interface Sale {
   id: string;
   storeId: string;
+  /** O que o cliente pagou: produtos − desconto + cascos comprados. */
   total: number;
   totalCost?: number; // não vem para o atendente
   discount: number;
+  /** Cascos de vasilhame comprados (já dentro de `total`). */
+  bottlesTotal: number;
   paymentMethod: PaymentMethod;
   status: SaleStatus;
   /** Quando a venda aconteceu. */
@@ -487,8 +544,11 @@ export interface Sale {
 }
 
 export interface SalesPage extends Paginated<Sale> {
-  /** `totalProfit` não vem para o atendente. */
-  meta: PageMeta & { totalRevenue: number; totalProfit?: number };
+  /**
+   * `totalRevenue` é só dos produtos; os cascos comprados vêm em `totalBottles`. `totalProfit`
+   * não vem para o atendente.
+   */
+  meta: PageMeta & { totalRevenue: number; totalProfit?: number; totalBottles: number };
 }
 
 export interface BottleReturnLine {
@@ -504,6 +564,8 @@ export interface CreateSaleBody {
   /** `quantity` = unidades avulsas; `packs` = fardos (o backend converte em unidades). */
   items: { storeProductId: string; quantity: number; packs?: number }[];
   bottleReturns?: BottleReturnLine[];
+  /** Cascos que o cliente compra (o preço vem do tipo de vasilhame, nunca da tela). */
+  bottlePurchases?: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
   /** Atendente: e-mail e senha do gerente/dono que autorizou passar do limite (nunca guardados). */
@@ -538,10 +600,12 @@ export interface CommandItem {
   quantity: number;
   packs: number;
   packSize: number | null;
+  /** Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades dela. */
+  packPrice: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   addedAt: string;
-  storeProduct: { product: { code: string; name: string } };
+  storeProduct: { product: { code: string; name: string; packName: string | null } };
 }
 
 export interface CommandTab {
@@ -561,6 +625,7 @@ export interface CloseCommandTabBody {
   discount?: number;
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
+  bottlePurchases?: BottleReturnLine[];
   allowOverCreditLimit?: boolean;
   managerApproval?: ManagerApproval;
 }
@@ -650,14 +715,22 @@ export interface CreatePaymentBody {
 // ---- Painéis ---------------------------------------------------------------------------------
 
 export interface PeriodStats {
-  /** Tudo o que foi vendido (inclusive no fiado). */
+  /** Tudo o que foi vendido em produtos (inclusive no fiado), sem os cascos comprados. */
   revenue: number;
+  /**
+   * Lucro recebido: o das vendas à vista do período mais o do fiado pago no período (de vendas de
+   * qualquer data, proporcional ao pagamento). Fiado não pago não entra.
+   */
   profit: number;
   count: number;
-  /** Parte do faturamento e do lucro vendida no fiado. */
+  /** Vendido no fiado no período: parte do faturamento e o lucro dessas vendas (fora de `profit`). */
   fiado: { revenue: number; profit: number };
+  /** Parte de `profit` que veio de pagamentos de fiado no período. Não vem para o atendente. */
+  fiadoProfitReceived?: number;
   /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
   fiadoReceived: number;
+  /** Cascos de vasilhame vendidos no período (fora do faturamento e do lucro). */
+  bottles: number;
 }
 
 /** "Primeiros passos" do Início (só o dono): true = já feito. */
@@ -673,6 +746,11 @@ export interface Dashboard {
   week: PeriodStats;
   month: PeriodStats;
   topProducts: { productId: string; code: string; name: string; quantity: number }[];
+  /**
+   * Faturamento e lucro do mês por categoria. Aqui o lucro é o do que foi vendido (inclui o fiado
+   * não pago). `profit` não vem para o atendente.
+   */
+  byCategory: { categoryId: string | null; name: string; revenue: number; profit?: number }[];
   chart: { date: string; revenue: number; profit: number; count: number }[];
   lowStock: {
     storeProductId: string;
@@ -683,6 +761,8 @@ export interface Dashboard {
     stock: number;
   }[];
   debt: number;
+  /** Lucro das vendas fiadas ainda não pago. Não vem para o atendente. */
+  pendingFiadoProfit?: number;
   byStore?: {
     storeId: string;
     storeName: string;
@@ -690,6 +770,7 @@ export interface Dashboard {
     week: PeriodStats;
     month: PeriodStats;
     debt: number;
+    pendingFiadoProfit?: number;
   }[];
 }
 
@@ -724,7 +805,13 @@ export type StoreAuditEntity =
   "store-products" | "sales" | "command-tabs" | "cash-registers" | "bottle-movements";
 
 export type CompanyAuditEntity =
-  "products" | "customers" | "bottle-types" | "stores" | "memberships" | "membership-stores";
+  | "products"
+  | "customers"
+  | "bottle-types"
+  | "product-categories"
+  | "stores"
+  | "memberships"
+  | "membership-stores";
 
 // ---- Notificações ----------------------------------------------------------------------------
 

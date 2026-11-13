@@ -46,6 +46,13 @@ import type { Member, Role } from "@/lib/api/types";
 import { formatDateTime, isValidPersonName, ROLE_LABEL } from "@/lib/format";
 import { useCompany } from "@/lib/session/context";
 import { useMe } from "@/lib/session/queries";
+import {
+  allSelected,
+  commonRole,
+  type InviteSelection,
+  selectAllStores,
+  setRoleForAll,
+} from "./invite-stores";
 
 const ROLE_OPTIONS: Option<Role>[] = [
   { value: "EMPLOYEE", label: ROLE_LABEL.EMPLOYEE },
@@ -60,6 +67,13 @@ const ROLE_HELP: Record<Role, string> = {
   MANAGER: "Tudo do atendente, mais estoque, preços, sangria e cancelar vendas.",
   OWNER: "Tudo da loja, mais equipe, lojas e painéis da empresa.",
 };
+
+/** Aviso ao dar o papel de dono: não existe "dono só desta loja" (decisão do usuário, 2026-11-13). */
+const OWNER_WARNING =
+  "Dono em qualquer loja é dono da empresa inteira: vê o painel e o lucro de todas as lojas, edita os dados da empresa, cria e exclui lojas e mexe na equipe, inclusive em outros donos. Só não mexe na assinatura nem nos acessos do responsável por ela. Para dar autonomia sem isso, use Gerente ou Gerente geral.";
+
+const BILLING_OWNER_HELP =
+  "Quem criou a conta e responde pela assinatura. Os acessos dele só podem ser alterados por ele mesmo.";
 
 const GENERAL_MANAGER_HELP =
   "Gerente em todas as lojas (também nas criadas depois), com o painel da empresa, a equipe (atendentes e gerentes) e a edição das lojas. Não mexe em donos, dados da empresa nem assinatura.";
@@ -85,7 +99,10 @@ function InviteDialog({
   const invite = useInviteMember(companyId);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [selected, setSelected] = useState<Record<string, Role>>({});
+  const [selected, setSelected] = useState<InviteSelection>({});
+  const storeIds = stores.map((s) => s.storeId);
+  const everyStore = allSelected(storeIds, selected);
+  const sameRole = commonRole(selected);
 
   function close() {
     onOpenChange(false);
@@ -120,9 +137,9 @@ function InviteDialog({
               {
                 onSuccess: (result) => {
                   toast.success(
-                    result.invitedNewUser
-                      ? "Convite enviado por e-mail."
-                      : "Acesso liberado. A pessoa já pode entrar com a conta que tem.",
+                    result.passwordSetupSent
+                      ? "Convite enviado por e-mail, com o link para a pessoa criar a senha."
+                      : "Acesso liberado. A pessoa já tem conta e entra com a senha dela.",
                   );
                   close();
                 },
@@ -149,6 +166,30 @@ function InviteDialog({
 
           <fieldset className="space-y-2">
             <legend className="mb-1 text-sm font-medium">Em quais lojas e com qual papel?</legend>
+            {stores.length > 1 && (
+              <div className="flex items-center gap-3 rounded-lg border border-dashed bg-muted/40 p-2.5">
+                <label className="flex flex-1 cursor-pointer items-center gap-2 text-sm font-medium">
+                  <Checkbox
+                    checked={everyStore}
+                    onCheckedChange={(checked) =>
+                      setSelected((prev) => (checked ? selectAllStores(storeIds, prev) : {}))
+                    }
+                  />
+                  Todas as lojas ({stores.length})
+                </label>
+                {everyStore && (
+                  <SelectField
+                    value={sameRole ?? undefined}
+                    placeholder="Papéis diferentes"
+                    aria-label="Papel em todas as lojas"
+                    options={roleOptions}
+                    className="w-36"
+                    size="sm"
+                    onChange={(value) => setSelected((prev) => setRoleForAll(prev, value))}
+                  />
+                )}
+              </div>
+            )}
             {stores.map((store) => {
               const role = selected[store.storeId];
               return (
@@ -184,6 +225,14 @@ function InviteDialog({
                 </div>
               );
             })}
+            {chosen.some(([, role]) => role === "OWNER") && (
+              <p
+                role="alert"
+                className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+              >
+                <strong>Atenção:</strong> {OWNER_WARNING}
+              </p>
+            )}
             <ul className="space-y-0.5 pt-1 text-xs text-muted-foreground">
               {roleOptions.map((o) => (
                 <li key={o.value}>
@@ -231,11 +280,15 @@ function MemberCard({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [confirmGeneral, setConfirmGeneral] = useState(false);
   const [revoking, setRevoking] = useState<{ storeId: string; storeName: string } | null>(null);
+  // Dar o papel de dono pede confirmação: a pessoa vira dona da empresa inteira.
+  const [promoting, setPromoting] = useState<{ storeId: string; storeName: string } | null>(null);
 
   const missing = allStores.filter((s) => !member.stores.some((ms) => ms.storeId === s.storeId));
   const memberIsOwner = member.stores.some((s) => s.role === "OWNER");
-  // O gerente geral não mexe em donos nem em outros gerentes gerais.
-  const outOfReach = !viewerIsOwner && (memberIsOwner || member.isGeneralManager);
+  // O gerente geral não mexe em donos nem em outros gerentes gerais; ninguém mexe no responsável
+  // pela assinatura (só ele mesmo).
+  const outOfReach =
+    (!viewerIsOwner && (memberIsOwner || member.isGeneralManager)) || !!member.isBillingOwner;
   const canEdit = !isSelf && !outOfReach;
   // O papel do gerente geral nas lojas fica fixo (gerente) até desmarcá-lo.
   const canEditStores = canEdit && !member.isGeneralManager;
@@ -252,6 +305,11 @@ function MemberCard({
                 Gerente geral
               </Badge>
             )}
+            {member.isBillingOwner && (
+              <Badge variant="secondary" className="ml-2" title={BILLING_OWNER_HELP}>
+                Responsável pela assinatura
+              </Badge>
+            )}
             {!member.user.isActive && (
               <Badge variant="destructive" className="ml-2">
                 Conta desativada
@@ -260,7 +318,7 @@ function MemberCard({
           </p>
           <p className="truncate text-sm text-muted-foreground">{member.user.email}</p>
         </div>
-        {viewerIsOwner && !isSelf && !memberIsOwner && (
+        {viewerIsOwner && !isSelf && !memberIsOwner && !member.isBillingOwner && (
           <ActionButton variant="outline" size="sm" onClick={() => setConfirmGeneral(true)}>
             <ShieldIcon />
             {member.isGeneralManager ? "Tirar de gerente geral" : "Tornar gerente geral"}
@@ -275,6 +333,9 @@ function MemberCard({
       {member.isGeneralManager && (
         <p className="mt-2 text-xs text-muted-foreground">{GENERAL_MANAGER_HELP}</p>
       )}
+      {member.isBillingOwner && !isSelf && (
+        <p className="mt-2 text-xs text-muted-foreground">{BILLING_OWNER_HELP}</p>
+      )}
 
       <ul className="mt-3 divide-y rounded-lg border">
         {member.stores.map((s) => (
@@ -286,12 +347,16 @@ function MemberCard({
               size="sm"
               className="w-36"
               disabled={!canEditStores || setRole.isPending}
-              onChange={(role) =>
+              onChange={(role) => {
+                if (role === "OWNER" && s.role !== "OWNER") {
+                  setPromoting({ storeId: s.storeId, storeName: s.storeName });
+                  return;
+                }
                 setRole.mutate(
                   { membershipId: member.membershipId, storeId: s.storeId, role },
                   { onSuccess: () => toast.success("Papel atualizado.") },
-                )
-              }
+                );
+              }}
             />
             <HistoryButton
               size="xs"
@@ -359,6 +424,27 @@ function MemberCard({
               onSuccess: () => {
                 toast.success("Acesso revogado.");
                 setRevoking(null);
+              },
+            },
+          )
+        }
+      />
+      <ConfirmDialog
+        open={promoting !== null}
+        onOpenChange={(open) => !open && setPromoting(null)}
+        title={`Tornar ${member.user.name} dono da empresa?`}
+        description={`Você escolheu Dono em ${promoting?.storeName ?? ""}. ${OWNER_WARNING}`}
+        confirmLabel="Sim, tornar dono"
+        destructive
+        pending={setRole.isPending}
+        onConfirm={() =>
+          promoting &&
+          setRole.mutate(
+            { membershipId: member.membershipId, storeId: promoting.storeId, role: "OWNER" },
+            {
+              onSuccess: () => {
+                toast.success(`${member.user.name} agora é dono da empresa.`);
+                setPromoting(null);
               },
             },
           )

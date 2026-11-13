@@ -26,16 +26,18 @@ export const vasilhames: Article[] = [
   {
     id: "vasilhames-tipos",
     category: "vasilhames",
-    title: "Cadastrar os tipos de vasilhame",
-    purpose: "Criar a lista de vasilhames da empresa (ex.: garrafa 600 ml, caixa de cerveja).",
+    title: "Cadastrar os tipos de vasilhame e o preço do casco",
+    purpose:
+      "Criar a lista de vasilhames da empresa (ex.: garrafa 600 ml, caixa de cerveja) e quanto custa o casco para o cliente que compra.",
     where: "Menu › Vasilhames › aba Tipos de vasilhame",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Abra Menu › Vasilhames e clique na aba Tipos de vasilhame.",
       "Clique em Novo tipo, digite o nome e salve.",
+      "Em Preço do casco (opcional), digite quanto o cliente paga quando leva o vasilhame sem trazer um vazio e fica com ele. O preço vale para todas as lojas da empresa. Em branco, o casco não é vendido: na venda, só troca ou empréstimo.",
       "Para ligar um tipo a um produto, edite o produto em Menu › Produtos e escolha o vasilhame dele.",
-      "Para mudar o nome, use Renomear. Para tirar da lista, use a lixeira.",
+      "Para mudar o nome ou o preço do casco, use Editar. Para tirar da lista, use a lixeira. Mudar o preço não muda as vendas já feitas.",
     ],
     problems: [
       {
@@ -52,7 +54,7 @@ export const vasilhames: Article[] = [
       },
     ],
     related: ["vasilhames-estoque", "produtos-cadastrar"],
-    keywords: ["tipo", "cadastrar vasilhame", "garrafeira", "casco"],
+    keywords: ["tipo", "cadastrar vasilhame", "garrafeira", "casco", "preço do casco"],
   },
   {
     id: "vasilhames-fornecedor",

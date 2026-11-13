@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   NotFoundException,
+  ValidationPipe,
 } from '@nestjs/common';
 import { isValidEan13 } from '../common/utils/ean13';
 import {
@@ -10,6 +11,9 @@ import {
 } from '../../test/helpers/service-module';
 import { World } from '../../test/helpers/factory';
 import { BottleTypesService } from './bottle-types.service';
+import { UpdateProductDto } from './dto/catalog.dto';
+import { NO_CATEGORY } from './product-categories';
+import { ProductCategoriesService } from './product-categories.service';
 import { ProductsService } from './products.service';
 import { StoreProductsService } from './store-products.service';
 
@@ -18,6 +22,7 @@ describe('Serviços de catálogo', () => {
   let products: ProductsService;
   let storeProducts: StoreProductsService;
   let bottleTypes: BottleTypesService;
+  let categories: ProductCategoriesService;
   let w: World;
 
   beforeAll(async () => {
@@ -25,10 +30,12 @@ describe('Serviços de catálogo', () => {
       ProductsService,
       StoreProductsService,
       BottleTypesService,
+      ProductCategoriesService,
     ]);
     products = ctx.module.get(ProductsService);
     storeProducts = ctx.module.get(StoreProductsService);
     bottleTypes = ctx.module.get(BottleTypesService);
+    categories = ctx.module.get(ProductCategoriesService);
   });
   beforeEach(async () => {
     await ctx.reset();
@@ -568,6 +575,31 @@ describe('Serviços de catálogo', () => {
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
+    it('preço do casco: começa sem, é definido, mantido ao renomear e tirado com null', async () => {
+      const lit = await as(() =>
+        bottleTypes.create(w.company.id, { name: 'Litrão' }),
+      );
+      expect(lit.price).toBeNull();
+
+      await as(() =>
+        bottleTypes.update(w.company.id, lit.id, { price: 7.999 }),
+      );
+      expect((await bottleTypes.get(w.company.id, lit.id)).price).toBe(8);
+
+      await as(() =>
+        bottleTypes.update(w.company.id, lit.id, { name: 'Litrão 1L' }),
+      );
+      expect((await bottleTypes.get(w.company.id, lit.id)).price).toBe(8);
+
+      await as(() => bottleTypes.update(w.company.id, lit.id, { price: null }));
+      expect((await bottleTypes.get(w.company.id, lit.id)).price).toBeNull();
+
+      const withPrice = await as(() =>
+        bottleTypes.create(w.company.id, { name: '600ml', price: 5 }),
+      );
+      expect(withPrice.price).toBe(5);
+    });
+
     it('nome de tipo excluído continua reservado; restaurar reativa', async () => {
       const bt = await as(() =>
         bottleTypes.create(w.company.id, { name: 'Caixa' }),
@@ -628,6 +660,214 @@ describe('Serviços de catálogo', () => {
       await expect(
         as(() => bottleTypes.remove(w.company.id, foreign.id)),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('ProductCategoriesService', () => {
+    const create = (name: string) =>
+      as(() => categories.create(w.company.id, { name }));
+
+    it('cria, renomeia e lista por nome; o histórico guarda o autor', async () => {
+      await create('Salgadinhos');
+      const cigarros = await create('Cigarros');
+      await as(
+        () =>
+          categories.update(w.company.id, cigarros.id, { name: 'Tabacaria' }),
+        'PATCH /api/categorias',
+      );
+
+      const list = await categories.list(w.company.id);
+      expect(list.map((c) => c.name)).toEqual(['Salgadinhos', 'Tabacaria']);
+
+      const history = await ctx.prisma.productCategoryHistory.findMany({
+        where: { id: cigarros.id },
+        orderBy: { historyStart: 'asc' },
+      });
+      expect(history).toHaveLength(2);
+      expect(history[1]).toMatchObject({
+        name: 'Tabacaria',
+        modifierId: w.owner.id,
+        modifiedEndpoint: 'PATCH /api/categorias',
+      });
+    });
+
+    it('nome repetido é recusado; nome de excluída sugere reativar', async () => {
+      const gelo = await create('Gelo');
+      await expect(create('Gelo')).rejects.toThrow(/Já existe/);
+
+      await as(() => categories.remove(w.company.id, gelo.id));
+      await expect(create('Gelo')).rejects.toThrow(
+        new RegExp(`id ${gelo.id}.*Reative-a`),
+      );
+    });
+
+    it('excluir é soft delete: some da lista, aparece nas excluídas e pode reativar', async () => {
+      const gelo = await create('Gelo');
+      await as(() => categories.remove(w.company.id, gelo.id));
+
+      expect(await categories.list(w.company.id)).toHaveLength(0);
+      const deleted = await as(() =>
+        categories.list(w.company.id, { deleted: true }),
+      );
+      expect(deleted.map((c) => c.id)).toEqual([gelo.id]);
+
+      const restored = await as(() =>
+        categories.restore(w.company.id, gelo.id),
+      );
+      expect(restored.deletedAt).toBeNull();
+      await expect(
+        as(() => categories.restore(w.company.id, gelo.id)),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('não exclui categoria com produto; sem o produto, exclui', async () => {
+      const gelo = await create('Gelo');
+      const p = await as(() =>
+        products.create(w.company.id, { name: 'Saco', categoryId: gelo.id }),
+      );
+      await expect(
+        as(() => categories.remove(w.company.id, gelo.id)),
+      ).rejects.toThrow(/produtos nesta categoria/);
+
+      await as(() => products.update(w.company.id, p.id, { categoryId: null }));
+      await expect(
+        as(() => categories.remove(w.company.id, gelo.id)),
+      ).resolves.toEqual({ message: 'Categoria excluída.' });
+    });
+
+    it('categoria de outra empresa não é visível nem pode ir num produto', async () => {
+      const other = await ctx.factory.world();
+      const foreign = await ctx.asRequest(
+        () => categories.create(other.company.id, { name: 'Alheia' }),
+        { userId: other.owner.id },
+      );
+      await expect(
+        categories.get(w.company.id, foreign.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        as(() => categories.remove(w.company.id, foreign.id)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(
+        as(() =>
+          products.create(w.company.id, {
+            name: 'P',
+            categoryId: foreign.id,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('filtra produtos e ofertas da loja por categoria e por "sem categoria"', async () => {
+      const gelo = await create('Gelo');
+      const offer = [{ storeId: w.storeA.id, price: 5 }];
+      await as(() =>
+        products.create(w.company.id, {
+          name: 'Saco de gelo',
+          categoryId: gelo.id,
+          stores: offer,
+        }),
+      );
+      await as(() =>
+        products.create(w.company.id, { name: 'Sem nada', stores: offer }),
+      );
+
+      const inCategory = await products.list(w.company.id, {
+        ...page,
+        categoryId: gelo.id,
+      });
+      expect(inCategory.data.map((p) => p.name)).toEqual(['Saco de gelo']);
+      expect(inCategory.data[0].category?.name).toBe('Gelo');
+
+      const without = await storeProducts.list(w.storeA.id, {
+        ...page,
+        categoryId: NO_CATEGORY,
+      });
+      expect(without.data.map((s) => s.product.name)).toEqual(['Sem nada']);
+    });
+
+    it('produto reativado volta sem categoria se ela foi excluída nesse meio-tempo', async () => {
+      const gelo = await create('Gelo');
+      const p = await as(() =>
+        products.create(w.company.id, { name: 'Saco', categoryId: gelo.id }),
+      );
+      await as(() => products.remove(w.company.id, p.id));
+      await as(() => categories.remove(w.company.id, gelo.id));
+
+      const restored = await as(() => products.restore(w.company.id, p.id));
+      expect(restored.categoryId).toBeNull();
+    });
+  });
+
+  describe('preço e custo da embalagem', () => {
+    it('grava o preço do maço e o custo da unidade com 4 casas, e tira com null', async () => {
+      const p = await as(() =>
+        products.create(w.company.id, {
+          name: 'Cigarro',
+          packQuantity: 20,
+          packName: 'maço',
+          stores: [
+            {
+              storeId: w.storeA.id,
+              price: 1,
+              packPrice: 12,
+              costPrice: 0.475,
+            },
+          ],
+        }),
+      );
+      const [offer] = (await storeProducts.list(w.storeA.id, page)).data;
+      expect(offer).toMatchObject({
+        productId: p.id,
+        price: 1,
+        packPrice: 12,
+        costPrice: 0.475,
+      });
+
+      const changed = await as(() =>
+        storeProducts.update(w.storeA.id, offer.id, { packPrice: 13 }),
+      );
+      expect(changed.packPrice).toBe(13);
+      const cleared = await as(() =>
+        storeProducts.update(w.storeA.id, offer.id, { packPrice: null }),
+      );
+      expect(cleared.packPrice).toBeNull();
+    });
+  });
+
+  describe('nome da embalagem', () => {
+    it('grava o nome, atualiza e volta ao padrão com null', async () => {
+      const p = await as(() =>
+        products.create(w.company.id, {
+          name: 'Cigarro',
+          packQuantity: 10,
+          packName: 'pacote',
+          stores: [{ storeId: w.storeA.id, price: 12 }],
+        }),
+      );
+      expect(p.packName).toBe('pacote');
+      const offers = await storeProducts.list(w.storeA.id, page);
+      expect(offers.data[0].product.packName).toBe('pacote');
+
+      const changed = await as(() =>
+        products.update(w.company.id, p.id, { packName: 'caixa' }),
+      );
+      expect(changed.packName).toBe('caixa');
+      const cleared = await as(() =>
+        products.update(w.company.id, p.id, { packName: null }),
+      );
+      expect(cleared.packName).toBeNull();
+    });
+
+    it('o DTO limpa o texto: minúsculas, sem espaços, vazio vira null', async () => {
+      const validate = (packName: string) =>
+        new ValidationPipe({ transform: true, whitelist: true }).transform(
+          { packName },
+          { type: 'body', metatype: UpdateProductDto },
+        ) as Promise<UpdateProductDto>;
+
+      expect((await validate('  Caixa ')).packName).toBe('caixa');
+      expect((await validate('   ')).packName).toBeNull();
+      await expect(validate('x'.repeat(21))).rejects.toThrow();
     });
   });
 });

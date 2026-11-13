@@ -105,6 +105,17 @@ export class CreateSaleDto {
   @Type(() => BottleReturnDto)
   bottleReturns?: BottleReturnDto[];
 
+  /**
+   * Cascos que o cliente compra (ficam dele, sem dívida de vasilhame). O preço vem do tipo de
+   * vasilhame, nunca do cliente. Só dos vasilhames que saem com os produtos desta venda.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => BottleReturnDto)
+  bottlePurchases?: BottleReturnDto[];
+
   /** Gerente ou dono confirma a venda fiada acima do limite de crédito do cliente. */
   @IsOptional()
   @IsBoolean()
@@ -219,6 +230,14 @@ export class CloseCommandTabDto {
   @ValidateNested({ each: true })
   @Type(() => BottleReturnDto)
   bottleReturns?: BottleReturnDto[];
+
+  /** Cascos que o cliente compra no fechamento (como na venda). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => BottleReturnDto)
+  bottlePurchases?: BottleReturnDto[];
 
   /** Gerente ou dono confirma a venda fiada acima do limite de crédito do cliente. */
   @IsOptional()

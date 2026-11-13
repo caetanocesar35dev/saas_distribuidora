@@ -12,7 +12,7 @@ export const produtos: Article[] = [
     steps: [
       "Abra Menu › Estoque.",
       "Use a busca para achar o produto pelo nome ou pelo código de barras (pode passar o leitor).",
-      "Use o filtro ao lado da busca para ver só os produtos à venda ou só os pausados.",
+      "Use os filtros ao lado da busca para ver uma categoria, ou só os produtos à venda ou pausados.",
       'A coluna Estoque mostra quantas unidades existem nesta loja. "Sem estoque" quer dizer zero.',
       "Gerentes e donos também veem o custo e os botões para dar entrada, ajustar e mudar preço.",
     ],
@@ -37,7 +37,11 @@ export const produtos: Article[] = [
     steps: [
       "Abra Menu › Produtos e clique em Novo produto.",
       "Digite o nome. O código de barras é opcional: deixe vazio e o sistema cria um sozinho, ou passe o leitor no campo.",
-      "Informe quantas unidades vêm no fardo e, se o produto sai com vasilhame, escolha o tipo.",
+      "Escolha a categoria (opcional), que ajuda a filtrar os produtos e separa o faturamento no painel.",
+      'Se o produto é vendido em embalagem fechada, informe o Nome da embalagem (fardo, caixa, pacote, maço, display, engradado ou outro) e quantas unidades ela tem: um cigarro aparece como "+ maço (20)" no caixa. Se ficar vazio, aparece fardo. Se só vende por unidade, deixe 1.',
+      "Com embalagem, os campos de preço mudam. Preço do maço: quanto custa fechado. Preço da unidade: se ficar vazio, é o preço do maço dividido pela quantidade (R$ 12,00 ÷ 20 = R$ 0,60); preencha se a unidade avulsa for mais cara, como o cigarro picado a R$ 1,00. Se deixar o preço do maço vazio e preencher só o da unidade, o maço vale unidade × quantidade. Custo do maço: quanto você paga por ele; o sistema calcula o custo de cada unidade, e o lucro fica certo vendendo picado ou fechado.",
+      'Gelo ou carvão em sacos de pesos diferentes: cadastre cada peso como um produto (ex.: "Gelo 5 kg" e "Gelo 10 kg"). A quantidade vendida é sempre inteira.',
+      "Se o produto sai com vasilhame, escolha o tipo. Produto sem vasilhame (cigarro, salgadinho, gelo) fica com Sem vasilhame.",
       'Em "Em quais lojas este produto é vendido?", marque as lojas. Se o preço é o mesmo em todas, preencha só o Preço de venda padrão (e o Custo padrão, que é opcional); a loja que tiver preço ou custo próprio é só digitar no campo dela.',
       "Clique em Cadastrar produto. O estoque começa em zero: registre a chegada da mercadoria em Menu › Estoque › Entrada.",
     ],
@@ -67,6 +71,7 @@ export const produtos: Article[] = [
       "Abra Menu › Estoque e ache o produto.",
       "Clique nos três pontinhos (⋮) ao lado dele e escolha Preço e custo.",
       "Digite o novo preço e o novo custo e salve. Só esta loja muda.",
+      "Produto com embalagem (maço, fardo, caixa) mostra três campos: preço da embalagem, preço da unidade e custo da embalagem. Deixe o preço da unidade vazio para ele ser o preço da embalagem dividido pela quantidade, ou preencha se a unidade avulsa for mais cara. O Estoque mostra os dois preços.",
     ],
     problems: [
       {
@@ -190,5 +195,39 @@ export const produtos: Article[] = [
     ],
     related: ["produtos-cadastrar"],
     keywords: ["excluir", "apagar", "reativar", "restaurar", "engano", "excluídos"],
+  },
+  {
+    id: "produtos-categorias",
+    category: "produtos",
+    title: "Organizar os produtos por categoria",
+    purpose:
+      "Separar bebidas, cigarros, salgadinhos e o que mais a distribuidora vende, para filtrar os produtos e ver quanto cada categoria fatura.",
+    where: "Menu › Produtos › Categorias",
+    minRole: "MANAGER",
+    audience: ["MANAGER", "OWNER"],
+    steps: [
+      "Abra Menu › Produtos e clique em Categorias. A empresa já começa com Bebidas, Cigarros, Salgadinhos, Mercearia e Gelo e carvão.",
+      "Para criar outra, digite o nome e clique em Adicionar. Use o lápis para renomear e a lixeira para excluir.",
+      "Para colocar um produto numa categoria, clique em Editar ao lado dele, em Menu › Produtos, e escolha a Categoria. Ao cadastrar um produto novo, o campo já aparece.",
+      "No caixa, em Comandas, em Estoque e em Produtos, o filtro ao lado da busca mostra só uma categoria.",
+      "Gerentes e donos veem o faturamento e o lucro do mês por categoria no painel, em Por categoria. O desconto de uma venda é repartido entre os itens dela.",
+      "Para trazer de volta uma categoria excluída, marque Mostrar só as excluídas e clique em Reativar.",
+    ],
+    problems: [
+      {
+        message: "Existem produtos nesta categoria",
+        fix: "Uma categoria só pode ser excluída vazia. Filtre os produtos por ela em Menu › Produtos e mude a categoria deles em Editar.",
+      },
+      {
+        message: 'A categoria "..." existe, mas está excluída',
+        fix: 'Clique em "Reativar a categoria excluída", logo abaixo da mensagem.',
+      },
+      {
+        message: 'Meus produtos aparecem em "Sem categoria"',
+        fix: "Os produtos cadastrados antes das categorias começam sem nenhuma. Escolha a categoria de cada um em Menu › Produtos › Editar.",
+      },
+    ],
+    related: ["produtos-cadastrar", "gestao-painel"],
+    keywords: ["categoria", "cigarro", "salgadinho", "gelo", "carvão", "filtro", "organizar"],
   },
 ];

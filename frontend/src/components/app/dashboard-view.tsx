@@ -22,7 +22,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Dashboard, PeriodStats } from "@/lib/api/types";
-import { formatDayString, formatInt, formatMoney } from "@/lib/format";
+import {
+  formatDayString,
+  formatInt,
+  formatMoney,
+  profitHint,
+  revenueHint,
+} from "@/lib/format";
 
 function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
   return (
@@ -32,19 +38,13 @@ function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
         <StatCard
           label="Faturamento"
           value={<Money value={stats.revenue} />}
-          hint={
-            stats.fiado.revenue > 0 &&
-            `${formatMoney(stats.fiado.revenue)} disso foi vendido no fiado`
-          }
+          hint={revenueHint(stats.fiado.revenue, stats.bottles)}
         />
         <StatCard
-          label="Lucro"
+          label="Lucro recebido"
           value={<Money value={stats.profit} />}
           tone="success"
-          hint={
-            stats.fiado.revenue > 0 &&
-            `${formatMoney(stats.fiado.profit)} disso vem de vendas no fiado`
-          }
+          hint={profitHint(stats.fiadoProfitReceived ?? 0, stats.fiado.profit)}
         />
         <StatCard label="Vendas" value={formatInt(stats.count)} />
         <StatCard
@@ -73,6 +73,8 @@ export function DashboardView({
     ...d,
     label: formatDayString(d.date).slice(0, 5),
   }));
+  // O atendente não recebe lucro do backend.
+  const showCategoryProfit = data.byCategory.some((c) => c.profit !== undefined);
 
   return (
     <div className="space-y-6">
@@ -81,7 +83,7 @@ export function DashboardView({
       <PeriodCards title="Este mês" stats={data.month} />
 
       <section className="rounded-xl border bg-card p-4">
-        <h2 className="mb-3 font-medium">Faturamento e lucro dos últimos 7 dias</h2>
+        <h2 className="mb-3 font-medium">Faturamento e lucro recebido dos últimos 7 dias</h2>
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={chartData} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
@@ -102,7 +104,7 @@ export function DashboardView({
               <Bar dataKey="revenue" name="Faturamento" fill="var(--primary)" radius={[4, 4, 0, 0]} />
               <Line
                 dataKey="profit"
-                name="Lucro"
+                name="Lucro recebido"
                 type="monotone"
                 stroke="oklch(0.55 0.15 150)"
                 strokeWidth={2}
@@ -111,6 +113,44 @@ export function DashboardView({
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+      </section>
+
+      <section className="rounded-xl border bg-card p-4">
+        <h2 className="mb-3 font-medium">Por categoria (este mês)</h2>
+        {data.byCategory.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma venda no período.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Categoria</TableHead>
+                  <TableHead className="text-right">Faturamento</TableHead>
+                  {showCategoryProfit && (
+                    <TableHead className="text-right" title="Inclui o fiado ainda não pago">
+                      Lucro vendido
+                    </TableHead>
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.byCategory.map((c) => (
+                  <TableRow key={c.categoryId ?? "none"}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-right">
+                      <Money value={c.revenue} />
+                    </TableCell>
+                    {showCategoryProfit && (
+                      <TableCell className="text-right">
+                        <Money value={c.profit ?? 0} />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -140,6 +180,12 @@ export function DashboardView({
             <h2 className="font-medium">Fiado em aberto</h2>
             <Money value={data.debt} className="text-xl font-semibold" />
           </div>
+          {data.pendingFiadoProfit !== undefined && data.pendingFiadoProfit !== 0 && (
+            <p className="-mt-2 mb-3 text-sm text-muted-foreground">
+              {formatMoney(data.pendingFiadoProfit)} disso é lucro, que entra no painel quando o
+              cliente pagar.
+            </p>
+          )}
           <h3 className="mb-2 text-sm font-medium text-muted-foreground">Estoque baixo</h3>
           {data.lowStock.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhum produto com estoque baixo.</p>
@@ -183,7 +229,7 @@ export function DashboardView({
                     <TableHead className="text-right">Hoje</TableHead>
                     <TableHead className="text-right">7 dias</TableHead>
                     <TableHead className="text-right">Mês</TableHead>
-                    <TableHead className="text-right">Lucro (mês)</TableHead>
+                    <TableHead className="text-right">Lucro recebido (mês)</TableHead>
                     <TableHead className="text-right">Fiado</TableHead>
                   </TableRow>
                 </TableHeader>

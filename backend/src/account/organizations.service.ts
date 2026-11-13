@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
+import { createDefaultCategories } from '../catalog/product-categories';
 import { CreateCompanyDto } from './dto/account.dto';
 
 @Injectable()
@@ -177,6 +178,7 @@ export class OrganizationsService {
           organizationId,
         },
       });
+      await createDefaultCategories(tx, company.id);
       const store = await tx.store.create({
         data: { companyId: company.id, name: dto.storeName },
       });

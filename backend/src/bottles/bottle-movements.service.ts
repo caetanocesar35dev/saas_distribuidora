@@ -25,6 +25,7 @@ const MOVEMENT_SELECT = {
   bottleType: { select: { id: true, name: true } },
   quantity: true,
   type: true,
+  unitPrice: true,
   description: true,
   customerId: true,
   customer: { select: { id: true, name: true } },
@@ -190,6 +191,7 @@ export class BottleMovementsService {
       select: {
         id: true,
         name: true,
+        price: true,
         storeStocks: {
           where: { storeId, deletedAt: null },
           select: { stock: true },
@@ -200,6 +202,8 @@ export class BottleMovementsService {
     return types.map((t) => ({
       bottleTypeId: t.id,
       bottleTypeName: t.name,
+      /** Preço do casco (null = não é vendido). */
+      price: t.price,
       stock: t.storeStocks[0]?.stock ?? 0,
     }));
   }

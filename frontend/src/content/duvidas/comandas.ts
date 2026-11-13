@@ -28,7 +28,7 @@ export const comandas: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra a comanda em Menu › Comandas.",
-      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade. Para lançar um fardo inteiro (ex.: 12 unidades), toque em + fardo, no rodapé do cartão do produto (ao lado de + 1 un.).",
+      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade. Para lançar uma embalagem inteira (ex.: 12 unidades), toque no botão com o nome dela (+ fardo, + caixa, + pacote...), no rodapé do cartão do produto (ao lado de + 1 un.). O filtro ao lado da busca mostra só uma categoria.",
       "O estoque baixa assim que o item é lançado, e o preço fica o que valia naquele momento, mesmo que mude depois.",
       "Para tirar um item, clique na lixeira ao lado dele. O estoque volta.",
     ],
@@ -57,7 +57,7 @@ export const comandas: Article[] = [
       "Não precisa abrir o caixa antes: se estiver fechado, ele abre sozinho ao fechar a comanda.",
       "Abra a comanda e clique em Fechar comanda.",
       "Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
-      "Se houver produtos com vasilhame, informe quantos o cliente devolve agora.",
+      "Se houver produtos com vasilhame, informe quantos vazios o cliente devolve agora e, se ele quer ficar com o vasilhame, quantos cascos ele compra (o valor entra no total).",
       "Clique em Concluir. A venda é registrada sem baixar o estoque de novo, porque ele já baixou ao lançar os itens.",
     ],
     problems: [

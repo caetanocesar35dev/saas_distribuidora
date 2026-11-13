@@ -22,7 +22,7 @@ test.describe("PDV, fiado, comandas e caixa", () => {
 
     const concluir = checkout.getByRole("button", { name: "Concluir", exact: true });
     await expect(concluir, "sai devendo vasilhame sem cliente").toBeDisabled();
-    await checkout.getByRole("spinbutton").fill("1");
+    await checkout.getByLabel("Devolve").fill("1");
     await expect(concluir, "troca 1 por 1 não precisa de cliente").toBeEnabled();
     await concluir.click();
     await expect(page.getByText("Venda concluída")).toBeVisible();
@@ -139,6 +139,51 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await expect(history.getByText("Criado")).toBeVisible();
     await expect(history.getByText("Alterado")).toBeVisible();
     await expect(history.getByText("Cancelada")).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+
+  test("compra do casco: preço no tipo de vasilhame, venda sem cliente e o casco no total", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // preço do casco do Litrão (vale para a empresa toda)
+    await goToStore(page, storeId, "/vasilhames");
+    await page.getByRole("tab", { name: "Tipos de vasilhame" }).click();
+    const litrao = page.getByRole("listitem").filter({ hasText: /^Litrão/ });
+    await litrao.getByRole("button", { name: "Editar" }).click();
+    const tipo = page.getByRole("dialog");
+    await tipo.getByLabel("Preço do casco (opcional)").fill("8,00");
+    await tipo.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Tipo atualizado.")).toBeVisible();
+    await expect(litrao).toContainText(/Casco: R\$\s*8,00/);
+
+    // venda: 2 litrões, o cliente compra os 2 cascos (não precisa de cliente)
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Litr");
+    const card = page.locator("ul button", { hasText: "Cerveja Litrão" }).first();
+    await card.click();
+    await card.click();
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    const checkout = page.getByRole("dialog");
+    const concluir = checkout.getByRole("button", { name: "Concluir", exact: true });
+    await expect(concluir, "sai devendo vasilhame sem cliente").toBeDisabled();
+    await checkout.getByRole("button", { name: "todos" }).click();
+    await expect(checkout.getByLabel("Compra o casco")).toHaveValue("2");
+    await expect(checkout).toContainText(/Cascos \(2\)\s*\+\s*R\$\s*16,00/);
+    await expect(concluir, "comprou todos os cascos: não precisa de cliente").toBeEnabled();
+    await checkout.getByRole("button", { name: "PIX", exact: true }).click();
+    await concluir.click();
+    await expect(page.getByText("Venda concluída")).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText(/comprou 2 cascos \(R\$\s*16,00\)/);
+
+    await page.getByRole("link", { name: "Ver venda" }).click();
+    await page.waitForURL(/\/vendas\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Cascos de vasilhame comprados")).toBeVisible();
+    await expect(page.getByText(/Casco comprado pelo cliente · R\$\s*8,00 cada/)).toBeVisible();
 
     expect(errors).toEqual([]);
   });

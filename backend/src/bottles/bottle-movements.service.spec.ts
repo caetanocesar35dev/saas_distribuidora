@@ -377,8 +377,13 @@ describe('BottleMovementsService', () => {
       await ctx.factory.bottleStock(w.storeA.id, litrao.id, 7);
       const stock = await service.stock(w.storeA.id, w.company.id);
       expect(stock).toEqual([
-        { bottleTypeId: cx.id, bottleTypeName: 'Caixa', stock: 0 },
-        { bottleTypeId: litrao.id, bottleTypeName: 'Litrão', stock: 7 },
+        { bottleTypeId: cx.id, bottleTypeName: 'Caixa', price: null, stock: 0 },
+        {
+          bottleTypeId: litrao.id,
+          bottleTypeName: 'Litrão',
+          price: null,
+          stock: 7,
+        },
       ]);
       expect(
         (await service.stock(w.storeB.id, w.company.id)).every(

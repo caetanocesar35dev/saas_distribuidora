@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { NO_CATEGORY, useCategoryOptions } from "@/components/app/category-filter";
 import { PageHeader, QueryBoundary } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
 import { ActionButton, PageGuard } from "@/components/app/guards";
-import { IntInput, MoneyInput, SelectField } from "@/components/app/inputs";
+import { IntInput, SelectField } from "@/components/app/inputs";
+import { PackNameInput } from "@/components/app/pack-name-input";
+import { PriceFields } from "@/components/app/price-fields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -21,15 +24,11 @@ import {
 } from "@/lib/api/hooks/catalog";
 import { errorMessage } from "@/lib/api/client";
 import type { Store } from "@/lib/api/types";
-import { moneyToInput } from "@/lib/format";
+import { packLabel } from "@/lib/format";
+import { type PriceDraft, resolvePrices } from "@/lib/pack-pricing";
 import { useStore } from "@/lib/session/context";
 
 const NO_BOTTLE = "none";
-
-interface Offer {
-  price: number | undefined;
-  cost: number | undefined;
-}
 
 function NewProductForm({ companyStores }: { companyStores: Store[] }) {
   const router = useRouter();
@@ -37,35 +36,40 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
   const create = useCreateProduct(companyId, storeId);
   const restore = useRestoreProduct(companyId, storeId);
   const bottleTypes = useBottleTypes(companyId);
+  const categoryOptions = useCategoryOptions(companyId);
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [categoryId, setCategoryId] = useState(NO_CATEGORY);
+  const [packName, setPackName] = useState("");
   const [pack, setPack] = useState<number | undefined>(1);
   const [bottleTypeId, setBottleTypeId] = useState(NO_BOTTLE);
-  const [defaultPrice, setDefaultPrice] = useState<number | undefined>();
-  const [defaultCost, setDefaultCost] = useState<number | undefined>();
+  const [defaults, setDefaults] = useState<PriceDraft>({});
   // A loja onde a pessoa está já vem marcada: é o caso mais comum.
-  const [offers, setOffers] = useState<Record<string, Offer>>({
-    [storeId]: { price: undefined, cost: undefined },
-  });
+  const [offers, setOffers] = useState<Record<string, PriceDraft>>({ [storeId]: {} });
   const [error, setError] = useState<string | null>(null);
   const [restorableId, setRestorableId] = useState<string | null>(null);
 
   const chosen = Object.entries(offers);
+  const packSize = pack ?? 1;
   // Loja sem preço próprio usa o preço padrão.
-  const everyPriceFilled = chosen.every(([, o]) => (o.price ?? defaultPrice) !== undefined);
+  const resolved = chosen.map(([id, o]) => ({
+    storeId: id,
+    ...resolvePrices(o, packSize, defaults),
+  }));
+  const everyPriceFilled = resolved.every((o) => o.price !== undefined);
   const valid = name.trim() !== "" && !!pack && pack >= 1 && everyPriceFilled;
 
   function toggle(id: string, checked: boolean) {
     setOffers((prev) => {
       const next = { ...prev };
-      if (checked) next[id] = { price: undefined, cost: undefined };
+      if (checked) next[id] = {};
       else delete next[id];
       return next;
     });
   }
 
-  function patchOffer(id: string, patch: Partial<Offer>) {
+  function patchOffer(id: string, patch: Partial<PriceDraft>) {
     setOffers((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
   }
 
@@ -77,14 +81,11 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
         name: name.trim(),
         code: code.trim() || undefined,
         packQuantity: pack,
+        packName: packName.trim() || undefined,
+        categoryId: categoryId === NO_CATEGORY ? undefined : categoryId,
         bottleTypeId: bottleTypeId === NO_BOTTLE ? undefined : bottleTypeId,
-        costPrice: defaultCost,
-        stores: chosen.length
-          ? chosen.map(([id, o]) => ({
-              storeId: id,
-              price: (o.price ?? defaultPrice) as number,
-              costPrice: o.cost,
-            }))
+        stores: resolved.length
+          ? resolved.map((o) => ({ ...o, price: o.price as number }))
           : undefined,
       },
       {
@@ -128,7 +129,26 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
               placeholder="Passe o leitor aqui"
             />
           </FormField>
-          <FormField label="Unidades por fardo" htmlFor="pack">
+          <FormField label="Categoria (opcional)" htmlFor="category">
+            <SelectField
+              id="category"
+              value={categoryId}
+              onChange={setCategoryId}
+              options={categoryOptions}
+            />
+          </FormField>
+          <FormField
+            label="Nome da embalagem (opcional)"
+            htmlFor="pack-name"
+            hint="Fardo, caixa, pacote... Se ficar vazio, aparece fardo."
+          >
+            <PackNameInput id="pack-name" value={packName} onChange={setPackName} />
+          </FormField>
+          <FormField
+            label={`Unidades por ${packLabel(packName)}`}
+            htmlFor="pack"
+            hint="Deixe 1 se o produto só é vendido por unidade."
+          >
             <IntInput id="pack" min={1} value={pack} onChange={setPack} />
           </FormField>
         </div>
@@ -157,21 +177,19 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
             mercadoria em Estoque.
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField
-            label="Preço de venda padrão"
-            htmlFor="default-price"
-            hint="Vale para as lojas marcadas, mas cada loja pode ter o seu preço."
-          >
-            <MoneyInput id="default-price" value={defaultPrice} onChange={setDefaultPrice} />
-          </FormField>
-          <FormField
-            label="Custo padrão (opcional)"
-            htmlFor="default-cost"
-            hint="Vale para as lojas marcadas, mas cada loja pode ter o seu custo."
-          >
-            <MoneyInput id="default-cost" value={defaultCost} onChange={setDefaultCost} />
-          </FormField>
+        <div className="space-y-2">
+          <PriceFields
+            idPrefix="default"
+            packSize={packSize}
+            packName={packName}
+            suffix=" padrão"
+            value={defaults}
+            onChange={(patch) => setDefaults((prev) => ({ ...prev, ...patch }))}
+          />
+          <p className="text-xs text-muted-foreground">
+            Os valores padrão valem para as lojas marcadas, mas cada loja pode ter os seus. O custo é
+            opcional.
+          </p>
         </div>
         <ul className="space-y-2">
           {companyStores.map((store) => {
@@ -186,23 +204,16 @@ function NewProductForm({ companyStores }: { companyStores: Store[] }) {
                   {store.name}
                 </label>
                 {offer && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <FormField label="Preço de venda nesta loja" htmlFor={`price-${store.id}`}>
-                      <MoneyInput
-                        id={`price-${store.id}`}
-                        value={offer.price}
-                        placeholder={defaultPrice === undefined ? "0,00" : moneyToInput(defaultPrice)}
-                        onChange={(price) => patchOffer(store.id, { price })}
-                      />
-                    </FormField>
-                    <FormField label="Custo nesta loja" htmlFor={`cost-${store.id}`}>
-                      <MoneyInput
-                        id={`cost-${store.id}`}
-                        value={offer.cost}
-                        placeholder={defaultCost === undefined ? "0,00" : moneyToInput(defaultCost)}
-                        onChange={(cost) => patchOffer(store.id, { cost })}
-                      />
-                    </FormField>
+                  <div className="mt-3">
+                    <PriceFields
+                      idPrefix={`store-${store.id}`}
+                      packSize={packSize}
+                      packName={packName}
+                      suffix=" nesta loja"
+                      value={offer}
+                      fallback={defaults}
+                      onChange={(patch) => patchOffer(store.id, patch)}
+                    />
                   </div>
                 )}
               </li>

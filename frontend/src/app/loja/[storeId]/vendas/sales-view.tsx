@@ -31,6 +31,7 @@ import {
   formatInt,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
+  revenueHint,
   SALE_STATUS_LABEL,
   todayString,
 } from "@/lib/format";
@@ -133,6 +134,7 @@ export function SalesView() {
             <StatCard
               label="Faturamento (vendas concluídas)"
               value={<Money value={sales.data.meta.totalRevenue} />}
+              hint={revenueHint(0, sales.data.meta.totalBottles ?? 0)}
             />
             <RequireRole min="MANAGER">
               <StatCard

@@ -14,9 +14,13 @@ export const gestao: Article[] = [
       "Para a loja: abra Menu › Início. Gerentes e donos veem o painel logo abaixo dos atalhos.",
       "Para a empresa toda: o dono ou o gerente geral abre Menu › Painel da empresa. Ele soma todas as lojas e tem uma tabela com cada loja.",
       "Os períodos são fixos: hoje, últimos 7 dias e este mês. Para outro período, use Menu › Histórico de vendas.",
-      "Faturamento e lucro contam tudo o que foi vendido, inclusive no fiado (vendas canceladas ficam de fora). Quando há fiado, o cartão mostra embaixo quanto disso foi vendido no fiado, que ainda pode não ter sido pago.",
+      "O Faturamento conta tudo o que foi vendido, inclusive no fiado (vendas canceladas ficam de fora). Quando há fiado, o cartão mostra embaixo quanto disso foi vendido no fiado.",
+      "O Lucro recebido conta só o que virou dinheiro: o lucro da venda à vista entra no dia da venda; o da venda no fiado entra quando o cliente paga, proporcional ao que pagou (pagou metade da dívida, entra metade do lucro). O pagamento quita primeiro a venda fiada mais antiga do cliente. Embaixo do cartão aparece quanto do lucro veio de fiado pago e quanto do vendido no fiado ainda vai entrar.",
+      "No quadro Fiado em aberto, aparece também quanto da dívida dos clientes é lucro: ele entra no painel quando eles pagarem.",
+      "Os cascos de vasilhame que os clientes compraram não entram no faturamento nem no lucro (não são produto): o cartão de Faturamento mostra embaixo quanto entrou em cascos no período. O dinheiro deles entra normalmente no caixa.",
       "O cartão Fiado recebido mostra quanto os clientes pagaram de fiado nesta loja no período, de vendas de qualquer data.",
-      "O gráfico mostra faturamento e lucro de cada um dos últimos 7 dias.",
+      "O gráfico mostra faturamento e lucro recebido de cada um dos últimos 7 dias.",
+      "Por categoria mostra o faturamento e o lucro vendido do mês de cada categoria de produto (aqui o lucro inclui o fiado ainda não pago, porque o pagamento não é ligado a um produto). O desconto de uma venda é repartido entre os itens dela, por isso a soma pode diferir do total em centavos.",
       "Para o dono, enquanto a loja não estiver pronta, o Início mostra os Primeiros passos: confirmar o endereço da loja, cadastrar os produtos, abrir o caixa e convidar a equipe. Cada item leva para a tela certa e marca sozinho quando você conclui. O botão Esconder tira o quadro só deste navegador.",
     ],
     problems: [
@@ -62,6 +66,9 @@ export const gestao: Article[] = [
     steps: [
       "Abra Menu › Painel da empresa › Equipe.",
       "Para convidar, clique em Convidar pessoa, digite o nome da pessoa (só letras) e o e-mail, marque as lojas e escolha o papel em cada uma (atendente, gerente ou dono).",
+      "Com mais de uma loja, marque Todas as lojas para dar acesso a todas de uma vez; o seletor ao lado põe o mesmo papel em todas, e depois dá para ajustar loja por loja.",
+      "Cuidado com o papel Dono: não existe dono só de uma loja. Quem é dono em qualquer loja vira dono da empresa inteira (painel e lucro de todas as lojas, dados da empresa, criar e excluir lojas, equipe, inclusive outros donos). Por isso o sistema mostra um aviso e pede confirmação ao escolher Dono. Para dar autonomia a alguém de confiança, use Gerente ou Gerente geral.",
+      "O Responsável pela assinatura (quem criou a conta, com esse selo no cartão) é protegido: ninguém, nem outro dono, muda o papel dele, tira o acesso dele de uma loja ou o remove da empresa. Só ele mesmo mexe nos próprios acessos. A assinatura e o plano também ficam só com ele.",
       "Gerente geral: para alguém cuidar de todas as lojas sem ser dono, o dono clica em Tornar gerente geral no cartão da pessoa. Ela vira gerente em todas as lojas (também nas criadas depois) e passa a ver o Painel da empresa, a Equipe e as Lojas. Não mexe em donos, nos dados da empresa nem na assinatura, e não exclui nem cria lojas.",
       "O gerente geral convida, muda o papel e remove atendentes e gerentes, mas não dá o papel de dono nem mexe em donos ou em outro gerente geral. Só o dono marca e desmarca o gerente geral.",
       "O papel do gerente geral nas lojas fica fixo em gerente. Para mudar, o dono clica em Tirar de gerente geral: a pessoa continua gerente nas lojas, e aí dá para ajustar loja por loja.",
@@ -85,6 +92,10 @@ export const gestao: Article[] = [
         fix: "Peça a outro dono da empresa para mudar o seu papel.",
       },
       {
+        message: "Os acessos do responsável pela assinatura só podem ser alterados por ele mesmo.",
+        fix: "Quem criou a conta é protegido: nem outro dono muda o papel dele ou o remove. Peça a ele para fazer a mudança.",
+      },
+      {
         message: "A empresa precisa ter pelo menos um dono (OWNER).",
         fix: "Antes de tirar ou rebaixar este dono, deixe outra pessoa como dono.",
       },
@@ -94,7 +105,17 @@ export const gestao: Article[] = [
       },
     ],
     related: ["acesso-convite", "gestao-historico", "faq-excluir-engano"],
-    keywords: ["convidar", "equipe", "funcionário", "papel", "permissão", "acesso"],
+    keywords: [
+      "convidar",
+      "equipe",
+      "funcionário",
+      "papel",
+      "permissão",
+      "acesso",
+      "dono",
+      "sócio",
+      "responsável pela assinatura",
+    ],
   },
   {
     id: "gestao-lojas",
@@ -110,7 +131,8 @@ export const gestao: Article[] = [
       "Para criar, clique em Nova loja, preencha o nome e o endereço (CEP, rua, número, bairro, cidade e UF são obrigatórios; complemento, telefone e CNPJ são opcionais) e salve. Todos os donos da empresa já viram donos da loja nova, e os gerentes gerais, gerentes.",
       "Se o CNPJ da loja for o mesmo da empresa, deixe o campo em branco: a loja usa o CNPJ da empresa. Se ela tiver CNPJ próprio (filial), digite-o primeiro: ao completar, o sistema busca os dados públicos e preenche endereço, telefone e, se estiver vazio, o nome da loja com o nome fantasia. O que você já digitou não é trocado; confira antes de salvar.",
       "Se a busca não encontrar o CNPJ ou estiver fora do ar, preencha o endereço você mesmo.",
-      "Para mudar endereço ou telefone, clique em Editar.",
+      "Sem CNPJ próprio, comece pelo CEP: ao completar, o sistema busca rua, bairro, cidade e UF sozinho, e você completa o número e o complemento. O que a busca não trouxer (CEP só da cidade não tem rua, por exemplo), preencha à mão.",
+      "Para mudar endereço ou telefone, clique em Editar. Trocou o CEP? Rua, bairro, cidade e UF passam a ser os do CEP novo; confira o número e o complemento antes de salvar.",
       "Em Fechamento automático do caixa, escolha o horário em que o caixa esquecido aberto fecha sozinho todo dia (padrão: meia-noite). Use um horário depois do fim do expediente, por exemplo 02:00 para quem fecha de madrugada.",
       "Para excluir, clique em Excluir e confirme. As vendas, o estoque e o histórico da loja ficam guardados.",
       "Para ver as lojas excluídas, marque Mostrar as lojas excluídas, no fim da página: aparecem o endereço e a data da exclusão. Reativar traz a loja de volta com as vendas, o estoque e a equipe de antes.",
@@ -127,6 +149,14 @@ export const gestao: Article[] = [
       {
         message: "Não foi possível consultar o CNPJ agora.",
         fix: "A consulta pública aceita poucas buscas por minuto. Preencha o endereço à mão ou espere um minuto.",
+      },
+      {
+        message: "CEP não encontrado. Preencha o endereço abaixo.",
+        fix: "O CEP não existe na consulta pública. Confira os números ou preencha rua, bairro, cidade e UF à mão.",
+      },
+      {
+        message: "Não foi possível consultar o CEP agora.",
+        fix: "A consulta de CEP está fora do ar ou sem internet. Preencha o endereço à mão.",
       },
       {
         message: "Feche o caixa da loja antes de excluí-la.",

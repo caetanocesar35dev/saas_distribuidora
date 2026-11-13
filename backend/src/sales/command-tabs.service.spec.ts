@@ -272,6 +272,47 @@ describe('CommandTabsService', () => {
   });
 
   describe('fechar', () => {
+    it('embalagem com preço próprio: o total da comanda e da venda usam o preço de quando entrou', async () => {
+      const cigarro = await ctx.factory.storeProduct(
+        w.storeA.id,
+        w.company.id,
+        {
+          price: 1,
+          packPrice: 12,
+          costPrice: 0.475,
+          packQuantity: 20,
+          stock: 100,
+        },
+      );
+      const tab = await open();
+      await as(() =>
+        tabs.addItem(w.storeA.id, tab.id, {
+          storeProductId: cigarro.id,
+          quantity: 3,
+          packs: 1,
+        }),
+      );
+      // o preço muda depois de lançado: a comanda mantém o antigo
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.storeProduct.update({
+          where: { id: cigarro.id },
+          data: { price: 2, packPrice: 20 },
+        }),
+      );
+      expect((await tabs.get(w.storeA.id, tab.id)).total).toBe(15);
+
+      const sale = await close(tab.id);
+      expect(sale.total).toBe(15);
+      expect(sale.totalCost).toBe(10.93); // 23 cigarros a 0,475
+      expect(sale.items[0]).toMatchObject({
+        quantity: 23,
+        packs: 1,
+        packSize: 20,
+        packPrice: 12,
+      });
+      expect(await stockOf(cigarro.id)).toBe(77);
+    });
+
     it('gera a venda com os preços da comanda, SEM baixar o estoque de novo, e fecha a comanda', async () => {
       const tab = await open();
       await add(tab.id, beer.id, 4);

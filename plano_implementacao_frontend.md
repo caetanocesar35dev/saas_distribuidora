@@ -276,6 +276,11 @@ funciona.
      removidos). `isCompanyAdmin` no `useAccess()` e `RequireCompanyAdmin`/`RequireCompanyAdminPage`
      em `guards.tsx`; Dados da empresa continua só do dono. Ponta a ponta em
      `e2e/gerente-geral.spec.ts`; artigos `gestao-equipe`, `gestao-lojas` e `gestao-painel`.
+   - ✅ **Papel de dono (decisão do usuário, 2026-11-13):** escolher Dono na linha da loja abre uma
+     confirmação explicando que a pessoa vira dona da empresa inteira; no convite, o mesmo aviso
+     aparece quando alguma loja está como Dono (`OWNER_WARNING`). O responsável pela assinatura
+     (`Member.isBillingOwner`) ganha o selo "Responsável pela assinatura" e o cartão dele fica sem
+     controles para os outros (a API recusa com 403). Artigo `gestao-equipe` atualizado.
 4. **Nova empresa na organização** (`POST /api/organizations/:organizationId/companies`,
    só o responsável pela cobrança; `GET /api/organizations/mine` lista as organizações),
    respeitando o limite de empresas do plano.
@@ -375,9 +380,10 @@ editar o preço numa loja não altera a outra.
 7. ✅ **Venda em lote (pedido do usuário, 2026-10-23).** Na busca de produtos (PDV, comanda e
    venda antiga), produtos com "Unidades por fardo" > 1 ganham, dentro do próprio cartão, um rodapé com "+ 1 un." e "+ fardo (N)" (a pedido do usuário, para não ficar ambíguo numa grade cheia). No
    carrinho, contadores separados de Fardos e Unidades (`cart.ts`: `packs` + `quantity`, total
-   em `lineUnits`). Preço do fardo = unidade × N (decisão do usuário); a venda envia
+   em `lineUnits`). Preço do fardo = unidade × N, ou o preço próprio dele desde 2026-11-03 (`itemTotal`); a venda envia
    `items: [{ storeProductId, quantity, packs }]` e o detalhe da venda e a comanda mostram
-   "2 fardos de 12 + 3 un." (`formatItemQuantity`).
+   "2 fardos de 12 + 3 un." (`formatItemQuantity`). Desde 2026-11-03, os textos usam o nome da
+   embalagem do produto (`packLabel`/`packPlural`; ver "Categorias e nome da embalagem").
 
 **Layout:** o PDV é a tela mais usada; deve funcionar bem em tablet e com leitor de código
 de barras (foco no campo de busca, atalhos de teclado).
@@ -466,13 +472,16 @@ automático e manual, e os saldos se atualizam.
 
 1. **Painel da loja** (`GET /api/stores/:storeId/dashboard`, gerente) e **painel da
    empresa** (`GET /api/companies/:companyId/dashboard`, dono, com a quebra por loja em
-   `byStore`): receita, lucro e vendas de hoje, 7 dias e mês; top 5 produtos; gráfico dos
+   `byStore`): receita, lucro e vendas de hoje, 7 dias e mês; faturamento e lucro do mês por
+   categoria (`byCategory`, desde 2026-11-03); top 5 produtos; gráfico dos
    7 dias; estoque baixo; fiado em aberto. **Os períodos são fixos e calculados no
    backend**; o painel não aceita filtro de período. Para períodos livres, usar o
    histórico de vendas (Fase 5).
    - ✅ **Fiado no painel (decisão do usuário, 2026-10-26: separar sem esconder):** Faturamento
-     e Lucro continuam contando o fiado, com a linha "R$ X disso foi vendido no fiado" embaixo,
-     e há o cartão "Fiado recebido" (pagamentos do período).
+     continua contando o fiado, com a linha "R$ X disso foi vendido no fiado" embaixo, e há o
+     cartão "Fiado recebido" (pagamentos do período). **Revisto em 2026-11-13:** o cartão vira
+     "Lucro recebido" (fiado só quando pago; linha `profitHint` embaixo), o quadro Fiado em aberto
+     mostra o lucro a receber e a tabela por categoria diz "Lucro vendido".
    - ✅ **Primeiros passos (decisão do usuário, 2026-10-26):** no Início, o dono vê o quadro com
      endereço da loja, produtos, caixa e equipe (`GET .../onboarding`), cada item marca sozinho;
      "Esconder" some com ele neste navegador.
@@ -580,6 +589,19 @@ no mesmo app, em rota separada `/plataforma`.
 
 ---
 
+## Categorias e nome da embalagem (pedido do usuário, feito em 2026-11-03)
+
+`CategoryFilter` (`components/app/category-filter.tsx`) filtra Produtos, Estoque, PDV e comandas;
+`CategoriesDialog` (`produtos/categories-dialog.tsx`) cria, renomeia, exclui e reativa. O painel ganhou
+"Por categoria (este mês)". `PackNameInput` é o campo do nome da embalagem (lista com opção livre) e
+`packLabel`/`packPlural` em `lib/format.ts` montam o texto em todas as telas. Artigo
+`produtos-categorias` na Central de Dúvidas. Ponta a ponta em `e2e/estoque-e-clientes.spec.ts`.
+
+Preço e custo da embalagem: `PriceFields` (`components/app/price-fields.tsx`) é o único formulário de
+preço (Novo produto, Colocar na loja e Preço e custo), com as regras em `lib/pack-pricing.ts`: unidade
+vazia = preço da embalagem ÷ quantidade; custo digitado por embalagem e enviado por unidade. Toda conta
+de valor de item usa `itemTotal`.
+
 ## Página de apresentação e contato (pedido do usuário, feito em 2026-11-02)
 
 Página pública em `/` (`src/app/landing-page.tsx`, sem JavaScript próprio): diferenciais, como
@@ -668,8 +690,9 @@ respostas recebidas nas paradas F1–F3 e decisões de UX tomadas.
 
 `tsc`, ESLint (sem erros nem avisos) e `next build` ok, mais testes automatizados (Vitest e
 Playwright, aprovados pelo usuário em 2026-10-16; ver o `README.md` do frontend). Os números
-abaixo são da entrega de 2026-10-16; em 2026-10-28 são **96 unitários e 39 de ponta a ponta**
-(os dos pedidos posteriores foram escritos, mas não rodados de novo a pedido do usuário):
+abaixo são da entrega de 2026-10-16; em 2026-11-03 são **121 unitários e 48 de ponta a ponta**
+(os de ponta a ponta dos pedidos posteriores foram escritos, mas nem todos rodados de novo, a
+pedido do usuário):
 
 - **90 testes unitários** (`npm test`): dinheiro e datas, aviso de fiado em aberto, CNPJ (inclusive alfanumérico) e a
   consulta pública de CNPJ, carrinho do PDV, faixa de assinatura,

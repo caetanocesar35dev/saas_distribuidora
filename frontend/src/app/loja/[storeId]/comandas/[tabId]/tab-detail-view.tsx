@@ -26,7 +26,8 @@ import {
   useRemoveTabItem,
 } from "@/lib/api/hooks/sales";
 import type { CommandTab, StoreProduct } from "@/lib/api/types";
-import { formatDateTime, formatInt, formatItemQuantity, roundMoney } from "@/lib/format";
+import { formatDateTime, formatInt, formatItemQuantity } from "@/lib/format";
+import { itemTotal } from "@/lib/pack-pricing";
 import { useAccess, useStore } from "@/lib/session/context";
 
 /** Os itens da comanda não trazem o vasilhame do produto: busca os produtos para saber. */
@@ -98,6 +99,7 @@ function TabBody({ tab }: { tab: CommandTab }) {
         discount: payload.discount > 0 ? payload.discount : undefined,
         customerId: payload.customerId,
         bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
+        bottlePurchases: payload.bottlePurchases.length > 0 ? payload.bottlePurchases : undefined,
         allowOverCreditLimit: payload.allowOverCreditLimit,
         managerApproval: payload.managerApproval,
       },
@@ -151,13 +153,23 @@ function TabBody({ tab }: { tab: CommandTab }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{item.storeProduct.product.name}</p>
                   <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatItemQuantity(item.quantity, item.packs, item.packSize)} ·{" "}
-                    {formatInt(item.quantity)} × <Money value={item.price} /> ·{" "}
+                    {formatItemQuantity(
+                      item.quantity,
+                      item.packs,
+                      item.packSize,
+                      item.storeProduct.product.packName,
+                    )}{" "}
+                    ·{" "}
+                    {item.packPrice === null && (
+                      <>
+                        {formatInt(item.quantity)} × <Money value={item.price} /> ·{" "}
+                      </>
+                    )}
                     {formatDateTime(item.addedAt)}
                   </p>
                 </div>
                 <Money
-                  value={roundMoney(item.price * item.quantity)}
+                  value={itemTotal(item)}
                   className="text-sm font-semibold"
                 />
                 {open && (

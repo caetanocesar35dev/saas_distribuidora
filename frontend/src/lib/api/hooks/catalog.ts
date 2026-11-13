@@ -5,10 +5,12 @@ import { companyApi, storeApi } from "@/lib/api/client";
 import type {
   AddStoreProductBody,
   BottleType,
+  BottleTypeBody,
   CreateProductBody,
   MessageResponse,
   Paginated,
   Product,
+  ProductCategory,
   ProductDetail,
   StoreProduct,
   UpdateProductBody,
@@ -19,6 +21,7 @@ export const catalogKeys = {
   storeProducts: (storeId: string) => ["store", storeId, "store-products"] as const,
   products: (companyId: string) => ["company", companyId, "products"] as const,
   bottleTypes: (companyId: string) => ["company", companyId, "bottle-types"] as const,
+  categories: (companyId: string) => ["company", companyId, "product-categories"] as const,
 };
 
 // ---- Produtos da loja (oferta + estoque) -----------------------------------------------------
@@ -26,6 +29,8 @@ export const catalogKeys = {
 export interface StoreProductsParams {
   search?: string;
   isActive?: boolean;
+  /** Id da categoria, ou `none` para os produtos sem categoria. */
+  categoryId?: string;
   page?: number;
   limit?: number;
 }
@@ -37,6 +42,7 @@ export function useStoreProducts(storeId: string, params: StoreProductsParams = 
       storeApi(storeId).get<Paginated<StoreProduct>>("/store-products", {
         search: params.search,
         isActive: params.isActive,
+        categoryId: params.categoryId,
         page: params.page,
         limit: params.limit,
       }),
@@ -111,7 +117,13 @@ export function useStockAdjustment(storeId: string) {
 
 export function useProducts(
   companyId: string,
-  params: { search?: string; page?: number; limit?: number; deleted?: boolean } = {},
+  params: {
+    search?: string;
+    categoryId?: string;
+    page?: number;
+    limit?: number;
+    deleted?: boolean;
+  } = {},
   enabled = true,
 ) {
   return useQuery({
@@ -188,10 +200,10 @@ export function useBottleTypes(companyId: string) {
 export function useSaveBottleType(companyId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name }: { id?: string; name: string }) =>
+    mutationFn: ({ id, ...body }: BottleTypeBody & { id?: string }) =>
       id
-        ? companyApi(companyId).patch<BottleType>(`/bottle-types/${id}`, { name })
-        : companyApi(companyId).post<BottleType>("/bottle-types", { name }),
+        ? companyApi(companyId).patch<BottleType>(`/bottle-types/${id}`, body)
+        : companyApi(companyId).post<BottleType>("/bottle-types", body),
     meta: { silent: true },
     onSuccess: () => client.invalidateQueries({ queryKey: catalogKeys.bottleTypes(companyId) }),
   });
@@ -212,6 +224,59 @@ export function useRestoreBottleType(companyId: string) {
     mutationFn: (id: string) =>
       companyApi(companyId).post<BottleType>(`/bottle-types/${id}/restore`),
     onSuccess: () => client.invalidateQueries({ queryKey: catalogKeys.bottleTypes(companyId) }),
+  });
+}
+
+// ---- Categorias de produto -------------------------------------------------------------------
+
+export function useProductCategories(companyId: string, deleted = false) {
+  return useQuery({
+    queryKey: [...catalogKeys.categories(companyId), { deleted }],
+    queryFn: () =>
+      companyApi(companyId).get<ProductCategory[]>("/product-categories", {
+        deleted: deleted || undefined,
+      }),
+    staleTime: 60_000,
+  });
+}
+
+/** Renomear muda o nome mostrado nos produtos e excluir ou reativar muda os filtros. */
+function useInvalidateCategories(companyId: string) {
+  const client = useQueryClient();
+  return async () => {
+    await client.invalidateQueries({ queryKey: catalogKeys.categories(companyId) });
+    await client.invalidateQueries({ queryKey: catalogKeys.products(companyId) });
+    await client.invalidateQueries({ queryKey: ["store"] });
+  };
+}
+
+export function useSaveProductCategory(companyId: string) {
+  const invalidate = useInvalidateCategories(companyId);
+  return useMutation({
+    mutationFn: ({ id, name }: { id?: string; name: string }) =>
+      id
+        ? companyApi(companyId).patch<ProductCategory>(`/product-categories/${id}`, { name })
+        : companyApi(companyId).post<ProductCategory>("/product-categories", { name }),
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteProductCategory(companyId: string) {
+  const invalidate = useInvalidateCategories(companyId);
+  return useMutation({
+    mutationFn: (id: string) =>
+      companyApi(companyId).delete<MessageResponse>(`/product-categories/${id}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestoreProductCategory(companyId: string) {
+  const invalidate = useInvalidateCategories(companyId);
+  return useMutation({
+    mutationFn: (id: string) =>
+      companyApi(companyId).post<ProductCategory>(`/product-categories/${id}/restore`),
+    onSuccess: invalidate,
   });
 }
 

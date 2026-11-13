@@ -77,10 +77,11 @@ export class MailService {
     companyName: string,
     invitedBy: string,
     url: string,
+    hasAccount = false,
   ) {
     return this.send({
       to,
-      ...inviteEmail(name, companyName, invitedBy, url),
+      ...inviteEmail(name, companyName, invitedBy, url, hasAccount),
     });
   }
 
