@@ -7,6 +7,7 @@ import {
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
 import { createDefaultCategories } from '../catalog/product-categories';
+import { createDefaultSaleChannels } from '../sales/sale-channels';
 import { CreateCompanyDto } from './dto/account.dto';
 
 @Injectable()
@@ -179,6 +180,7 @@ export class OrganizationsService {
         },
       });
       await createDefaultCategories(tx, company.id);
+      await createDefaultSaleChannels(tx, company.id);
       const store = await tx.store.create({
         data: { companyId: company.id, name: dto.storeName },
       });

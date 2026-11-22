@@ -1,5 +1,6 @@
 "use client";
 
+import { WaypointsIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -10,7 +11,7 @@ import {
   PageHeader,
   StatCard,
 } from "@/components/app/common";
-import { RequireRole } from "@/components/app/guards";
+import { ActionButton, RequireRole } from "@/components/app/guards";
 import { SelectField } from "@/components/app/inputs";
 import { Pagination } from "@/components/app/pagination";
 import { Badge } from "@/components/ui/badge";
@@ -24,27 +25,33 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebounced } from "@/hooks/use-debounced";
-import { useSales } from "@/lib/api/hooks/sales";
+import { useSaleChannels, useSales } from "@/lib/api/hooks/sales";
 import type { PaymentMethod, SaleStatus } from "@/lib/api/types";
 import {
   formatDateTime,
   formatInt,
+  hasMinRole,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   revenueHint,
   SALE_STATUS_LABEL,
   todayString,
 } from "@/lib/format";
+import { channelLabel, NO_CHANNEL, NO_CHANNEL_LABEL } from "@/lib/sale-channels";
 import { useStore } from "@/lib/session/context";
+import { ChannelsDialog } from "./channels-dialog";
 
 const ALL = "all";
 
 export function SalesView() {
-  const { storeId } = useStore();
+  const { storeId, companyId, role } = useStore();
   const today = todayString();
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [method, setMethod] = useState<string>(ALL);
+  const [channel, setChannel] = useState<string>(ALL);
+  const [managingChannels, setManagingChannels] = useState(false);
+  const channels = useSaleChannels(companyId);
   const [status, setStatus] = useState<string>(ALL);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -56,6 +63,7 @@ export function SalesView() {
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     paymentMethod: method === ALL ? undefined : (method as PaymentMethod),
+    channelId: channel === ALL ? undefined : channel,
     status: status === ALL ? undefined : (status as SaleStatus),
     search: debouncedSearch.trim() || undefined,
   });
@@ -73,7 +81,21 @@ export function SalesView() {
         title="Histórico de vendas"
         description="Histórico de vendas desta loja. Por padrão, as de hoje."
         help="vendas-historico"
+        actions={
+          hasMinRole(role, "MANAGER") && (
+            <ActionButton
+              variant="outline"
+              minRole="MANAGER"
+              onClick={() => setManagingChannels(true)}
+            >
+              <WaypointsIcon /> Origens da venda
+            </ActionButton>
+          )
+        }
       />
+      {managingChannels && (
+        <ChannelsDialog companyId={companyId} onClose={() => setManagingChannels(false)} />
+      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-2">
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -103,6 +125,17 @@ export function SalesView() {
           options={[
             { value: ALL, label: "Todas as formas de pagamento" },
             ...PAYMENT_METHODS.map((m) => ({ value: m, label: PAYMENT_METHOD_LABEL[m] })),
+          ]}
+        />
+        <SelectField
+          className="w-44"
+          aria-label="Origem da venda"
+          value={channel}
+          onChange={change(setChannel)}
+          options={[
+            { value: ALL, label: "Todas as origens" },
+            ...(channels.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+            { value: NO_CHANNEL, label: NO_CHANNEL_LABEL },
           ]}
         />
         <SelectField
@@ -162,6 +195,7 @@ export function SalesView() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Vendedor</TableHead>
                       <TableHead>Pagamento</TableHead>
+                      <TableHead>Origem</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Situação</TableHead>
                     </TableRow>
@@ -192,6 +226,9 @@ export function SalesView() {
                         <TableCell>{sale.customer?.name ?? "—"}</TableCell>
                         <TableCell>{sale.user.name}</TableCell>
                         <TableCell>{PAYMENT_METHOD_LABEL[sale.paymentMethod]}</TableCell>
+                        <TableCell className={sale.channel ? undefined : "text-muted-foreground"}>
+                          {channelLabel(sale.channel)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Money value={sale.total} />
                         </TableCell>

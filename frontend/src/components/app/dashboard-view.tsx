@@ -29,6 +29,7 @@ import {
   profitHint,
   revenueHint,
 } from "@/lib/format";
+import { averageTicket, channelShare } from "@/lib/sale-channels";
 
 function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
   return (
@@ -53,6 +54,92 @@ function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
           hint="Pagamentos de fiado no período, de vendas de qualquer data."
         />
       </div>
+    </section>
+  );
+}
+
+/**
+ * De onde vieram as vendas do mês (balcão, iFood...): quantas, quanto faturaram, a parte de cada
+ * uma no faturamento (barra), o ticket médio e o lucro vendido. Uma medida só, numa cor só.
+ */
+function ChannelsSection({ data }: { data: Dashboard }) {
+  const rows = data.byChannel;
+  const totalRevenue = rows.reduce((sum, c) => sum + c.revenue, 0);
+  // O atendente não recebe lucro do backend.
+  const showProfit = rows.some((c) => c.profit !== undefined);
+
+  return (
+    <section className="rounded-xl border bg-card p-4">
+      <h2 className="font-medium">Por origem (este mês)</h2>
+      <p className="mb-3 text-sm text-muted-foreground">
+        De onde vieram as vendas. Faturamento sem os cascos de vasilhame; vendas canceladas ficam de
+        fora.
+      </p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhuma venda no período.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="min-w-44">Origem</TableHead>
+                <TableHead className="text-right">Vendas</TableHead>
+                <TableHead className="text-right">Faturamento</TableHead>
+                <TableHead className="text-right">Ticket médio</TableHead>
+                {showProfit && (
+                  <TableHead className="text-right" title="Inclui o fiado ainda não pago">
+                    Lucro vendido
+                  </TableHead>
+                )}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((c) => {
+                const share = channelShare(c.revenue, totalRevenue);
+                return (
+                  <TableRow key={c.channelId ?? "none"}>
+                    <TableCell>
+                      <div className="flex items-center justify-between gap-3">
+                        <span
+                          className={c.channelId ? "font-medium" : "text-muted-foreground"}
+                        >
+                          {c.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {share}%
+                        </span>
+                      </div>
+                      <div
+                        className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted"
+                        role="img"
+                        aria-label={`${c.name}: ${share}% do faturamento do mês`}
+                        title={`${c.name}: ${share}% do faturamento do mês`}
+                      >
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${share}%` }}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{formatInt(c.count)}</TableCell>
+                    <TableCell className="text-right">
+                      <Money value={c.revenue} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Money value={averageTicket(c.revenue, c.count)} />
+                    </TableCell>
+                    {showProfit && (
+                      <TableCell className="text-right">
+                        <Money value={c.profit ?? 0} />
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </section>
   );
 }
@@ -114,6 +201,8 @@ export function DashboardView({
           </ResponsiveContainer>
         </div>
       </section>
+
+      <ChannelsSection data={data} />
 
       <section className="rounded-xl border bg-card p-4">
         <h2 className="mb-3 font-medium">Por categoria (este mês)</h2>

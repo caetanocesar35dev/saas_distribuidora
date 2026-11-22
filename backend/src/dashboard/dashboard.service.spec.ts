@@ -5,6 +5,7 @@ import {
   ServiceTestContext,
 } from '../../test/helpers/service-module';
 import { World } from '../../test/helpers/factory';
+import { createDefaultSaleChannels } from '../sales/sale-channels';
 import { DashboardService } from './dashboard.service';
 
 // "Agora" fixo: 14/10/2026 12:00 em São Paulo (UTC-3) = 15:00 UTC.
@@ -86,6 +87,7 @@ describe('DashboardService', () => {
     /** Cascos comprados (somam no total da venda). */
     bottlesTotal?: number;
     customerId?: string;
+    channelId?: string;
   }) {
     const quantity = opts.quantity ?? 1;
     const price = opts.price ?? 10;
@@ -101,6 +103,7 @@ describe('DashboardService', () => {
           paymentMethod: opts.paymentMethod ?? 'MONEY',
           status: opts.status ?? 'COMPLETED',
           customerId: opts.customerId,
+          channelId: opts.channelId,
           createdAt: new Date(opts.at),
         },
       });
@@ -274,6 +277,67 @@ describe('DashboardService', () => {
           profit: 7.5,
         },
       ]);
+    });
+
+    it('por origem: vendas, faturamento sem os cascos e lucro vendido do mês, sem as canceladas', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+      const channel = (name: string) =>
+        ctx.prisma.saleChannel.findFirstOrThrow({
+          where: { companyId: w.company.id, name },
+        });
+      const balcao = await channel('Balcão');
+      const ifood = await channel('iFood');
+      const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+      const base = { storeId: w.storeA.id, storeProductId: p.id };
+      const at = '2026-10-10T15:00:00Z';
+      await sale({ ...base, at, channelId: balcao.id });
+      await sale({ ...base, at, channelId: balcao.id });
+      await sale({
+        ...base,
+        at,
+        channelId: ifood.id,
+        quantity: 3,
+        bottlesTotal: 8,
+      });
+      await sale({ ...base, at, channelId: ifood.id, status: 'CANCELED' });
+      await sale({ ...base, at: '2026-09-20T15:00:00Z', channelId: ifood.id });
+      await sale({ ...base, at }); // de antes de existir a origem
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.byChannel).toEqual([
+        {
+          channelId: ifood.id,
+          name: 'iFood',
+          count: 1,
+          revenue: 30,
+          profit: 12,
+        },
+        {
+          channelId: balcao.id,
+          name: 'Balcão',
+          count: 2,
+          revenue: 20,
+          profit: 8,
+        },
+        {
+          channelId: null,
+          name: 'Sem origem',
+          count: 1,
+          revenue: 10,
+          profit: 4,
+        },
+      ]);
+      // o painel da empresa soma as lojas
+      await sale({
+        storeId: w.storeB.id,
+        storeProductId: p.id,
+        at,
+        channelId: ifood.id,
+      });
+      const company = await dashboard.forCompany(w.company.id, NOW);
+      expect(company.byChannel[0]).toMatchObject({ name: 'iFood', count: 2 });
     });
 
     it('fiado: entra no faturamento (separado), mas não no lucro enquanto não for pago', async () => {

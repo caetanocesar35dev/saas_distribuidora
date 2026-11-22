@@ -170,6 +170,7 @@ model Company {
   customers   Customer[]
 
   productCategories ProductCategory[]
+  saleChannels      SaleChannel[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -684,6 +685,10 @@ model Sale {
   commandTabId String?     @unique
   commandTab   CommandTab? @relation(fields: [commandTabId], references: [id])
 
+  /// De onde veio a venda (balcão, iFood...). null = venda de antes de existir a origem.
+  channelId String?
+  channel   SaleChannel? @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
   items           SaleItem[]
   bottleMovements BottleMovement[]
 
@@ -694,7 +699,32 @@ model Sale {
 
   @@index([storeId])
   @@index([customerId])
+  @@index([channelId])
   @@map("tb_sales")
+}
+
+/// Origem da venda (balcão, WhatsApp, iFood, Zé Delivery...), editável por empresa. `isDefault` é
+/// a que já vem marcada no PDV (uma por empresa; não pode ser excluída).
+model SaleChannel {
+  id        String  @id @default(uuid())
+  companyId String
+  name      String
+  isDefault Boolean @default(false)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sales   Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_sale_channels")
 }
 
 /// Item de produto (StoreProduct) vendido dentro de uma Sale.
@@ -1318,6 +1348,24 @@ model ProductCategoryHistory {
   @@map("th_product_category_history")
 }
 
+model SaleChannelHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_sale_channel_history_vigente")
+  @@map("th_sale_channel_history")
+}
+
 /// Inclui stock: entradas de mercadoria e ajustes manuais não são registrados em outra tabela.
 model StoreProductHistory {
   historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
@@ -1490,6 +1538,7 @@ model SaleHistory {
   creditApprovedById String?
   customerId         String?
   commandTabId       String?
+  channelId          String?
 
   modifierId       String?
   modifiedEndpoint String?

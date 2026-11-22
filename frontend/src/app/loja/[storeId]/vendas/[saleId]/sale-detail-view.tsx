@@ -33,6 +33,7 @@ import {
   SALE_STATUS_LABEL,
 } from "@/lib/format";
 import { itemTotal } from "@/lib/pack-pricing";
+import { channelLabel } from "@/lib/sale-channels";
 import { useStore } from "@/lib/session/context";
 
 function SaleBody({ sale }: { sale: Sale }) {
@@ -44,7 +45,11 @@ function SaleBody({ sale }: { sale: Sale }) {
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total" value={<Money value={sale.total} />} />
-        <StatCard label="Pagamento" value={PAYMENT_METHOD_LABEL[sale.paymentMethod]} />
+        <StatCard
+          label="Pagamento"
+          value={PAYMENT_METHOD_LABEL[sale.paymentMethod]}
+          hint={`Origem: ${channelLabel(sale.channel)}`}
+        />
         <StatCard
           label="Data"
           value={formatDateTime(sale.createdAt)}

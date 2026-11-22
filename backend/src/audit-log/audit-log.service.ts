@@ -68,6 +68,7 @@ export const AUDITABLE: Record<string, EntityConfig> = {
     'productCategory',
     'productCategoryHistory',
   ),
+  'sale-channels': simple('company', 'saleChannel', 'saleChannelHistory'),
   stores: simple('company', 'store', 'storeHistory'),
   memberships: simple('company', 'membership', 'membershipHistory'),
   'membership-stores': {

@@ -68,6 +68,17 @@ export interface Dashboard {
     revenue: number;
     profit: number;
   }[];
+  /**
+   * Vendas do mês por origem (balcão, iFood...; `channelId` null = vendas de antes de existir a
+   * origem). Faturamento sem os cascos; `profit` é o lucro vendido (como na tabela por categoria).
+   */
+  byChannel: {
+    channelId: string | null;
+    name: string;
+    count: number;
+    revenue: number;
+    profit: number;
+  }[];
   chart: { date: string; revenue: number; profit: number; count: number }[];
   lowStock: {
     storeProductId: string;
@@ -174,6 +185,7 @@ export class DashboardService {
         month: EMPTY,
         topProducts: [],
         byCategory: [],
+        byChannel: [],
         chart: [],
         lowStock: [],
         debt: 0,
@@ -194,6 +206,7 @@ export class DashboardService {
       month,
       topProducts,
       byCategory,
+      byChannel,
       chart,
       lowStock,
       debts,
@@ -203,6 +216,7 @@ export class DashboardService {
       this.periodStats(storeIds, monthStart, fiadoProfit.realized),
       this.topProducts(storeIds, weekStart),
       this.byCategory(storeIds, monthStart),
+      this.byChannel(storeIds, monthStart),
       this.chart(storeIds, weekStart, now, tz, fiadoProfit.realized),
       this.lowStock(storeIds),
       this.debts(storeIds),
@@ -215,6 +229,7 @@ export class DashboardService {
       month: month.total,
       topProducts,
       byCategory,
+      byChannel,
       chart,
       lowStock,
       debt: fromCents(
@@ -479,6 +494,43 @@ export class DashboardService {
       return {
         categoryId: r.categoryId,
         name: r.name ?? 'Sem categoria',
+        revenue: fromCents(revenue),
+        profit: fromCents(revenue - cost),
+      };
+    });
+  }
+
+  /**
+   * Vendas, faturamento (sem os cascos) e lucro vendido por origem desde `since`. A origem
+   * excluída depois continua aparecendo com o nome (as vendas dela existem).
+   */
+  private async byChannel(storeIds: string[], since: Date) {
+    const rows = await this.prisma.$queryRaw<
+      {
+        channelId: string | null;
+        name: string | null;
+        count: bigint;
+        revenue: number | null;
+        cost: number | null;
+      }[]
+    >`
+      SELECT ch.id AS "channelId", ch.name AS name, COUNT(*) AS count,
+             SUM(s.total - s."bottlesTotal") AS revenue, SUM(s."totalCost") AS cost
+      FROM tb_sales s
+      LEFT JOIN tb_sale_channels ch ON ch.id = s."channelId"
+      WHERE s."storeId" IN (${Prisma.join(storeIds)})
+        AND s.status = 'COMPLETED'
+        AND s."createdAt" >= ${since}
+        AND s."deletedAt" IS NULL
+      GROUP BY ch.id, ch.name
+      ORDER BY revenue DESC NULLS LAST, ch.name ASC`;
+    return rows.map((r) => {
+      const revenue = toCents(Number(r.revenue ?? 0));
+      const cost = toCents(Number(r.cost ?? 0));
+      return {
+        channelId: r.channelId,
+        name: r.name ?? 'Sem origem',
+        count: Number(r.count),
         revenue: fromCents(revenue),
         profit: fromCents(revenue - cost),
       };

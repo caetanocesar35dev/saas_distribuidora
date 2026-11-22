@@ -539,8 +539,24 @@ export interface Sale {
   customerId: string | null;
   customer: { id: string; name: string; phone: string | null } | null;
   commandTabId: string | null;
+  /** De onde veio a venda. null = venda de antes de existir a origem. */
+  channel: SaleChannelRef | null;
   items: SaleItem[];
   bottleMovements: SaleBottleMovement[];
+}
+
+/** Origem da venda (balcão, iFood...), editável por empresa. */
+export interface SaleChannelRef {
+  id: string;
+  name: string;
+}
+
+export interface SaleChannel extends SaleChannelRef {
+  companyId: string;
+  /** A que já vem marcada no PDV (uma por empresa). */
+  isDefault: boolean;
+  createdAt: string;
+  deletedAt: string | null;
 }
 
 export interface SalesPage extends Paginated<Sale> {
@@ -559,6 +575,8 @@ export interface BottleReturnLine {
 /** Preço e custo NUNCA vão na venda: o backend lê do banco. */
 export interface CreateSaleBody {
   paymentMethod: PaymentMethod;
+  /** Origem da venda; sem ela, o backend usa a padrão da empresa. */
+  channelId?: string;
   customerId?: string;
   discount?: number;
   /** `quantity` = unidades avulsas; `packs` = fardos (o backend converte em unidades). */
@@ -589,6 +607,8 @@ export interface SalesQuery extends PageQuery {
   status?: SaleStatus;
   customerId?: string;
   userId?: string;
+  /** Id da origem, ou `none` para as vendas sem origem. */
+  channelId?: string;
   startDate?: string;
   endDate?: string;
 }
@@ -622,6 +642,7 @@ export interface CommandTab {
 
 export interface CloseCommandTabBody {
   paymentMethod: PaymentMethod;
+  channelId?: string;
   discount?: number;
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
@@ -751,6 +772,17 @@ export interface Dashboard {
    * não pago). `profit` não vem para o atendente.
    */
   byCategory: { categoryId: string | null; name: string; revenue: number; profit?: number }[];
+  /**
+   * Vendas do mês por origem (`channelId` null = "Sem origem", vendas de antes). Faturamento sem os
+   * cascos; `profit` é o lucro vendido.
+   */
+  byChannel: {
+    channelId: string | null;
+    name: string;
+    count: number;
+    revenue: number;
+    profit?: number;
+  }[];
   chart: { date: string; revenue: number; profit: number; count: number }[];
   lowStock: {
     storeProductId: string;
@@ -809,6 +841,7 @@ export type CompanyAuditEntity =
   | "customers"
   | "bottle-types"
   | "product-categories"
+  | "sale-channels"
   | "stores"
   | "memberships"
   | "membership-stores";

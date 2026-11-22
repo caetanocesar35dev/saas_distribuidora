@@ -20,6 +20,7 @@ import { AuditContext } from '../src/audit/audit-context';
 import { BottleMovementsService } from '../src/bottles/bottle-movements.service';
 import { CashRegisterService } from '../src/cash-register/cash-register.service';
 import { createDefaultCategories } from '../src/catalog/product-categories';
+import { createDefaultSaleChannels } from '../src/sales/sale-channels';
 import { buildCnpj } from '../src/common/utils/document';
 import { addDays } from '../src/common/utils/time';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -211,6 +212,7 @@ async function main() {
         data: { companyId: company.id, name: 'Litrão' },
       });
       await createDefaultCategories(prisma, company.id);
+      await createDefaultSaleChannels(prisma, company.id);
       const bebidas = await prisma.productCategory.findFirstOrThrow({
         where: { companyId: company.id, name: 'Bebidas' },
       });

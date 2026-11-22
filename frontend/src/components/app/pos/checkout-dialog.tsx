@@ -34,6 +34,8 @@ import {
 } from "@/components/app/pos/bottle-checkout";
 import { useBottleTypes } from "@/lib/api/hooks/catalog";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
+import { useSaleChannels } from "@/lib/api/hooks/sales";
+import { effectiveChannelId } from "@/lib/sale-channels";
 import type { BottleReturnLine, ManagerApproval, PaymentMethod } from "@/lib/api/types";
 import {
   creditLimitCheck,
@@ -56,6 +58,8 @@ export type { BottleLine };
 
 export interface CheckoutPayload {
   paymentMethod: PaymentMethod;
+  /** Origem da venda (balcão, iFood...). Sem a lista carregada, o backend usa a padrão. */
+  channelId?: string;
   discount: number;
   customerId?: string;
   bottleReturns: BottleReturnLine[];
@@ -94,6 +98,10 @@ export function CheckoutDialog({
   onClose: () => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod>("MONEY");
+  // Origem da venda: já vem marcada a padrão da empresa (Balcão, se ninguém mudou).
+  const channels = useSaleChannels(companyId);
+  const [pickedChannel, setPickedChannel] = useState<string | undefined>();
+  const channelId = effectiveChannelId(pickedChannel, channels.data);
   const [discount, setDiscount] = useState<number | undefined>();
   const [received, setReceived] = useState<number | undefined>();
   const [customer, setCustomer] = useState<PickedCustomer | null>(initialCustomer ?? null);
@@ -200,6 +208,7 @@ export function CheckoutDialog({
             if (!valid || checkingCredit) return;
             void submit({
               paymentMethod: method,
+              channelId,
               discount: discountValue,
               customerId: customer?.id,
               bottleReturns: bottleBalance
@@ -211,6 +220,30 @@ export function CheckoutDialog({
             });
           }}
         >
+          {channels.data && channels.data.length > 0 && (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">Origem da venda</legend>
+              <div className="flex flex-wrap gap-2">
+                {channels.data.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setPickedChannel(c.id)}
+                    aria-pressed={channelId === c.id}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                      channelId === c.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
           <fieldset>
             <legend className="mb-2 text-sm font-medium">Forma de pagamento</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

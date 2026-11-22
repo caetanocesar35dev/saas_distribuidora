@@ -220,6 +220,7 @@ export class CommandTabsService {
         companyId,
         userId,
         paymentMethod: dto.paymentMethod,
+        channelId: dto.channelId,
         customerId: dto.customerId ?? tab.customerId,
         discount: dto.discount,
         lines: items.map((i) => ({

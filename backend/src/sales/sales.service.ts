@@ -37,6 +37,8 @@ import {
   ListSalesQuery,
 } from './dto/sales.dto';
 import { itemTotalCents, toUnits } from './packs';
+import { channelWhere } from './sale-channels';
+import { resolveSaleChannel } from './sale-channels.service';
 
 export interface SaleLineInput {
   storeProductId: string;
@@ -57,6 +59,8 @@ export interface CreateSaleInput {
   companyId: string;
   userId: string;
   paymentMethod: PaymentMethod;
+  /** Origem da venda (balcão, iFood...); sem ela, vale a padrão da empresa. */
+  channelId?: string;
   customerId?: string | null;
   discount?: number;
   lines: SaleLineInput[];
@@ -115,6 +119,8 @@ const SALE_SELECT = {
   customerId: true,
   customer: { select: { id: true, name: true, phone: true } },
   commandTabId: true,
+  // A origem aparece mesmo se tiver sido excluída depois (leitura de relação não filtra).
+  channel: { select: { id: true, name: true } },
   items: {
     where: { deletedAt: null },
     select: {
@@ -212,6 +218,7 @@ export class SalesService {
         companyId,
         userId,
         paymentMethod: dto.paymentMethod,
+        channelId: dto.channelId,
         customerId: dto.customerId,
         discount: dto.discount,
         lines: [...merged].map(([storeProductId, line]) => ({
@@ -408,9 +415,11 @@ export class SalesService {
       }));
 
     // ---- venda e itens ---------------------------------------------------------------------
+    const channelId = await resolveSaleChannel(tx, companyId, input.channelId);
     const sale = await tx.sale.create({
       data: {
         storeId,
+        channelId,
         total,
         totalCost: fromCents(costCents),
         discount: fromCents(discountCents),
@@ -614,6 +623,7 @@ export class SalesService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.userId ? { userId: query.userId } : {}),
+      ...channelWhere(query.channelId),
       ...(query.startDate || query.endDate
         ? {
             createdAt: {

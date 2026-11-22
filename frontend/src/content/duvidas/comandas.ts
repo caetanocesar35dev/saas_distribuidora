@@ -56,7 +56,7 @@ export const comandas: Article[] = [
     steps: [
       "Não precisa abrir o caixa antes: se estiver fechado, ele abre sozinho ao fechar a comanda.",
       "Abra a comanda e clique em Fechar comanda.",
-      "Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
+      "Confira a origem da venda (Balcão já vem marcado; mude se o pedido veio de outro canal). Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
       "Se houver produtos com vasilhame, informe quantos vazios o cliente devolve agora e, se ele quer ficar com o vasilhame, quantos cascos ele compra (o valor entra no total).",
       "Clique em Concluir. A venda é registrada sem baixar o estoque de novo, porque ele já baixou ao lançar os itens.",
     ],

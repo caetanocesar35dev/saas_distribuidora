@@ -317,4 +317,12 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       Tabelas novas `tb_notification_poll_options` e `tb_notification_poll_votes` (migration
       `20261118000000_notification_polls`, aprovada pelo usuário).
 27. [ ] loja 100% gratis
-27. [ ] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp)
+27. [x] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp). **Feito (2026-11-22):**
+    toda venda tem uma origem (PDV, Lançar venda antiga e Fechar comanda), com a padrão (Balcão) já
+    marcada. A lista é editável por empresa em Histórico de vendas › Origens da venda (gerente ou
+    dono: criar, renomear, escolher a padrão, excluir e reativar). O histórico de vendas tem a
+    coluna e o filtro por origem, o detalhe da venda mostra a origem, e o painel da loja e da
+    empresa tem a tabela "Por origem (este mês)" (vendas, faturamento, parte de cada uma, ticket
+    médio e lucro vendido). Vendas antigas ficam "Sem origem". Migration
+    `20261122000000_sale_channels` (aprovada pelo usuário). **Ideia para depois:** taxa de cada
+    aplicativo (o iFood cobra comissão) para mostrar o lucro líquido por origem.

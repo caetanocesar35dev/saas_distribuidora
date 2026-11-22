@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { storeApi } from "@/lib/api/client";
+import { companyApi, storeApi } from "@/lib/api/client";
 import type {
   CloseCommandTabBody,
   CommandItem,
@@ -10,6 +10,7 @@ import type {
   CreateSaleBody,
   MessageResponse,
   Sale,
+  SaleChannel,
   SalesPage,
   SalesQuery,
   TabStatus,
@@ -89,6 +90,73 @@ export function useCancelSale(storeId: string) {
   return useMutation({
     mutationFn: (id: string) => storeApi(storeId).post<Sale>(`/sales/${id}/cancel`),
     onSuccess: () => refresh(),
+  });
+}
+
+// ---- Origens da venda (balcão, iFood...) ----------------------------------------------------
+
+export const saleChannelKeys = {
+  all: (companyId: string) => ["company", companyId, "sale-channels"] as const,
+};
+
+/** Origens da empresa; a padrão vem primeiro. `deleted` lista só as excluídas. */
+export function useSaleChannels(companyId: string, deleted = false) {
+  return useQuery({
+    queryKey: [...saleChannelKeys.all(companyId), { deleted }],
+    queryFn: () =>
+      companyApi(companyId).get<SaleChannel[]>("/sale-channels", {
+        deleted: deleted || undefined,
+      }),
+    staleTime: 60_000,
+  });
+}
+
+/** Renomear muda o nome nas vendas, no filtro e no painel: recarrega tudo isso. */
+function useInvalidateChannels(companyId: string) {
+  const client = useQueryClient();
+  return async () => {
+    await client.invalidateQueries({ queryKey: saleChannelKeys.all(companyId) });
+    await client.invalidateQueries({ queryKey: ["store"] });
+    await client.invalidateQueries({ queryKey: ["dashboard"] });
+  };
+}
+
+export function useSaveSaleChannel(companyId: string) {
+  const invalidate = useInvalidateChannels(companyId);
+  return useMutation({
+    mutationFn: ({ id, name }: { id?: string; name: string }) =>
+      id
+        ? companyApi(companyId).patch<SaleChannel>(`/sale-channels/${id}`, { name })
+        : companyApi(companyId).post<SaleChannel>("/sale-channels", { name }),
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
+}
+
+export function useSetDefaultSaleChannel(companyId: string) {
+  const invalidate = useInvalidateChannels(companyId);
+  return useMutation({
+    mutationFn: (id: string) =>
+      companyApi(companyId).post<SaleChannel>(`/sale-channels/${id}/default`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteSaleChannel(companyId: string) {
+  const invalidate = useInvalidateChannels(companyId);
+  return useMutation({
+    mutationFn: (id: string) =>
+      companyApi(companyId).delete<MessageResponse>(`/sale-channels/${id}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestoreSaleChannel(companyId: string) {
+  const invalidate = useInvalidateChannels(companyId);
+  return useMutation({
+    mutationFn: (id: string) =>
+      companyApi(companyId).post<SaleChannel>(`/sale-channels/${id}/restore`),
+    onSuccess: invalidate,
   });
 }
 

@@ -165,6 +165,16 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   mesmo total. O lucro confere nas duas formas. Sem nome, continua "fardo".
 - [ ] Produto com fardo e sem preço próprio (ex.: cerveja): continua unidade × quantidade.
 - [ ] Vender em duas categorias, com desconto: o painel mostra "Por categoria (este mês)".
+- [ ] Origem da venda: no PDV, ao finalizar, "Balcão" já vem marcado; vender uma pelo iFood e uma
+  pelo WhatsApp. No Histórico de vendas aparecem na coluna Origem, e o filtro "Origem da venda" mostra
+  só as de cada uma. O detalhe da venda mostra "Origem: iFood". Vendas de antes aparecem como "Sem
+  origem".
+- [ ] Lançar venda antiga e fechar comanda também pedem a origem.
+- [ ] No Início (gerente ou dono) e no Painel da empresa: a tabela "Por origem (este mês)" mostra
+  vendas, faturamento, a barra com a parte de cada origem, o ticket médio e o lucro vendido.
+- [ ] Como gerente ou dono, em Histórico de vendas › Origens da venda: adicionar "Aiqfome", renomear,
+  tornar padrão (estrela; passa a vir marcada no PDV), tentar excluir a padrão (não tem lixeira),
+  excluir outra e reativar em "Mostrar só as excluídas". Como atendente, o botão não aparece.
 - [ ] Entrar como atendente: o filtro aparece, mas sem custo nem lucro.
 
 ## 9. Permissões (entrar com cada papel) 

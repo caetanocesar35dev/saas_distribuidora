@@ -64,6 +64,7 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
 const ALSO = [
   "PDV com leitor de código de barras e atalhos de teclado",
   "Comandas para quem consome no local",
+  "Origem de cada venda (balcão, WhatsApp, iFood, Zé Delivery) e quanto cada uma fatura",
   "Lançamento de venda antiga, para quando a internet cair",
   "Funciona no computador, no tablet e no celular",
   "Central de Dúvidas com o passo a passo de cada tela",

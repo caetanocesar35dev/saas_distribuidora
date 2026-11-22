@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **125 rotas**. Todas começam com `/api`.
+Total: **131 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -214,6 +214,12 @@ Total: **125 rotas**. Todas começam com `/api`.
 
 | Método | Rota | Quem pode | Em somente leitura |
 |---|---|---|---|
+| GET | `/api/companies/:companyId/sale-channels` | Empresa: EMPLOYEE ou mais | Funciona |
+| POST | `/api/companies/:companyId/sale-channels` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| DELETE | `/api/companies/:companyId/sale-channels/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| PATCH | `/api/companies/:companyId/sale-channels/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/sale-channels/:id/default` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/sale-channels/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/command-tabs` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/command-tabs` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/command-tabs/:id` | Loja: EMPLOYEE ou mais | Funciona |

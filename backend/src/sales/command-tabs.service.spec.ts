@@ -9,6 +9,7 @@ import {
 } from '../../test/helpers/service-module';
 import { World } from '../../test/helpers/factory';
 import { CommandTabsService } from './command-tabs.service';
+import { createDefaultSaleChannels } from './sale-channels';
 import { SalesService } from './sales.service';
 
 describe('CommandTabsService', () => {
@@ -272,6 +273,24 @@ describe('CommandTabsService', () => {
   });
 
   describe('fechar', () => {
+    it('a venda da comanda guarda a origem escolhida no fechamento (sem escolha, a padrão)', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+      const ifood = await ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: w.company.id, name: 'iFood' },
+      });
+      const a = await open('A');
+      await add(a.id, beer.id, 1);
+      expect((await close(a.id, { channelId: ifood.id })).channel).toEqual({
+        id: ifood.id,
+        name: 'iFood',
+      });
+      const b = await open('B');
+      await add(b.id, beer.id, 1);
+      expect((await close(b.id)).channel).toMatchObject({ name: 'Balcão' });
+    });
+
     it('embalagem com preço próprio: o total da comanda e da venda usam o preço de quando entrou', async () => {
       const cigarro = await ctx.factory.storeProduct(
         w.storeA.id,

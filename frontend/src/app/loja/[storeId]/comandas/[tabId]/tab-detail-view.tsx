@@ -96,6 +96,7 @@ function TabBody({ tab }: { tab: CommandTab }) {
     close.mutate(
       {
         paymentMethod: payload.paymentMethod,
+        channelId: payload.channelId,
         discount: payload.discount > 0 ? payload.discount : undefined,
         customerId: payload.customerId,
         bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,

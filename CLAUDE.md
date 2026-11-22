@@ -228,6 +228,18 @@ os campos é a extensão do Prisma).
   Detalhes em `docs/BANCO_DE_DADOS.md` §3.3. Tela: `CheckoutDialog` (lógica em
   `components/app/pos/bottle-checkout.ts`).
 
+**Origem da venda (decidido pelo usuário, 2026-11-22)**
+- Toda venda nova tem uma **origem** (`Sale.channelId` → `SaleChannel`): balcão, WhatsApp, iFood, Zé
+  Delivery etc. A lista é **editável por empresa** (criar, renomear, excluir, reativar e escolher a
+  padrão; gerente ou dono), como as categorias. Toda empresa nova começa com `DEFAULT_SALE_CHANNELS`
+  (`src/sales/sale-channels.ts`), com **Balcão como padrão** (`isDefault`, uma por empresa; a padrão
+  não pode ser excluída).
+- **Obrigatória, com a padrão já marcada:** PDV, Lançar venda antiga e fechamento de comanda escolhem a
+  origem; sem `channelId`, o backend usa a padrão. Vendas de antes da mudança ficam sem origem ("Sem
+  origem"). Excluir uma origem só a tira da escolha: as vendas antigas continuam com ela.
+- Aparece no histórico de vendas (coluna, detalhe e filtro `channelId`, `none` = sem origem) e nos
+  painéis da loja e da empresa (`byChannel`: vendas, faturamento, ticket médio e lucro vendido do mês).
+
 **Enquete nas notificações (decidido pelo usuário, 2026-11-18)**
 - A plataforma cria uma notificação do tipo **Enquete** (`POLL`) com 2 a 10 opções, **prazo para votar
   obrigatório** (`Notification.pollEndsAt`) e a escolha de aceitar **várias respostas**

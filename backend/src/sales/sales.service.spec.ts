@@ -14,6 +14,7 @@ import {
   resetManagerApprovalFailures,
   verifyManagerApproval,
 } from '../customers/manager-approval';
+import { createDefaultSaleChannels } from './sale-channels';
 import { SalesService } from './sales.service';
 
 describe('SalesService', () => {
@@ -1009,6 +1010,137 @@ describe('SalesService', () => {
       });
       expect(await bottleStock(w.storeB.id)).toBe(9);
       expect(await bottleDebt(customer.id, w.storeB.id)).toBeUndefined();
+    });
+  });
+
+  describe('origem da venda', () => {
+    const channel = (name: string) =>
+      ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: w.company.id, name },
+      });
+    beforeEach(async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+    });
+
+    it('sem escolha, a venda fica com a origem padrão (Balcão); com escolha, com a escolhida', async () => {
+      const balcao = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(balcao.channel).toMatchObject({ name: 'Balcão' });
+
+      const ifood = await channel('iFood');
+      const sale = await sell({
+        channelId: ifood.id,
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(sale.channel).toEqual({ id: ifood.id, name: 'iFood' });
+    });
+
+    it('recusa origem de outra empresa ou excluída, sem gravar a venda', async () => {
+      const other = await ctx.factory.world();
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, other.company.id),
+      );
+      const foreign = await ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: other.company.id },
+      });
+      await expect(
+        sell({
+          channelId: foreign.id,
+          items: [{ storeProductId: beer.id, quantity: 1 }],
+        }),
+      ).rejects.toThrow('Origem da venda não encontrada.');
+
+      const ze = await channel('Zé Delivery');
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.saleChannel.update({
+          where: { id: ze.id },
+          data: { deletedAt: new Date() },
+        }),
+      );
+      await expect(
+        sell({
+          channelId: ze.id,
+          items: [{ storeProductId: beer.id, quantity: 1 }],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(await stockOf(beer.id)).toBe(100);
+    });
+
+    it('a venda continua mostrando a origem excluída depois', async () => {
+      const ze = await channel('Zé Delivery');
+      const sale = await sell({
+        channelId: ze.id,
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.saleChannel.update({
+          where: { id: ze.id },
+          data: { deletedAt: new Date() },
+        }),
+      );
+      expect((await sales.get(w.storeA.id, sale.id)).channel).toEqual({
+        id: ze.id,
+        name: 'Zé Delivery',
+      });
+    });
+
+    it('a venda antiga também guarda a origem', async () => {
+      const whats = await channel('WhatsApp/Telefone');
+      const late = await ctx.asRequest(
+        () =>
+          sales.createLate(
+            w.storeA.id,
+            w.company.id,
+            w.owner.id,
+            {
+              paymentMethod: 'MONEY',
+              channelId: whats.id,
+              soldAt: new Date(Date.now() - 86_400_000).toISOString(),
+              items: [{ storeProductId: beer.id, quantity: 1 }],
+            },
+            'OWNER',
+          ),
+        {
+          userId: w.owner.id,
+          endpoint: 'POST /api/stores/:storeId/sales/late',
+        },
+      );
+      expect(late.channel).toMatchObject({ name: 'WhatsApp/Telefone' });
+    });
+
+    it('o histórico filtra por origem e pelas vendas sem origem', async () => {
+      const ifood = await channel('iFood');
+      // venda de antes de existir a origem
+      const semOrigem = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.sale.update({
+          where: { id: semOrigem.id },
+          data: { channelId: null },
+        }),
+      );
+      const doIfood = await sell({
+        channelId: ifood.id,
+        items: [{ storeProductId: beer.id, quantity: 2 }],
+      });
+      await sell({ items: [{ storeProductId: beer.id, quantity: 1 }] });
+
+      const page = { page: 1, limit: 20 };
+      const byIfood = await sales.list(w.storeA.id, {
+        ...page,
+        channelId: ifood.id,
+      });
+      expect(byIfood.data.map((s) => s.id)).toEqual([doIfood.id]);
+      expect(byIfood.meta.totalRevenue).toBe(20);
+      const none = await sales.list(w.storeA.id, {
+        ...page,
+        channelId: 'none',
+      });
+      expect(none.data.map((s) => s.id)).toEqual([semOrigem.id]);
     });
   });
 

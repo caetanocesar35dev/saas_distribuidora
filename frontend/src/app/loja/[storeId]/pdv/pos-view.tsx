@@ -229,6 +229,7 @@ export function PosView({ late = false }: { late?: boolean }) {
     setCheckoutError(null);
     const body: CreateSaleBody = {
       paymentMethod: payload.paymentMethod,
+      channelId: payload.channelId,
       customerId: payload.customerId,
       discount: payload.discount > 0 ? payload.discount : undefined,
       items: cart.map((l) => ({

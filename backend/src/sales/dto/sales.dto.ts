@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/swagger';
 import { PaymentMethod, SaleStatus } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -18,12 +19,16 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { NO_CHANNEL } from '../sale-channels';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+const toBoolean = ({ value }: { value: unknown }) =>
+  value === 'true' ? true : value === 'false' ? false : value;
 const normalizeEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 const MONEY = { maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false };
@@ -79,6 +84,11 @@ export class ManagerApprovalDto {
 export class CreateSaleDto {
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
+
+  /** Origem da venda (balcão, iFood...). Sem ela, vale a origem padrão da empresa. */
+  @IsOptional()
+  @IsUUID()
+  channelId?: string;
 
   @IsOptional()
   @IsUUID()
@@ -165,6 +175,12 @@ export class ListSalesQuery extends PaginationQueryDto {
   @IsUUID()
   userId?: string;
 
+  /** Id da origem, ou `none` para as vendas sem origem. */
+  @IsOptional()
+  @ValidateIf((_, value) => value !== NO_CHANNEL)
+  @IsUUID()
+  channelId?: string;
+
   /** Dia inicial (YYYY-MM-DD), no fuso da aplicação. */
   @IsOptional()
   @Matches(DATE_ONLY, {
@@ -213,6 +229,11 @@ export class CloseCommandTabDto {
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
 
+  /** Origem da venda. Sem ela, vale a origem padrão da empresa. */
+  @IsOptional()
+  @IsUUID()
+  channelId?: string;
+
   @IsOptional()
   @IsNumber(MONEY)
   @Min(0)
@@ -249,6 +270,26 @@ export class CloseCommandTabDto {
   @ValidateNested()
   @Type(() => ManagerApprovalDto)
   managerApproval?: ManagerApprovalDto;
+}
+
+// ---- Origens da venda -----------------------------------------------------------------------------
+
+export class CreateSaleChannelDto {
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'O nome da origem é obrigatório.' })
+  @MaxLength(50)
+  name: string;
+}
+
+export class UpdateSaleChannelDto extends PartialType(CreateSaleChannelDto) {}
+
+export class ListSaleChannelsQuery {
+  /** true lista só as origens excluídas (para reativar). */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  deleted?: boolean;
 }
 
 export class ListCommandTabsQuery {
