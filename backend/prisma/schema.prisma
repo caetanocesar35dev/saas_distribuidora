@@ -83,6 +83,7 @@ enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+  EXEMPT // isenta de mensalidade (parceira ou valor único), até exemptUntil (null = vitalícia)
 }
 
 enum BillingProvider {
@@ -227,9 +228,14 @@ model Organization {
   subscriptionStatus SubscriptionStatus @default(TRIAL)
   trialEndsAt        DateTime? // fim do trial, gravado no cadastro (createdAt + TRIAL_DAYS); a plataforma pode estender
   pastDueSince       DateTime? // quando a mensalidade venceu sem pagamento; null quando em dia. Base da carência
+  /// Conta isenta de mensalidade (EXEMPT): até quando vale. null = vitalícia.
+  exemptUntil        DateTime?
+  /// Por que é isenta (ex.: "Parceiro", "Vitalícia paga em 22/11/2026"). Só a plataforma vê.
+  exemptReason       String?
 
   // Acesso pela assinatura: TRIAL até trialEndsAt e ACTIVE = completo; PAST_DUE = completo até
   // pastDueSince + SUBSCRIPTION_GRACE_DAYS, depois somente leitura; CANCELED ou trial vencido = somente leitura.
+  // EXEMPT = completo até exemptUntil (null = sempre), depois somente leitura.
 
   // Cobrança no gateway (hoje só Asaas). Todos nulos = ainda não integrou (ex.: em TRIAL).
   billingProvider           BillingProvider?
@@ -1227,6 +1233,8 @@ model OrganizationHistory {
   subscriptionStatus        SubscriptionStatus
   trialEndsAt               DateTime?
   pastDueSince              DateTime?
+  exemptUntil               DateTime?
+  exemptReason              String?
   billingProvider           BillingProvider?
   billingMethod             BillingMethod?
   billingDocument           String?

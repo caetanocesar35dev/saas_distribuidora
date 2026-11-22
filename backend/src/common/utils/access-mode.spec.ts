@@ -99,6 +99,55 @@ describe('resolveAccessMode', () => {
     });
   });
 
+  describe('EXEMPT (isenta de mensalidade)', () => {
+    const exempt = (exemptUntil: Date | null) =>
+      resolveAccessMode(
+        {
+          subscriptionStatus: 'EXEMPT',
+          trialEndsAt: day(-30), // teste vencido não importa
+          pastDueSince: null,
+          exemptUntil,
+        },
+        NOW,
+        GRACE,
+      );
+
+    it('vitalícia (sem data limite): completo para sempre', () => {
+      expect(exempt(null)).toMatchObject({
+        accessMode: 'FULL',
+        reason: null,
+        exemptUntil: null,
+      });
+    });
+
+    it('dentro da data limite: completo, e devolve a data', () => {
+      const r = exempt(day(10));
+      expect(r.accessMode).toBe('FULL');
+      expect(r.exemptUntil).toEqual(day(10));
+    });
+
+    it('depois da data limite: somente leitura', () => {
+      expect(exempt(day(-1))).toMatchObject({
+        accessMode: 'READ_ONLY',
+        reason: 'EXEMPTION_EXPIRED',
+      });
+    });
+
+    it('a data limite só vale na situação Isenta', () => {
+      const r = resolveAccessMode(
+        {
+          subscriptionStatus: 'ACTIVE',
+          trialEndsAt: null,
+          pastDueSince: null,
+          exemptUntil: day(-1),
+        },
+        NOW,
+        GRACE,
+      );
+      expect(r).toMatchObject({ accessMode: 'FULL', exemptUntil: null });
+    });
+  });
+
   it('CANCELED: somente leitura', () => {
     const r = resolveAccessMode(
       { subscriptionStatus: 'CANCELED', trialEndsAt: null, pastDueSince: null },

@@ -12,9 +12,43 @@ function sub(partial: Partial<SubscriptionAccess>): SubscriptionAccess {
     trialEndsAt: null,
     pastDueSince: null,
     graceEndsAt: null,
+    exemptUntil: null,
     ...partial,
   };
 }
+
+describe("conta isenta de mensalidade", () => {
+  it("vitalícia, ou com a data limite longe: nenhum aviso", () => {
+    expect(subscriptionNotice(sub({ status: "EXEMPT" }), NOW)).toBeNull();
+    expect(
+      subscriptionNotice(sub({ status: "EXEMPT", exemptUntil: "2027-10-16T12:00:00Z" }), NOW),
+    ).toBeNull();
+  });
+
+  it("isenção acabando (até 15 dias): avisa para falar com o suporte", () => {
+    const notice = subscriptionNotice(
+      sub({ status: "EXEMPT", exemptUntil: "2026-10-26T12:00:00Z" }),
+      NOW,
+    );
+    expect(notice?.tone).toBe("warning");
+    expect(notice?.description).toContain("10 dias");
+    expect(notice?.description).toContain("suporte");
+  });
+
+  it("isenção vencida: somente leitura com o motivo", () => {
+    const notice = subscriptionNotice(
+      sub({
+        status: "EXEMPT",
+        accessMode: "READ_ONLY",
+        reason: "EXEMPTION_EXPIRED",
+        exemptUntil: "2026-10-01T12:00:00Z",
+      }),
+      NOW,
+    );
+    expect(notice?.tone).toBe("danger");
+    expect(notice?.description).toContain("isenção de mensalidade terminou");
+  });
+});
 
 describe("faixa de aviso da assinatura", () => {
   it("assinatura ativa não mostra nada", () => {

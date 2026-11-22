@@ -381,6 +381,7 @@ export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
   ACTIVE: "Ativa",
   PAST_DUE: "Pagamento em atraso",
   CANCELED: "Cancelada",
+  EXEMPT: "Isenta",
 };
 
 export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {

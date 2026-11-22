@@ -104,7 +104,8 @@ export async function signupByApi(name: string, referralCode?: string) {
   const [org] = await backend<{ id: string; name: string }[]>("GET", "/organizations/mine", {
     token: auth.access_token,
   });
-  return org;
+  // `token`: sessão do dono da conta nova, para conferir pela API o que ele vê.
+  return { ...org, token: auth.access_token };
 }
 
 /** Ajuste manual da assinatura pela plataforma (é como se simula atraso e somente leitura). */

@@ -13,6 +13,12 @@ test.describe("página de apresentação", () => {
     const planos = page.locator("#planos");
     await expect(planos.getByRole("heading", { name: "Essencial" })).toBeVisible();
     await expect(planos.getByRole("heading", { name: "Trial" })).toHaveCount(0);
+    // pagamento único, sem mensalidade: combinado pelo WhatsApp
+    await expect(planos.getByText("Prefere não pagar mensalidade?")).toBeVisible();
+    await expect(planos.getByRole("link", { name: "Falar no WhatsApp" })).toHaveAttribute(
+      "href",
+      /^https:\/\/wa\.me\/5531975623307\?text=.*pagamento%20%C3%BAnico/,
+    );
 
     await expect(page.getByRole("link", { name: "Falar no WhatsApp" }).first()).toHaveAttribute(
       "href",
@@ -38,7 +44,8 @@ test.describe("página de apresentação", () => {
 
   test("a Central de Dúvidas mostra os canais de contato", async ({ page }) => {
     await page.goto("/duvidas");
-    await expect(page.getByRole("link", { name: /WhatsApp/ })).toHaveAttribute(
+    // o número no nome: o título de um artigo também cita o WhatsApp
+    await expect(page.getByRole("link", { name: /WhatsApp \(31\)/ })).toHaveAttribute(
       "href",
       /^https:\/\/wa\.me\/5531975623307/,
     );

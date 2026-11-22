@@ -154,6 +154,24 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
           })
         ).planId;
 
+      it('conta isenta não troca de plano sozinha (só a plataforma)', async () => {
+        await ctx.audit.runAsSystem('seed', () =>
+          ctx.prisma.organization.update({
+            where: { id: w.organization.id },
+            data: { subscriptionStatus: 'EXEMPT', exemptUntil: null },
+          }),
+        );
+        const before = await planOf();
+        const rede = await ctx.factory.plan({ priceInCents: 59900 });
+        await expect(change(rede.id)).rejects.toThrow(/isenta de mensalidade/);
+        expect(await planOf()).toBe(before);
+        const [org] = await organizations.mine(w.owner.id);
+        expect(org).toMatchObject({
+          subscriptionStatus: 'EXEMPT',
+          exemptUntil: null,
+        });
+      });
+
       it('a listagem traz quantas lojas cada empresa tem', async () => {
         const [org] = await organizations.mine(w.owner.id);
         expect(org.companies[0].storeCount).toBe(2);

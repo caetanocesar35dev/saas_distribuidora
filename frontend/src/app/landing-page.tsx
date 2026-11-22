@@ -18,7 +18,12 @@ import {
 } from "@/components/app/contact-channels";
 import { LinkButton } from "@/components/app/link-button";
 import { buttonVariants } from "@/components/ui/button";
-import { INSTAGRAM_URL, SALES_MESSAGE, whatsappUrl } from "@/content/contact";
+import {
+  INSTAGRAM_URL,
+  LIFETIME_MESSAGE,
+  SALES_MESSAGE,
+  whatsappUrl,
+} from "@/content/contact";
 import type { Plan } from "@/lib/api/types";
 import { formatCents } from "@/lib/format";
 import { planLimits } from "@/lib/plans";
@@ -115,6 +120,11 @@ const FAQ = [
     question: "Posso vender outros produtos além de bebidas?",
     answer:
       "Pode. Cigarro, salgadinho, gelo, carvão e outros itens são cadastrados como qualquer produto. O vasilhame é opcional, só para o que tem retorno.",
+  },
+  {
+    question: "Dá para não pagar mensalidade?",
+    answer:
+      "Dá. Além dos planos mensais, você pode pagar um valor único e ficar isento da mensalidade. O valor e as condições são combinados pelo WhatsApp do suporte.",
   },
   {
     question: "Posso mudar de plano ou cancelar depois?",
@@ -339,7 +349,21 @@ export function LandingPage({ plans }: { plans: Plan[] }) {
               grátis valem para qualquer um.
             </p>
             <Plans plans={plans} />
-            <p className="mt-6 rounded-xl bg-primary/10 px-4 py-3 text-sm">
+            <div className="mt-6 flex flex-col gap-3 rounded-xl border bg-card px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                <strong className="font-semibold">Prefere não pagar mensalidade?</strong> Pague um
+                valor único e fique isento da mensalidade. Fale com o suporte para saber o valor.
+              </p>
+              <a
+                href={whatsappUrl(LIFETIME_MESSAGE)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ variant: "outline" }), "shrink-0")}
+              >
+                <WhatsAppIcon /> Falar no WhatsApp
+              </a>
+            </div>
+            <p className="mt-3 rounded-xl bg-primary/10 px-4 py-3 text-sm">
               <strong className="font-semibold">Foi indicado por alguém?</strong> Cadastre-se com o
               código de indicação e ganhe 20% de desconto nos 2 primeiros meses depois do teste.
             </p>

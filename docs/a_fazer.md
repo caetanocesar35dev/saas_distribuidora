@@ -316,7 +316,15 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       não votou só depois do prazo; a plataforma vê os totais na lista, sem saber quem votou em quê.
       Tabelas novas `tb_notification_poll_options` e `tb_notification_poll_votes` (migration
       `20261118000000_notification_polls`, aprovada pelo usuário).
-27. [ ] loja 100% gratis
+27. [x] loja 100% gratis. **Feito (2026-11-22):** situação **Isenta** da assinatura, posta pela
+    plataforma em Organizações › Ajustar a assinatura: plano escolhido (ex.: Básico, os limites
+    valem), data limite ou "Acesso vitalício", e motivo (só a plataforma vê). Acesso completo sem
+    cobrança; passou da data, somente leitura. A isenta não troca de plano sozinha e não confirma
+    indicação. A tela Assinatura mostra "Isenta até ..." ou "acesso vitalício" e avisa 15 dias antes
+    do fim. A página de apresentação oferece o **pagamento único sem mensalidade** pelo WhatsApp.
+    Migration `20261122010000_subscription_exempt` (aprovada pelo usuário). **Ideias para depois:**
+    e-mail avisando o fim da isenção (como o do fim do teste); na Fase 10 (Asaas), nunca criar
+    cobrança para a isenta.
 27. [x] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp). **Feito (2026-11-22):**
     toda venda tem uma origem (PDV, Lançar venda antiga e Fechar comanda), com a padrão (Balcão) já
     marcada. A lista é editável por empresa em Histórico de vendas › Origens da venda (gerente ou

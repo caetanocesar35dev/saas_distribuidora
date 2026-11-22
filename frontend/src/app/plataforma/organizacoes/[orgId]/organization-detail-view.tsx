@@ -10,6 +10,7 @@ import { SelectField } from "@/components/app/inputs";
 import { PlatformActionButton } from "@/components/app/platform-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -36,6 +37,7 @@ import {
   SUBSCRIPTION_STATUS_LABEL,
   todayString,
 } from "@/lib/format";
+import { exemptionChanges, exemptionLabel } from "@/lib/exemption";
 import { REFERRAL_STATUS_LABEL } from "@/lib/referral";
 import { StatusBadge } from "../organizations-view";
 
@@ -49,8 +51,21 @@ function AdjustForm({ org }: { org: PlatformOrganization }) {
   const [planId, setPlanId] = useState(org.plan.id);
   const [trialEnd, setTrialEnd] = useState(toDay(org.trialEndsAt));
   const [pastDue, setPastDue] = useState(toDay(org.pastDueSince));
+  // Isenta: data limite ou vitalícia (decidido pelo usuário, 2026-11-22).
+  const wasExempt = org.subscriptionStatus === "EXEMPT";
+  const [lifetime, setLifetime] = useState(wasExempt && org.exemptUntil === null);
+  const [exemptUntil, setExemptUntil] = useState(toDay(org.exemptUntil));
+  const [exemptReason, setExemptReason] = useState(org.exemptReason ?? "");
+  const exemption =
+    status === "EXEMPT"
+      ? exemptionChanges(
+          { lifetime, until: exemptUntil, reason: exemptReason },
+          { wasExempt, exemptUntil: org.exemptUntil, exemptReason: org.exemptReason },
+          todayString(),
+        )
+      : null;
 
-  const body: UpdateOrganizationBody = {};
+  const body: UpdateOrganizationBody = { ...exemption?.body };
   if (status !== org.subscriptionStatus) body.subscriptionStatus = status;
   if (planId !== org.plan.id) body.planId = planId;
   if (trialEnd !== toDay(org.trialEndsAt)) {
@@ -60,13 +75,14 @@ function AdjustForm({ org }: { org: PlatformOrganization }) {
     body.pastDueSince = pastDue ? dayEndIso(pastDue) : null;
   }
   const changed = Object.keys(body).length > 0;
+  const blocked = exemption?.error ?? null;
 
   return (
     <form
       className="max-w-xl space-y-4 rounded-xl border bg-card p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!changed) return;
+        if (!changed || blocked) return;
         update.mutate(body, { onSuccess: () => toast.success("Assinatura ajustada.") });
       }}
     >
@@ -131,7 +147,46 @@ function AdjustForm({ org }: { org: PlatformOrganization }) {
           </div>
         </FormField>
       </div>
-      <PlatformActionButton type="submit" disabled={!changed || update.isPending}>
+      {status === "EXEMPT" && (
+        <fieldset className="space-y-3 rounded-lg border bg-muted/30 p-3">
+          <legend className="px-1 text-sm font-medium">Isenção de mensalidade</legend>
+          <p className="text-xs text-muted-foreground">
+            Parceira ou que pagou um valor único: acesso completo sem cobrança, com os limites do
+            plano escolhido acima. Ela não troca de plano sozinha, e a isenção não confirma
+            indicação. Passada a data limite, a conta fica somente para consulta.
+          </p>
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+            <Checkbox checked={lifetime} onCheckedChange={setLifetime} />
+            Acesso vitalício (sem data limite)
+          </label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <FormField label="Isenta até" htmlFor="adj-exempt-until">
+              <Input
+                id="adj-exempt-until"
+                type="date"
+                value={lifetime ? "" : exemptUntil}
+                min={todayString()}
+                disabled={lifetime}
+                onChange={(e) => setExemptUntil(e.target.value)}
+              />
+            </FormField>
+            <FormField
+              label="Motivo (só a plataforma vê)"
+              htmlFor="adj-exempt-reason"
+              hint="Ex.: Parceiro; Vitalícia paga em 22/11/2026, R$ 1.500."
+            >
+              <Input
+                id="adj-exempt-reason"
+                maxLength={300}
+                value={exemptReason}
+                onChange={(e) => setExemptReason(e.target.value)}
+              />
+            </FormField>
+          </div>
+          {blocked && <p className="text-xs text-destructive">{blocked}</p>}
+        </fieldset>
+      )}
+      <PlatformActionButton type="submit" disabled={!changed || !!blocked || update.isPending}>
         {update.isPending ? "Salvando..." : "Salvar ajuste"}
       </PlatformActionButton>
     </form>
@@ -151,8 +206,14 @@ function OrganizationBody({ org }: { org: PlatformOrganization }) {
           </div>
           <div>
             <dt className="text-muted-foreground">Situação</dt>
-            <dd>
+            <dd className="flex flex-wrap items-center gap-2">
               <StatusBadge status={org.subscriptionStatus} />
+              {org.subscriptionStatus === "EXEMPT" && (
+                <span className="text-muted-foreground">
+                  {exemptionLabel(org.exemptUntil)}
+                  {org.exemptReason && ` · ${org.exemptReason}`}
+                </span>
+              )}
             </dd>
           </div>
           <div>

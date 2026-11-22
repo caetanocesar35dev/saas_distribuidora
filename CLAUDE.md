@@ -142,6 +142,17 @@ os campos é a extensão do Prisma).
   Trial) não pode ser escolhido na troca. Liberado em somente leitura. A plataforma continua
   podendo pôr qualquer plano (ajuste manual, sem essa conferência).
 
+**Conta isenta de mensalidade (decidido pelo usuário, 2026-11-22)**
+- A plataforma pode pôr uma organização na situação **Isenta** (`SubscriptionStatus.EXEMPT`): parceira
+  ou que pagou um **valor único** (vendido pelo WhatsApp do suporte; a página de apresentação avisa).
+  Acesso completo, sem cobrança, com o **plano que a plataforma escolheu** (os limites de empresas e
+  lojas continuam valendo). Campos `exemptUntil` (data limite; **null = vitalícia**, checkbox na
+  tela) e `exemptReason` (motivo, só a plataforma vê).
+- Passou de `exemptUntil`: **somente leitura** (motivo `EXEMPTION_EXPIRED`), como o teste vencido, até
+  assinar ou a plataforma mudar a situação.
+- A isenta **não troca de plano sozinha** (só a plataforma) e **não confirma indicação** (a
+  recompensa é pela 1ª mensalidade paga).
+
 **Indicação e descontos (decidido pelo usuário, 2026-10-30)**
 - Dois jeitos de indicar: o **cliente** (o responsável pela assinatura, pelo código da organização,
   na tela "Indique e ganhe" do menu do usuário, `/indique`) e o **representante** (não usa o

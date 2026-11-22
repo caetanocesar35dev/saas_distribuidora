@@ -8,6 +8,8 @@ export const READ_ONLY_MESSAGE: Record<ReadOnlyReason, string> = {
     "A mensalidade está em atraso. O sistema está somente para consulta até o pagamento ser regularizado.",
   CANCELED:
     "A assinatura foi cancelada. O sistema está somente para consulta.",
+  EXEMPTION_EXPIRED:
+    "A isenção de mensalidade terminou. O sistema está somente para consulta até a assinatura ser feita.",
 };
 
 /** Motivo curto, para a faixa do topo (que já diz que o sistema está somente para consulta). */
@@ -15,7 +17,11 @@ const READ_ONLY_REASON: Record<ReadOnlyReason, string> = {
   TRIAL_EXPIRED: "O período de teste terminou.",
   PAST_DUE: "A mensalidade está em atraso.",
   CANCELED: "A assinatura foi cancelada.",
+  EXEMPTION_EXPIRED: "A isenção de mensalidade terminou.",
 };
+
+/** Avisa que a isenção com data limite está acabando (vitalícia não avisa). */
+const EXEMPTION_WARNING_DAYS = 15;
 
 export interface SubscriptionNotice {
   tone: "info" | "warning" | "danger";
@@ -42,6 +48,16 @@ export function subscriptionNotice(
       description: sub.graceEndsAt
         ? `Regularize a mensalidade: o sistema ficará somente para consulta em ${formatDate(sub.graceEndsAt)}.`
         : "Regularize a mensalidade para não perder o acesso completo.",
+    };
+  }
+  if (sub.status === "EXEMPT" && sub.exemptUntil) {
+    const days = daysUntil(sub.exemptUntil, now);
+    if (days > EXEMPTION_WARNING_DAYS) return null;
+    const text = days <= 1 ? "termina hoje ou amanhã" : `termina em ${days} dias`;
+    return {
+      tone: "warning",
+      title: "Isenção de mensalidade",
+      description: `Sua isenção ${text} (${formatDate(sub.exemptUntil)}). Para continuar, fale com o suporte.`,
     };
   }
   if (sub.status === "TRIAL" && sub.trialEndsAt) {

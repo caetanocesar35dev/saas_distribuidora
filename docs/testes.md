@@ -228,6 +228,17 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Abrir uma organização: as lojas excluídas aparecem com a data, e a seção Pessoas mostra quem
   tem acesso, quem foi removido e as contas desativadas.
 - [x] Em Planos, excluir um plano sem uso, marcar "Mostrar os planos excluídos" e Reativar.
+- [ ] Conta isenta: numa organização de teste, Ajustar a assinatura › Situação "Isenta", Plano
+  "Básico". Sem data e sem "Acesso vitalício" o Salvar fica apagado. Marcar vitalício, escrever o
+  motivo e salvar: o resumo mostra "Isenta (vitalícia) · motivo". Entrar como o dono dela: em
+  Assinatura aparece "Isenta (acesso vitalício)", o plano Básico e nenhum botão de troca de plano;
+  vender funciona normalmente.
+- [ ] Isenta com data limite daqui a 10 dias: o dono vê o aviso "Sua isenção termina em 10 dias".
+  Pôr a data para amanhã e, no dia seguinte, o sistema fica somente para consulta com "A isenção de
+  mensalidade terminou".
+- [ ] Na página de apresentação (`/`), abaixo dos planos: "Prefere não pagar mensalidade?" com o
+  botão do WhatsApp (mensagem sobre o pagamento único); e a pergunta "Dá para não pagar
+  mensalidade?" no fim.
 
 ## 10a. Indicação e descontos
 

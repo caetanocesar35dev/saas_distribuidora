@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { PASSWORD } from "./api";
+import { backend, PASSWORD, signupByApi } from "./api";
 import { trackPageErrors } from "./helpers";
 import { STATE } from "./session";
 
@@ -33,12 +33,63 @@ test.describe("área da plataforma", () => {
     await page.getByRole("button", { name: "Salvar ajuste" }).click();
     await expect(page.getByText("Assinatura ajustada.")).toBeVisible();
     // a data de atraso é preenchida sozinha ao entrar em atraso
-    await expect(page.locator("dl")).toContainText(/Em atraso desde\s*\d{2}\/\d{2}\/\d{4}/);
+    // a primeira lista é o resumo (a segunda é a da indicação)
+    await expect(page.locator("dl").first()).toContainText(
+      /Em atraso desde\s*\d{2}\/\d{2}\/\d{4}/,
+    );
 
     await page.getByLabel("Situação").click();
     await page.getByRole("option", { name: "Em teste" }).click();
     await page.getByRole("button", { name: "Salvar ajuste" }).click();
     await expect(page.getByText("Assinatura ajustada.")).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("conta isenta: vitalícia com o plano combinado; o dono não troca de plano", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const name = `Parceira E2E ${Date.now() % 100000}`;
+    const org = await signupByApi(name);
+
+    await page.goto("/plataforma/organizacoes");
+    await page.getByPlaceholder(/Nome da organização/).fill(name);
+    await page.getByRole("row", { name: new RegExp(name) }).getByRole("link", { name: "Abrir" }).click();
+    await page.waitForURL(/\/organizacoes\//);
+
+    await page.getByLabel("Situação").click();
+    await page.getByRole("option", { name: "Isenta" }).click();
+    await page.getByLabel("Plano").click();
+    await page.getByRole("option", { name: "Básico" }).click();
+    // sem data limite e sem vitalícia, não salva
+    await expect(
+      page.getByText("Escolha a data limite da isenção ou marque Vitalícia."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Salvar ajuste" })).toBeDisabled();
+    await page.getByRole("checkbox", { name: "Acesso vitalício (sem data limite)" }).click();
+    await expect(page.getByLabel("Isenta até")).toBeDisabled();
+    await page.getByLabel("Motivo (só a plataforma vê)").fill("Parceiro E2E");
+    await page.getByRole("button", { name: "Salvar ajuste" }).click();
+    await expect(page.getByText("Assinatura ajustada.")).toBeVisible();
+    await expect(page.locator("dl").first()).toContainText("Isenta (vitalícia) · Parceiro E2E");
+
+    // o dono vê a conta isenta, com o plano combinado, e não consegue trocar de plano sozinho
+    const [mine] = await backend<
+      { subscriptionStatus: string; exemptUntil: string | null; plan: { name: string } }[]
+    >("GET", "/organizations/mine", { token: org.token });
+    expect(mine).toMatchObject({
+      subscriptionStatus: "EXEMPT",
+      exemptUntil: null,
+      plan: { name: "Básico" },
+    });
+    const plans = await backend<{ id: string; name: string }[]>("GET", "/plans");
+    const rede = plans.find((p) => p.name === "Rede")!;
+    await expect(
+      backend("PATCH", `/organizations/${org.id}/plan`, {
+        token: org.token,
+        body: { planId: rede.id },
+      }),
+    ).rejects.toThrow(/isenta de mensalidade/);
     expect(errors).toEqual([]);
   });
 

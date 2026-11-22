@@ -22,10 +22,11 @@ export type BottleMovementType =
   | "SUPPLIER_RECEIVE"
   | "MANUAL_ADJUSTMENT";
 export type ManualBottleMovementType = "SUPPLIER_SEND" | "SUPPLIER_RECEIVE" | "MANUAL_ADJUSTMENT";
-export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
+/** EXEMPT = isenta de mensalidade (parceira ou valor único), até `exemptUntil` (null = vitalícia). */
+export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXEMPT";
 export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT" | "POLL";
 export type AccessMode = "FULL" | "GRACE" | "READ_ONLY";
-export type ReadOnlyReason = "TRIAL_EXPIRED" | "PAST_DUE" | "CANCELED";
+export type ReadOnlyReason = "TRIAL_EXPIRED" | "PAST_DUE" | "CANCELED" | "EXEMPTION_EXPIRED";
 
 // ---- Genéricos -------------------------------------------------------------------------------
 
@@ -120,6 +121,8 @@ export interface SubscriptionAccess {
   trialEndsAt: string | null;
   pastDueSince: string | null;
   graceEndsAt: string | null;
+  /** Conta isenta: até quando (null = vitalícia, ou não é isenta). */
+  exemptUntil: string | null;
 }
 
 export interface MembershipStoreView {
@@ -238,6 +241,8 @@ export interface OrganizationSummary {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  /** Conta isenta: até quando (null = vitalícia). */
+  exemptUntil: string | null;
   plan: {
     id: string;
     name: string;
@@ -913,6 +918,7 @@ export interface PlatformOrganizationRow {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  exemptUntil: string | null;
   createdAt: string;
   plan: { id: string; name: string };
   owner: { id: string; name: string; email: string };
@@ -925,6 +931,9 @@ export interface PlatformOrganization {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  /** Isenta: até quando (null = vitalícia) e por quê (só a plataforma vê). */
+  exemptUntil: string | null;
+  exemptReason: string | null;
   billingProvider: string | null;
   billingMethod: string | null;
   createdAt: string;
@@ -969,6 +978,9 @@ export interface UpdateOrganizationBody {
   planId?: string;
   trialEndsAt?: string | null;
   pastDueSince?: string | null;
+  /** Só na situação Isenta: data limite (null = vitalícia) e motivo. */
+  exemptUntil?: string | null;
+  exemptReason?: string | null;
 }
 
 export interface PlatformUser {

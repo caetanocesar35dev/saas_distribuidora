@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -183,6 +184,7 @@ export class PlatformService {
           subscriptionStatus: true,
           trialEndsAt: true,
           pastDueSince: true,
+          exemptUntil: true,
           createdAt: true,
           plan: { select: { id: true, name: true } },
           owner: { select: { id: true, name: true, email: true } },
@@ -209,6 +211,8 @@ export class PlatformService {
         subscriptionStatus: true,
         trialEndsAt: true,
         pastDueSince: true,
+        exemptUntil: true,
+        exemptReason: true,
         billingProvider: true,
         billingMethod: true,
         createdAt: true,
@@ -302,10 +306,28 @@ export class PlatformService {
   /**
    * Ajuste manual da assinatura. Mantém `pastDueSince` coerente: marca o início do atraso ao
    * entrar em PAST_DUE e limpa ao sair dele (a carência é contada a partir dessa data).
+   * Isenta (EXEMPT): `exemptUntil` (null = vitalícia) e `exemptReason` só valem nela e são
+   * limpos ao sair dela; a isenção não confirma indicação (não é mensalidade paga).
    */
-  async updateOrganization(id: string, dto: UpdateOrganizationDto) {
+  async updateOrganization(
+    id: string,
+    dto: UpdateOrganizationDto,
+    now = new Date(),
+  ) {
     const org = await this.prisma.organization.findFirst({ where: { id } });
     if (!org) throw new NotFoundException('Organização não encontrada.');
+
+    const finalStatus = dto.subscriptionStatus ?? org.subscriptionStatus;
+    const exemptFields =
+      dto.exemptUntil !== undefined || dto.exemptReason !== undefined;
+    if (exemptFields && finalStatus !== 'EXEMPT')
+      throw new BadRequestException(
+        'Data limite e motivo da isenção só valem na situação Isenta.',
+      );
+    if (dto.exemptUntil && dto.exemptUntil.getTime() <= now.getTime())
+      throw new BadRequestException(
+        'A data limite da isenção precisa ser no futuro. Para isenção sem prazo, marque Vitalícia.',
+      );
     if (dto.planId) {
       const plan = await this.prisma.plan.findFirst({
         where: { id: dto.planId },
@@ -329,6 +351,16 @@ export class PlatformService {
       }
     }
     if (dto.pastDueSince !== undefined) data.pastDueSince = dto.pastDueSince;
+
+    if (finalStatus === 'EXEMPT') {
+      if (dto.exemptUntil !== undefined) data.exemptUntil = dto.exemptUntil;
+      if (dto.exemptReason !== undefined)
+        data.exemptReason = dto.exemptReason?.trim() || null;
+    } else if (org.subscriptionStatus === 'EXEMPT') {
+      // Saiu da isenção: os campos dela ficam só no histórico.
+      data.exemptUntil = null;
+      data.exemptReason = null;
+    }
 
     const confirmed = await this.prisma.$transaction(async (tx) => {
       await tx.organization.update({ where: { id }, data });

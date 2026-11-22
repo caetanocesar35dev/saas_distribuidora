@@ -17,6 +17,8 @@ const REASON_MESSAGES: Record<string, string> = {
     'A mensalidade está em atraso. O sistema está em modo somente leitura até o pagamento.',
   CANCELED:
     'A assinatura foi cancelada. O sistema está em modo somente leitura.',
+  EXEMPTION_EXPIRED:
+    'A isenção de mensalidade terminou. O sistema está em modo somente leitura até a assinatura ser feita.',
 };
 
 /**
