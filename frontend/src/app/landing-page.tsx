@@ -22,6 +22,7 @@ import { INSTAGRAM_URL, SALES_MESSAGE, whatsappUrl } from "@/content/contact";
 import type { Plan } from "@/lib/api/types";
 import { formatCents } from "@/lib/format";
 import { planLimits } from "@/lib/plans";
+import { jsonLd, landingStructuredData, siteUrl } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 const SIGNUP = "/cadastro";
@@ -207,8 +208,19 @@ function Plans({ plans }: { plans: Plan[] }) {
 
 /** Página pública de apresentação (`/`). Quem já está logado é levado direto para a loja. */
 export function LandingPage({ plans }: { plans: Plan[] }) {
+  const structuredData = landingStructuredData({
+    url: siteUrl(),
+    plans,
+    faq: FAQ,
+    sameAs: [INSTAGRAM_URL],
+  });
   return (
     <div className="min-h-screen bg-background">
+      {/* Dados estruturados (schema.org) para os buscadores; não aparecem na tela. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }}
+      />
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
           <Link href="/" aria-label="Início" className="min-w-0">

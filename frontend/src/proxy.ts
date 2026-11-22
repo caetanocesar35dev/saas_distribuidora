@@ -15,6 +15,8 @@ const PUBLIC_PATHS = [
   "/duvidas",
   "/termos",
   "/privacidade",
+  // Imagem de compartilhamento (WhatsApp, redes sociais): o robô que a busca não tem sessão.
+  "/opengraph-image",
 ];
 // Quem já está logado não precisa ver estas telas (redefinir-senha e dúvidas continuam abertas).
 const GUEST_ONLY = ["/", "/login", "/cadastro", "/esqueci-a-senha"];

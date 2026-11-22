@@ -99,6 +99,7 @@ enum NotificationType {
   UPDATE // notas de atualização do sistema
   MAINTENANCE
   ALERT
+  POLL // enquete: tem opções, prazo para votar e resultado
 }
 
 enum ReferralStatus {
@@ -134,13 +135,14 @@ model User {
 
   memberships Membership[]
 
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  sales                Sale[]             @relation("SaleSeller")
-  creditApprovedSales  Sale[]             @relation("SaleCreditApprover")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  sales                Sale[]                 @relation("SaleSeller")
+  creditApprovedSales  Sale[]                 @relation("SaleCreditApprover")
   organizations        Organization[]
-  notificationsCreated Notification[]     @relation("NotificationsCreated")
+  notificationsCreated Notification[]         @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
+  notificationVotes    NotificationPollVote[]
   refreshTokens        RefreshToken[]
 
   // Auditoria
@@ -357,11 +359,11 @@ model MembershipStore {
 /// Catálogo "mestre" do produto — pertence à Company. Compartilhado entre lojas,
 /// evita recadastro quando o mesmo produto é vendido em mais de uma loja.
 model Product {
-  id           String @id @default(uuid())
+  id           String  @id @default(uuid())
   companyId    String
   code         String
   name         String
-  packQuantity Int    @default(1)
+  packQuantity Int     @default(1)
   /// Nome da embalagem na tela (caixa, pacote, display...). null = "fardo". Só muda o texto: a conta
   /// continua em unidades, com `packQuantity`.
   packName     String?
@@ -862,10 +864,16 @@ model Notification {
   publishedAt DateTime  @default(now()) // pode ser futuro = notificação agendada
   expiresAt   DateTime? // null = nunca expira
 
+  // Enquete (type = POLL): prazo para votar (obrigatório) e se aceita mais de uma resposta.
+  pollEndsAt   DateTime?
+  pollMultiple Boolean   @default(false)
+
   createdByUserId String
   createdBy       User   @relation("NotificationsCreated", fields: [createdByUserId], references: [id])
 
-  reads NotificationRead[]
+  reads       NotificationRead[]
+  pollOptions NotificationPollOption[]
+  pollVotes   NotificationPollVote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -896,6 +904,50 @@ model NotificationRead {
   @@id([notificationId, userId])
   @@index([userId])
   @@map("tb_notification_reads")
+}
+
+/// Opção de uma enquete (notificação do tipo POLL), na ordem de `position`.
+model NotificationPollOption {
+  id             String @id @default(uuid())
+  notificationId String
+  label          String
+  position       Int
+
+  notification Notification           @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  votes        NotificationPollVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@index([notificationId])
+  @@map("tb_notification_poll_options")
+}
+
+/// Voto de um usuário numa opção. Trocar o voto exclui (soft delete) a linha antiga; votar de novo
+/// na mesma opção reativa a linha. A tela da plataforma mostra só os totais, nunca quem votou.
+model NotificationPollVote {
+  optionId       String
+  userId         String
+  notificationId String // repetido da opção, para contar quem votou na enquete
+  votedAt        DateTime @default(now())
+
+  option       NotificationPollOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+  notification Notification           @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@id([optionId, userId])
+  @@index([notificationId, userId])
+  @@map("tb_notification_poll_votes")
 }
 
 // ============================================================
@@ -1586,6 +1638,8 @@ model NotificationHistory {
   type            NotificationType
   publishedAt     DateTime
   expiresAt       DateTime?
+  pollEndsAt      DateTime?
+  pollMultiple    Boolean          @default(false)
   createdByUserId String
   createdAt       DateTime
 
@@ -1613,6 +1667,41 @@ model NotificationReadHistory {
 
   @@index([notificationId, userId, historyEnd], map: "ix_th_notification_read_history_vigente")
   @@map("th_notification_read_history")
+}
+
+model NotificationPollOptionHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  notificationId String
+  label          String
+  position       Int
+  createdAt      DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_notification_poll_option_history_vigente")
+  @@map("th_notification_poll_option_history")
+}
+
+model NotificationPollVoteHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  optionId       String
+  userId         String
+  notificationId String
+  votedAt        DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([optionId, userId, historyEnd], map: "ix_th_notification_poll_vote_history_vigente")
+  @@map("th_notification_poll_vote_history")
 }
 
 /// Sem payload: o corpo é imutável e já fica em tb_billing_events.

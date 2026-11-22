@@ -1,17 +1,24 @@
 import type { Metadata } from "next";
 import type { Plan } from "@/lib/api/types";
 import { choosablePlans } from "@/lib/plans";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/seo";
 import { API_URL } from "@/lib/server/config";
 import { LandingPage } from "./landing-page";
 
-const TITLE = "Minha Distribuidora Online: sistema para distribuidora de bebidas";
-const DESCRIPTION =
-  "Sistema feito para distribuidoras e depósitos de bebidas: PDV, caixa, estoque, comandas, controle de vasilhame e fiado, em uma ou várias lojas. Teste grátis por 14 dias, sem cartão.";
+const TITLE = `${SITE_NAME}: sistema para distribuidora de bebidas`;
 
 export const metadata: Metadata = {
   title: { absolute: TITLE },
-  description: DESCRIPTION,
-  openGraph: { title: TITLE, description: DESCRIPTION, type: "website", locale: "pt_BR" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+  openGraph: {
+    title: TITLE,
+    description: SITE_DESCRIPTION,
+    url: "/",
+    siteName: SITE_NAME,
+    type: "website",
+    locale: "pt_BR",
+  },
 };
 
 // Os preços vêm do banco; a página fica pronta e é refeita a cada 5 minutos.

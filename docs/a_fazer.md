@@ -292,6 +292,29 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     Só na tela: o backend já recebia a lista de lojas. Vale para as lojas ativas no momento do
     convite; as criadas depois só entram sozinhas para o gerente geral.
 
-24. [ ] SEO
+24. [ ] SEO. **Feito (2026-11-18):** `robots.txt` (bloqueia a área logada, `/api/` e as telas de
+    senha), `sitemap.xml` (apresentação, cadastro, Central de Dúvidas com cada artigo, termos e
+    privacidade; os artigos da Plataforma ficam fora e com `noindex`), endereço canônico em cada
+    página pública (`/login?next=` e `/cadastro?ref=` apontam para a página sem o parâmetro),
+    descrição em cada uma, imagem de compartilhamento gerada (`app/opengraph-image.tsx`, usada pelo
+    WhatsApp e redes sociais) e dados estruturados na apresentação (empresa, sistema com o preço de
+    cada plano e perguntas frequentes). Regras em `src/lib/seo.ts`. **Falta (com o usuário):**
+    - Comprar o domínio e preencher `SITE_URL` no ambiente do frontend (também no build).
+    - Com o site no ar, cadastrar o domínio no **Google Search Console**, confirmar a posse e
+      enviar `https://<domínio>/sitemap.xml`. Conferir a apresentação no Teste de pesquisa
+      aprimorada (https://search.google.com/test/rich-results).
+    - Opcional: um ícone próprio (`app/icon.svg`) para aparecer ao lado do site no Google, e o
+      título principal da apresentação citar "sistema para distribuidora de bebidas" (hoje só o
+      título da aba e a imagem citam).
 25. [ ] CACHE
-26. [ ] votacao nas notificacoes e marcar todas como lidas
+26. [x] votacao nas notificacoes e marcar todas como lidas. **Feito (2026-11-18):**
+    - **Marcar todas:** `POST /me/notifications/read-all` (só as publicadas e não expiradas; as já
+      lidas mantêm a data) e o botão "Marcar todas como lidas" na tela Notificações e no sino.
+    - **Enquete:** tipo Enquete em Plataforma › Notificações, com 2 a 10 opções, prazo para votar
+      obrigatório e "Permitir mais de uma resposta" (como no WhatsApp). Qualquer pessoa vota e muda o
+      voto até o prazo (`PUT /me/notifications/:id/vote`); quem votou vê o resultado na hora, quem
+      não votou só depois do prazo; a plataforma vê os totais na lista, sem saber quem votou em quê.
+      Tabelas novas `tb_notification_poll_options` e `tb_notification_poll_votes` (migration
+      `20261118000000_notification_polls`, aprovada pelo usuário).
+27. [ ] loja 100% gratis
+27. [ ] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp)

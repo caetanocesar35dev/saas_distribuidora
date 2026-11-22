@@ -231,16 +231,37 @@ export const gestao: Article[] = [
   {
     id: "gestao-notificacoes",
     category: "gestao",
-    title: "Notificações do sistema",
-    purpose: "Ler os avisos e novidades que a equipe do sistema envia.",
+    title: "Notificações e enquetes do sistema",
+    purpose:
+      "Ler os avisos e novidades que a equipe do sistema envia e responder às enquetes.",
     where: "Topo da tela › sino",
     minRole: null,
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
       "O sino no topo mostra quantos avisos você ainda não leu.",
       "Clique no sino para ver os mais recentes e em Marcar como lida para tirar o aviso do contador.",
+      "Para tirar todos do contador de uma vez, clique em Marcar todas como lidas, no topo da lista do sino ou da tela Notificações. O botão só aparece quando há aviso não lido.",
       "Para ver todos, clique em Ver todas. Lá também dá para mostrar só as não lidas.",
+      "Enquete: no sino, clique em Votar até... para abrir a enquete na tela Notificações. Marque a sua opção (ou mais de uma, quando a enquete permitir) e clique em Votar. Qualquer pessoa da equipe pode votar, cada uma com o seu voto.",
+      "Depois de votar, você já vê quantos votos cada opção tem. Quem ainda não votou só vê o resultado quando o prazo acabar.",
+      "Para mudar o voto, clique em Mudar voto, escolha de novo e clique em Salvar voto. Dá para mudar até o fim do prazo; depois, a enquete mostra só o resultado.",
     ],
-    keywords: ["avisos", "novidades", "sino"],
+    problems: [
+      {
+        message: "A votação desta enquete já terminou.",
+        fix: "O prazo para votar acabou. Você ainda pode ver o resultado na tela Notificações.",
+      },
+    ],
+    keywords: [
+      "avisos",
+      "novidades",
+      "sino",
+      "marcar todas",
+      "lidas",
+      "enquete",
+      "votar",
+      "votação",
+      "pesquisa",
+    ],
   },
 ];

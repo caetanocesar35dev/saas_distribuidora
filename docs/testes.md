@@ -202,6 +202,19 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 
 
 - [x] Criar uma notificação e ver se ela aparece no sino.
+- [ ] Com duas ou mais não lidas, clicar em "Marcar todas como lidas" no sino e, em outra vez, na
+  tela Notificações: o contador do sino some, os avisos perdem a marca de não lido e o botão some.
+  Sem nada não lido, o botão não aparece.
+- [ ] Como `admin@plataforma.com`, criar uma notificação do tipo Enquete: sem 2 opções ou sem prazo o
+  Salvar fica apagado; "Adicionar opção" vai até 10. Criar uma de escolha única e outra com "Permitir
+  mais de uma resposta".
+- [ ] Como atendente: no sino aparece "Votar até ..."; o link abre a enquete em Notificações. Antes de
+  votar, nenhum número aparece; depois de votar, aparecem os votos e a porcentagem de cada opção e
+  "Mudar voto". Na de várias respostas, marcar duas opções. Votar tira a notificação do contador.
+- [ ] Como gerente (que não votou), abrir a mesma enquete: não vê os números até votar.
+- [ ] Na plataforma, a lista mostra o resultado parcial sem quem votou; Editar mostra as opções
+  travadas depois do primeiro voto, mas deixa mudar o prazo. Pôr o prazo no passado: a enquete fica
+  "Votação encerrada" e todos veem o resultado, sem poder votar.
 - [ ] Abrir uma organização: as lojas excluídas aparecem com a data, e a seção Pessoas mostra quem
   tem acesso, quem foi removido e as contas desativadas.
 - [x] Em Planos, excluir um plano sem uso, marcar "Mostrar os planos excluídos" e Reativar.
@@ -246,6 +259,14 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [ ] Em Dúvidas: os dois canais aparecem no topo e no fim de cada artigo. Buscar "suporte" acha o
   artigo "Como falar com o suporte".
 - [x] Abrir a página no celular: nada corta nem cria rolagem para o lado.
+- [ ] Sem login, abrir `/robots.txt` (bloqueia `/loja/`, `/empresa/` etc. e aponta o sitemap) e
+  `/sitemap.xml` (apresentação, cadastro, Dúvidas e cada artigo, termos, privacidade; nada da área
+  logada nem os artigos da Plataforma).
+- [ ] Mandar o link do site no WhatsApp: aparece a imagem com o nome e "Sistema para distribuidora
+  de bebidas" (só funciona com o site no ar, num domínio público).
+- [ ] Com o site no ar: colar o endereço no Teste de pesquisa aprimorada do Google
+  (search.google.com/test/rich-results) e ver a organização, o sistema e as perguntas frequentes
+  reconhecidos, sem erro.
 
 ## 11. Geral
 

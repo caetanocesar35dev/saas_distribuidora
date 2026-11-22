@@ -79,27 +79,40 @@ export const plataforma: Article[] = [
   {
     id: "plataforma-notificacoes",
     category: "plataforma",
-    title: "Notificações para os usuários",
-    purpose: "Enviar avisos e novidades que aparecem no sino de todos os usuários.",
+    title: "Notificações e enquetes para os usuários",
+    purpose:
+      "Enviar avisos, novidades e enquetes que aparecem no sino de todos os usuários.",
     where: "Menu do usuário › Área da plataforma › Notificações",
     minRole: null,
     who: "Equipe da plataforma (só o administrador altera)",
     audience: [],
     steps: [
       "Abra Área da plataforma › Notificações e clique em Nova notificação.",
-      "Escreva o título e a mensagem e escolha o tipo (novidade, atualização, manutenção ou aviso).",
+      "Escreva o título e a mensagem e escolha o tipo (novidade, atualização, manutenção, aviso ou enquete).",
       "Em Publicar em, deixe vazio para publicar agora ou escolha uma data futura para agendar.",
       "Em Expira em, escolha quando ela deve sumir. Vazio = nunca expira.",
-      "A lista mostra quantas pessoas já leram cada notificação.",
+      "Enquete: escolha o tipo Enquete, escreva de 2 a 10 opções (Adicionar opção põe mais uma; as vazias são ignoradas), defina o Prazo para votar (obrigatório) e marque Permitir mais de uma resposta se cada pessoa puder escolher várias.",
+      "Qualquer pessoa logada vota, uma vez cada, e pode mudar o voto até o prazo. Quem votou vê o resultado na hora; quem não votou, só depois do prazo.",
+      "A lista mostra o resultado parcial de cada enquete (votos e porcentagem de cada opção e quantas pessoas votaram), sem mostrar quem votou em quê. Na escolha múltipla, a soma das porcentagens passa de 100%.",
+      "Depois do primeiro voto, as opções e o Permitir mais de uma resposta não mudam mais; o prazo e os textos, sim. Uma enquete não vira outro tipo de notificação, nem o contrário.",
+      "A lista mostra quantas pessoas já leram cada notificação. Votar também conta como leitura.",
     ],
     problems: [
       {
         message: "A data de expiração precisa ser depois da data de publicação.",
         fix: "Corrija as datas: a expiração vem depois da publicação.",
       },
+      {
+        message: "A enquete não pode expirar antes do fim do prazo para votar.",
+        fix: "Deixe Expira em vazio ou ponha uma data depois do prazo para votar.",
+      },
+      {
+        message: "A enquete já recebeu votos: as opções e o tipo de resposta não podem mais mudar.",
+        fix: "Para perguntar outra coisa, crie uma enquete nova (e, se quiser, exclua esta).",
+      },
     ],
     related: ["gestao-notificacoes"],
-    keywords: ["aviso", "novidade", "manutenção", "agendar"],
+    keywords: ["aviso", "novidade", "manutenção", "agendar", "enquete", "votação", "pesquisa"],
   },
   {
     id: "plataforma-indicacoes",

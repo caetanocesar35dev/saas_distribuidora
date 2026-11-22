@@ -23,7 +23,7 @@ export type BottleMovementType =
   | "MANUAL_ADJUSTMENT";
 export type ManualBottleMovementType = "SUPPLIER_SEND" | "SUPPLIER_RECEIVE" | "MANUAL_ADJUSTMENT";
 export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
-export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT";
+export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT" | "POLL";
 export type AccessMode = "FULL" | "GRACE" | "READ_ONLY";
 export type ReadOnlyReason = "TRIAL_EXPIRED" | "PAST_DUE" | "CANCELED";
 
@@ -825,10 +825,37 @@ export interface Notification {
   createdAt: string;
   read: boolean;
   readAt: string | null;
+  /** Só na enquete (type = POLL). */
+  poll: Poll | null;
+}
+
+/**
+ * Enquete (backend `buildPollView`). Quem não votou e a votação está aberta não vê os números
+ * (`showResults` false, `votes` e `totalVoters` null). A plataforma vê sempre.
+ */
+export interface Poll {
+  endsAt: string;
+  multiple: boolean;
+  closed: boolean;
+  showResults: boolean;
+  totalVoters: number | null;
+  /** O que esta pessoa marcou (vazio = não votou; sempre vazio na plataforma). */
+  myOptionIds: string[];
+  options: { id: string; label: string; votes: number | null }[];
+}
+
+/** `PUT /me/notifications/:id/vote`: a escolha completa (substitui o voto anterior). */
+export interface VoteBody {
+  optionIds: string[];
 }
 
 export interface UnreadCount {
   count: number;
+}
+
+/** `POST /me/notifications/read-all`: quantas foram marcadas agora. */
+export interface MarkAllReadResult {
+  marked: number;
 }
 
 // ---- Plataforma (SUPERADMIN / SUPPORT) -------------------------------------------------------
@@ -930,6 +957,7 @@ export interface PlatformNotification {
   createdAt: string;
   createdBy: { id: string; name: string };
   readCount: number;
+  poll: Poll | null;
 }
 
 export interface NotificationBody {
@@ -938,6 +966,10 @@ export interface NotificationBody {
   type?: NotificationType;
   publishedAt?: string;
   expiresAt?: string | null;
+  /** Só na enquete: de 2 a 10 opções, prazo obrigatório e se aceita várias respostas. */
+  pollOptions?: string[];
+  pollEndsAt?: string;
+  pollMultiple?: boolean;
 }
 
 // ---- Indicação e descontos -------------------------------------------------------------------

@@ -228,6 +228,18 @@ os campos é a extensão do Prisma).
   Detalhes em `docs/BANCO_DE_DADOS.md` §3.3. Tela: `CheckoutDialog` (lógica em
   `components/app/pos/bottle-checkout.ts`).
 
+**Enquete nas notificações (decidido pelo usuário, 2026-11-18)**
+- A plataforma cria uma notificação do tipo **Enquete** (`POLL`) com 2 a 10 opções, **prazo para votar
+  obrigatório** (`Notification.pollEndsAt`) e a escolha de aceitar **várias respostas**
+  (`pollMultiple`, como no WhatsApp). Tabelas `NotificationPollOption` e `NotificationPollVote`.
+- **Qualquer pessoa logada vota**, 1 voto por pessoa, e pode mudar o voto até o prazo
+  (`PUT /me/notifications/:id/vote`, a lista enviada substitui o voto). Votar marca como lida.
+- Quem votou vê o resultado **na hora**; quem não votou, **só depois do prazo**. A plataforma vê
+  sempre, **só os totais** (a tela nunca mostra quem votou em quê). Regra em
+  `src/notifications/poll.ts` (`buildPollView`).
+- Com voto, as opções e o tipo de resposta não mudam mais (409); o prazo pode mudar. Enquete não vira
+  outro tipo nem o contrário. A notificação não pode expirar antes do prazo.
+
 **Outros produtos além de bebidas (decidido pelo usuário, 2026-11-03)**
 - **Categorias:** tabela `ProductCategory`, editável por empresa (criar, renomear, excluir vazia,
   reativar: Produtos › Categorias, gerente ou dono). Toda empresa nova começa com a lista de
@@ -277,6 +289,14 @@ os campos é a extensão do Prisma).
   indicação, recursos): atualize o texto dela.
 - WhatsApp e Instagram do suporte ficam só em `src/content/contact.ts` e aparecem na página e na
   Central de Dúvidas (topo e fim de cada artigo, `ContactChannels`).
+- **SEO (pedido do usuário, 2026-11-18):** só as páginas públicas vão para o Google: apresentação,
+  cadastro, login, Central de Dúvidas (menos os artigos da Plataforma, com `noindex`), termos e
+  privacidade. `app/robots.ts` bloqueia a área logada, `app/sitemap.ts` lista as públicas (regras em
+  `src/lib/seo.ts`), cada página pública tem `description` e `alternates.canonical`, e a apresentação
+  tem JSON-LD (`landingStructuredData`). O domínio vem de `SITE_URL` no ambiente do frontend (também
+  no build). Página pública nova: entre em `sitemapPaths` e dê descrição e canônico; rota nova da área
+  logada: entre em `PRIVATE_PATHS`. A imagem de compartilhamento (`app/opengraph-image.tsx`) fica em
+  `PUBLIC_PATHS` do proxy.
 
 **Cadastro e primeiros passos (decidido pelo usuário)**
 - O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,

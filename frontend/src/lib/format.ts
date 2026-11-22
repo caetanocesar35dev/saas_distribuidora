@@ -388,6 +388,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   UPDATE: "Atualização",
   MAINTENANCE: "Manutenção",
   ALERT: "Aviso",
+  POLL: "Enquete",
 };
 
 const ROLE_ORDER: Record<Role, number> = { EMPLOYEE: 1, MANAGER: 2, OWNER: 3 };

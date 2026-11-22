@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotifications,
   useUnreadCount,
@@ -34,19 +35,38 @@ export function NotificationsBell() {
         )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-80 gap-0 p-0">
-        {open && <BellList onNavigate={() => setOpen(false)} />}
+        {open && <BellList unreadCount={count} onNavigate={() => setOpen(false)} />}
       </PopoverContent>
     </Popover>
   );
 }
 
-function BellList({ onNavigate }: { onNavigate: () => void }) {
+function BellList({
+  unreadCount,
+  onNavigate,
+}: {
+  unreadCount: number;
+  onNavigate: () => void;
+}) {
   const list = useNotifications({ page: 1, unread: false, limit: 6 });
   const markRead = useMarkNotificationRead();
+  const markAll = useMarkAllNotificationsRead();
 
   return (
     <div>
-      <div className="border-b px-3 py-2 text-sm font-medium">Notificações</div>
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+        <span className="text-sm font-medium">Notificações</span>
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="xs"
+            disabled={markAll.isPending}
+            onClick={() => markAll.mutate()}
+          >
+            Marcar todas como lidas
+          </Button>
+        )}
+      </div>
       <div className="max-h-80 overflow-y-auto">
         {list.isPending && <p className="p-4 text-sm text-muted-foreground">Carregando...</p>}
         {list.isError && (
@@ -63,6 +83,19 @@ function BellList({ onNavigate }: { onNavigate: () => void }) {
               <Badge variant="secondary">{NOTIFICATION_TYPE_LABEL[n.type]}</Badge>
             </div>
             <p className="mt-1 line-clamp-3 text-xs text-muted-foreground">{n.body}</p>
+            {n.poll && (
+              <Link
+                href={`/notificacoes#n-${n.id}`}
+                onClick={onNavigate}
+                className="mt-1.5 inline-block text-xs font-medium text-primary hover:underline"
+              >
+                {n.poll.closed
+                  ? "Ver o resultado da enquete"
+                  : n.poll.myOptionIds.length > 0
+                    ? "Você votou · ver o resultado"
+                    : `Votar até ${formatDateTime(n.poll.endsAt)}`}
+              </Link>
+            )}
             <div className="mt-1.5 flex items-center justify-between">
               <span className="text-[11px] text-muted-foreground">
                 {formatDateTime(n.publishedAt)}

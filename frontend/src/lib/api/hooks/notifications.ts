@@ -2,7 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api/client";
-import type { Notification, Paginated, UnreadCount } from "@/lib/api/types";
+import type {
+  MarkAllReadResult,
+  Notification,
+  Paginated,
+  Poll,
+  UnreadCount,
+  VoteBody,
+} from "@/lib/api/types";
 
 export const notificationKeys = {
   all: ["notifications"] as const,
@@ -37,6 +44,25 @@ export function useMarkNotificationRead() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.post(`/me/notifications/${id}/read`),
+    onSuccess: () => client.invalidateQueries({ queryKey: notificationKeys.all }),
+  });
+}
+
+/** Vota (ou muda o voto) numa enquete. Votar também marca a notificação como lida. */
+export function useVotePoll() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, optionIds }: { id: string } & VoteBody) =>
+      api.put<Poll>(`/me/notifications/${id}/vote`, { optionIds }),
+    onSuccess: () => client.invalidateQueries({ queryKey: notificationKeys.all }),
+  });
+}
+
+/** Marca todas as notificações visíveis como lidas (o contador do sino zera). */
+export function useMarkAllNotificationsRead() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post<MarkAllReadResult>("/me/notifications/read-all"),
     onSuccess: () => client.invalidateQueries({ queryKey: notificationKeys.all }),
   });
 }

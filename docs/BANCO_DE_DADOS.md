@@ -28,7 +28,7 @@ São 31 tabelas de negócio (`tb_*`) e 31 tabelas de histórico (`th_*_history`,
 | Vasilhames | `tb_bottle_types`, `tb_store_bottle_types`, `tb_bottle_movements` | Tipos de vasilhame, estoque físico por loja e o registro de cada movimentação |
 | Clientes e fiado | `tb_customers`, `tb_customer_store_balances`, `tb_customer_store_bottle_balances`, `tb_customer_payments`, `tb_customer_payment_allocations` | Cadastro único por distribuidora, dívida separada por loja |
 | Vendas e caixa | `tb_sales`, `tb_sale_items`, `tb_command_tabs`, `tb_command_items`, `tb_cash_registers`, `tb_cash_movements` | Tudo que acontece no PDV, por loja |
-| Avisos | `tb_notifications`, `tb_notification_reads` | Comunicados do sistema e quem já leu |
+| Avisos | `tb_notifications`, `tb_notification_reads`, `tb_notification_poll_options`, `tb_notification_poll_votes` | Comunicados do sistema, quem já leu e as enquetes (opções e votos) |
 | Cobrança (Asaas) | campos `billing*` de `tb_organizations`, `tb_billing_events` | Assinatura no cartão ou Pix Automático e o registro dos webhooks do gateway |
 | Indicação e descontos | `tb_sales_representatives`, `tb_referrals`, `tb_subscription_discounts`, `tb_organizations.referralCode` | Quem indicou quem, a comissão do representante e os meses de desconto na mensalidade |
 
@@ -48,7 +48,7 @@ Regra geral: todo dado operacional pertence a uma `Company` (catálogo compartil
 
 ### Convenções
 
-- **IDs** são `TEXT` com UUID, gerados pelo Prisma (`@default(uuid())`). Exceção: `tb_membership_stores` e `tb_notification_reads` têm chave primária composta.
+- **IDs** são `TEXT` com UUID, gerados pelo Prisma (`@default(uuid())`). Exceção: `tb_membership_stores`, `tb_notification_reads` e `tb_notification_poll_votes` têm chave primária composta.
 - **Nomes:** tabelas em `snake_case` com prefixo (`tb_` negócio, `th_` histórico); colunas em `camelCase`. Como o Postgres converte nomes sem aspas para minúsculas, **em SQL puro as colunas precisam de aspas duplas**: `"storeId"`, `"historyEnd"`.
 - **Dinheiro** está em `Float` (R$ com casas decimais). A única exceção é o preço do plano, em centavos inteiros (`Plan.priceInCents`).
 - **Datas** são `timestamp` sem fuso, gravadas em UTC.
@@ -75,6 +75,9 @@ erDiagram
     User ||--o{ Notification : "cria"
     Notification ||--o{ NotificationRead : "lida por"
     User ||--o{ NotificationRead : "leu"
+    Notification ||--o{ NotificationPollOption : "opções da enquete"
+    NotificationPollOption ||--o{ NotificationPollVote : "votos"
+    User ||--o{ NotificationPollVote : "votou"
     User ||--o{ RefreshToken : "sessões"
     Organization |o--o{ BillingEvent : "webhooks do gateway"
 ```
@@ -221,8 +224,16 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_notifications` | Comunicado do sistema | `type`: `NEWS`, `UPDATE`, `MAINTENANCE`, `ALERT`; `publishedAt` (pode ser futuro = agendado), `expiresAt` (`null` = não expira), `createdByUserId` |
+| `tb_notifications` | Comunicado do sistema | `type`: `NEWS`, `UPDATE`, `MAINTENANCE`, `ALERT`, `POLL` (enquete); `publishedAt` (pode ser futuro = agendado), `expiresAt` (`null` = não expira), `createdByUserId`. Na enquete: `pollEndsAt` (prazo para votar, obrigatório) e `pollMultiple` (aceita várias respostas) |
 | `tb_notification_reads` | Quem leu | PK composta (`notificationId`, `userId`). Sem linha = não lida |
+| `tb_notification_poll_options` | Opções da enquete | `notificationId`, `label`, `position` (ordem). De 2 a 10. Trocar as opções (só sem votos) exclui as antigas (soft delete) e cria as novas |
+| `tb_notification_poll_votes` | Votos da enquete | PK composta (`optionId`, `userId`); `notificationId` repetido da opção. Mudar o voto exclui (soft delete) a linha da opção desmarcada; marcar de novo a reativa |
+
+**Enquete (decidido pelo usuário, 2026-11-18):** qualquer pessoa logada vota, uma vez cada, e muda o
+voto até `pollEndsAt`. Quem votou vê o resultado na hora; quem não votou, só depois do prazo. A
+plataforma vê sempre os totais, nunca quem votou em quê (o `userId` só existe para impedir voto
+duplicado). Com voto, as opções e o `pollMultiple` não mudam mais; a notificação não pode expirar
+antes do prazo.
 
 ### 3.7 Cobrança (Asaas)
 
