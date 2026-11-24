@@ -5,6 +5,8 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { CategoryFilter } from "@/components/app/category-filter";
 import { ErrorState, LoadingRows, Money } from "@/components/app/common";
+import { SelectField } from "@/components/app/inputs";
+import { Pagination } from "@/components/app/pagination";
 import { Input } from "@/components/ui/input";
 import { useDebounced } from "@/hooks/use-debounced";
 import { ApiError, storeApi } from "@/lib/api/client";
@@ -13,6 +15,23 @@ import type { StoreProduct } from "@/lib/api/types";
 import { formatInt, packLabel } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
+
+/**
+ * Produtos por página na busca do PDV e da comanda (o backend aceita até 100). Múltiplos de 12, para
+ * a grade de 2, 3 ou 4 colunas fechar sempre sem buraco na última linha.
+ */
+export const PAGE_SIZES = [12, 24, 48, 96] as const;
+const DEFAULT_PAGE_SIZE = 24;
+const PAGE_SIZE_KEY = "pos:page-size";
+
+function readPageSize(): number {
+  try {
+    const saved = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    return (PAGE_SIZES as readonly number[]).includes(saved) ? saved : DEFAULT_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PAGE_SIZE;
+  }
+}
 
 /**
  * Busca de produtos do PDV e das comandas.
@@ -39,6 +58,10 @@ export function ProductSearch({
   const ref = inputRef ?? ownRef;
   const [text, setText] = useState("");
   const [categoryId, setCategoryId] = useState<string | undefined>();
+  // Paginação (pedido do usuário: sem busca, ver todos os produtos da loja, em ordem de nome), com a
+  // quantidade por página escolhida na tela e lembrada neste navegador.
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(readPageSize);
   const debounced = useDebounced(text, 250);
   const [scanning, setScanning] = useState(false);
   const term = debounced.trim();
@@ -47,7 +70,8 @@ export function ProductSearch({
     search: term || undefined,
     isActive: true,
     categoryId,
-    limit: 18,
+    page,
+    limit: pageSize,
   });
 
   /**
@@ -58,7 +82,10 @@ export function ProductSearch({
   function pick(item: StoreProduct, asPack = false, clear = false) {
     if (asPack && onPickPack) onPickPack(item);
     else onPick(item);
-    if (clear) setText("");
+    if (clear) {
+      setText("");
+      setPage(1);
+    }
     ref.current?.focus();
   }
 
@@ -101,7 +128,10 @@ export function ProductSearch({
           className="h-11 pl-10 text-base"
           placeholder="Passe o leitor ou digite o nome do produto (F2)"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            setPage(1);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -117,6 +147,7 @@ export function ProductSearch({
         value={categoryId}
         onChange={(value) => {
           setCategoryId(value);
+          setPage(1);
           ref.current?.focus();
         }}
       />
@@ -198,6 +229,41 @@ export function ProductSearch({
             );
           })}
         </ul>
+      )}
+      {results.data && results.data.data.length > 0 && (
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <label className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
+            Mostrar
+            <SelectField
+              size="sm"
+              className="w-20"
+              aria-label="Produtos por página"
+              value={String(pageSize)}
+              options={PAGE_SIZES.map((n) => ({ value: String(n), label: String(n) }))}
+              onChange={(value) => {
+                const size = Number(value);
+                setPageSize(size);
+                setPage(1);
+                try {
+                  localStorage.setItem(PAGE_SIZE_KEY, String(size));
+                } catch {
+                  // sem armazenamento: vale só nesta visita
+                }
+                ref.current?.focus();
+              }}
+            />
+            por página
+          </label>
+          <div className="min-w-0 flex-1">
+            <Pagination
+              meta={results.data.meta}
+              onPageChange={(next) => {
+                setPage(next);
+                ref.current?.focus();
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

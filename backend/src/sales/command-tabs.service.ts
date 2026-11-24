@@ -14,8 +14,10 @@ import {
   AddCommandItemDto,
   CloseCommandTabDto,
   CreateCommandTabDto,
+  UpdateCommandItemDto,
 } from './dto/sales.dto';
 import { itemTotalCents, toUnits } from './packs';
+import { resolveCounterChannel } from './sale-channels.service';
 import { SalesService } from './sales.service';
 
 const ITEM_SELECT = {
@@ -142,6 +144,43 @@ export class CommandTabsService {
         );
       }
 
+      // O mesmo produto, com os mesmos preços, soma na linha que já existe (decidido pelo usuário,
+      // 2026-11-24: a comanda tem contador, não uma linha por toque). Preço mudado no meio da
+      // comanda vira outra linha, porque cada item guarda o preço da hora em que foi lançado.
+      const existing = await tx.commandItem.findFirst({
+        where: {
+          commandTabId: tabId,
+          storeProductId: product.id,
+          price: product.price,
+          costPrice: product.costPrice,
+        },
+        orderBy: { addedAt: 'desc' },
+      });
+      if (
+        existing &&
+        (packs === 0 ||
+          existing.packs === 0 ||
+          (existing.packSize === packSize &&
+            existing.packPrice === product.packPrice))
+      ) {
+        const totalPacks = existing.packs + packs;
+        await tx.commandItem.update({
+          where: { id: existing.id },
+          data: {
+            quantity: existing.quantity + units,
+            packs: totalPacks,
+            packSize: totalPacks > 0 ? (existing.packSize ?? packSize) : null,
+            packPrice:
+              totalPacks > 0
+                ? existing.packs > 0
+                  ? existing.packPrice
+                  : product.packPrice
+                : null,
+          },
+        });
+        return existing.id;
+      }
+
       const item = await tx.commandItem.create({
         data: {
           commandTabId: tabId,
@@ -155,6 +194,85 @@ export class CommandTabsService {
         },
       });
       return item.id;
+    });
+    return this.prisma.commandItem.findUniqueOrThrow({
+      where: { id: itemId },
+      select: ITEM_SELECT,
+    });
+  }
+
+  /**
+   * Muda a quantidade de um item (o contador da comanda): `quantity` são as unidades avulsas e
+   * `packs` as embalagens, como no PDV. O estoque acompanha a diferença; os preços continuam os da
+   * hora em que o item foi lançado. Para tirar o item, use `removeItem`.
+   */
+  async updateItem(
+    storeId: string,
+    tabId: string,
+    itemId: string,
+    dto: UpdateCommandItemDto,
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockOpenTab(tx, storeId, tabId);
+      const item = await tx.commandItem.findFirst({
+        where: { id: itemId, commandTabId: tabId },
+        select: {
+          id: true,
+          storeProductId: true,
+          quantity: true,
+          packs: true,
+          packSize: true,
+          packPrice: true,
+          storeProduct: {
+            select: {
+              stock: true,
+              packPrice: true,
+              product: { select: { name: true, packQuantity: true } },
+            },
+          },
+        },
+      });
+      if (!item)
+        throw new NotFoundException('Item não encontrado nesta comanda.');
+
+      const sp = item.storeProduct;
+      const { units, packs, packSize } = toUnits(
+        sp.product.name,
+        dto.quantity,
+        dto.packs ?? 0,
+        item.packs > 0 && item.packSize
+          ? item.packSize
+          : sp.product.packQuantity,
+      );
+      const diff = units - item.quantity;
+      if (diff > 0) {
+        const decremented = await tx.storeProduct.updateMany({
+          where: { id: item.storeProductId, storeId, stock: { gte: diff } },
+          data: { stock: { decrement: diff } },
+        });
+        if (decremented.count === 0) {
+          throw new ConflictException(
+            `Estoque insuficiente para o produto "${sp.product.name}". Disponível: ${sp.stock}, solicitado: ${diff}.`,
+          );
+        }
+      } else if (diff < 0) {
+        await this.returnStock(
+          tx,
+          storeId,
+          new Map([[item.storeProductId, -diff]]),
+        );
+      }
+
+      await tx.commandItem.update({
+        where: { id: item.id },
+        data: {
+          quantity: units,
+          packs,
+          packSize,
+          packPrice:
+            packs > 0 ? (item.packs > 0 ? item.packPrice : sp.packPrice) : null,
+        },
+      });
     });
     return this.prisma.commandItem.findUniqueOrThrow({
       where: { id: itemId },
@@ -220,7 +338,11 @@ export class CommandTabsService {
         companyId,
         userId,
         paymentMethod: dto.paymentMethod,
-        channelId: dto.channelId,
+        // Comanda é consumo no balcão: sem origem informada, vale Balcão (não a padrão).
+        channelId:
+          dto.channelId ??
+          (await resolveCounterChannel(tx, companyId)) ??
+          undefined,
         customerId: dto.customerId ?? tab.customerId,
         discount: dto.discount,
         lines: items.map((i) => ({

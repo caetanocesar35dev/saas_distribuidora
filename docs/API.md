@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **131 rotas**. Todas começam com `/api`.
+Total: **133 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -61,6 +61,7 @@ Total: **131 rotas**. Todas começam com `/api`.
 | GET | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/bottle-stock` | Loja: EMPLOYEE ou mais | Funciona |
+| PUT | `/api/stores/:storeId/bottle-types/:id/price` | Loja: MANAGER ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-loans` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-returns` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 
@@ -227,6 +228,7 @@ Total: **131 rotas**. Todas começam com `/api`.
 | POST | `/api/stores/:storeId/command-tabs/:id/close` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/command-tabs/:id/items` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | DELETE | `/api/stores/:storeId/command-tabs/:id/items/:itemId` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
+| PATCH | `/api/stores/:storeId/command-tabs/:id/items/:itemId` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales/:id` | Loja: EMPLOYEE ou mais | Funciona |

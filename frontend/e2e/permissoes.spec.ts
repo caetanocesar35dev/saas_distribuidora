@@ -39,6 +39,15 @@ test.describe("atendente", () => {
     await expect(page.getByText("Você não tem permissão para ver esta página")).toBeVisible();
   });
 
+  test("não vê Configurações (nem pelo menu, nem pela URL)", async ({ page }) => {
+    const storeId = await openStore(page, "Loja Norte");
+    await goToStore(page, storeId, "/vendas");
+    await expect(page.getByRole("heading", { name: "Histórico de vendas" })).toBeVisible();
+    expect(await page.locator("aside").innerText()).not.toContain("Configurações");
+    await goToStore(page, storeId, "/configuracoes");
+    await expect(page.getByText("Você não tem permissão para ver esta página")).toBeVisible();
+  });
+
   test("vê a dívida da loja na lista de clientes, mas não a dívida total", async ({ page }) => {
     const storeId = await openStore(page, "Loja Norte");
     await goToStore(page, storeId, "/clientes");

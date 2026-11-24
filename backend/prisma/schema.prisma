@@ -497,6 +497,9 @@ model StoreBottleType {
   storeId      String
   bottleTypeId String
   stock        Int    @default(0)
+  /// Preço próprio do casco nesta loja (decidido pelo usuário, 2026-11-24). null = vale o preço da
+  /// empresa (`BottleType.price`). O preço que vale na loja é `price ?? BottleType.price`.
+  price        Float?
 
   store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
   bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Restrict)
@@ -1422,6 +1425,7 @@ model StoreBottleTypeHistory {
   id           String
   storeId      String
   bottleTypeId String
+  price        Float?
 
   modifierId       String?
   modifiedEndpoint String?

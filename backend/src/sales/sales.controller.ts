@@ -33,6 +33,7 @@ import {
   ListCommandTabsQuery,
   ListSaleChannelsQuery,
   ListSalesQuery,
+  UpdateCommandItemDto,
   UpdateSaleChannelDto,
 } from './dto/sales.dto';
 import { SaleChannelsService } from './sale-channels.service';
@@ -122,6 +123,16 @@ export class CommandTabsController {
     @Body() dto: AddCommandItemDto,
   ) {
     return this.tabs.addItem(tenant.storeId, id, dto);
+  }
+
+  @Patch(':id/items/:itemId')
+  updateItem(
+    @Tenant() tenant: StoreTenant,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateCommandItemDto,
+  ) {
+    return this.tabs.updateItem(tenant.storeId, id, itemId, dto);
   }
 
   @Delete(':id/items/:itemId')

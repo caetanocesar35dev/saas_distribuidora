@@ -95,8 +95,16 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 - [x] Abrir, lançar itens (o estoque baixa na hora), remover item e fechar no fiado (o aviso deve
   aparecer).
 - [x] Cancelar uma comanda: o estoque volta.
+- [ ] Lançar o mesmo produto duas vezes (ex.: Brahma latão): soma na mesma linha, com contador − / +.
+  Mudar o contador muda o total e o estoque; passar do estoque avisa "Estoque insuficiente". Com
+  fardo ("+ fardo"), aparecem um contador para o fardo e outro para as unidades.
 
 ## 6. Vendas
+
+- [x] No PDV (e na comanda), sem pesquisar: aparecem os produtos da loja em ordem de nome, 24 por
+  página, com Próxima e Anterior embaixo; um produto novo (ex.: "teste fardo") aparece na página
+  dele. Pesquisar ou trocar a categoria volta para a página 1. Em "Mostrar ... por página", trocar
+  para 12, 48 ou 96 (o padrão é 24) muda quantos aparecem; ao recarregar a página, a escolha continua.
 
 - [x] Filtrar por período e forma de pagamento e abrir o detalhe.
 
@@ -149,33 +157,42 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
 ## 8. Estoque, produtos e vasilhames (gerente ou dono)
 
 - [x] Dar entrada e ajuste de estoque e alterar preço.
-- [ ] Criar produto em várias lojas e tentar criar com um código repetido.
-- [ ] Excluir um produto e reativar em Produtos › "Mostrar só os excluídos" (volta com preço e
+- [x] Criar produto em várias lojas e tentar criar com um código repetido.
+- [x] Excluir um produto e reativar em Produtos › "Mostrar só os excluídos" (volta com preço e
   estoque nas lojas).
-- [ ] Novo produto com "Preço de venda padrão": as lojas marcadas sem preço próprio usam ele.
-- [ ] Criar tipos de vasilhame e lançar movimentações com o fornecedor.
-- [ ] Vasilhames › Tipos › Editar: pôr, mudar e apagar o "Preço do casco" (vale para todas as lojas;
+- [x] Novo produto com "Preço de venda padrão": as lojas marcadas sem preço próprio usam ele.
+- [x] Criar tipos de vasilhame e lançar movimentações com o fornecedor.
+- [x] Vasilhames › Tipos › Editar: pôr, mudar e apagar o "Preço do casco" (vale para todas as lojas;
   a lista mostra "Casco: R$ ..." ou "Casco não é vendido"). Preço zero é recusado.
-- [ ] Produtos › Categorias: criar, renomear, tentar excluir uma com produto (recusa), excluir uma
+- [x] Preço do casco só de uma loja: em Vasilhames › aba Estoque › "Preço nesta loja", pôr R$ 9,50 no
+  Litrão (empresa com R$ 8,00). A linha mostra "R$ 9,50 preço desta loja"; noutra loja continua
+  "R$ 8,00 preço da empresa". No PDV desta loja, comprar o casco cobra R$ 9,50; na outra, R$ 8,00.
+  Mudar o preço da empresa muda só as lojas sem preço próprio. "Usar o preço da empresa" volta ao
+  da empresa. Atendente não vê o botão.
+- [x] Produtos › Categorias: criar, renomear, tentar excluir uma com produto (recusa), excluir uma
   vazia e reativar em "Mostrar só as excluídas".
-- [ ] Filtrar por categoria e por "Sem categoria" em Produtos, Estoque, PDV e comanda.
-- [ ] Cigarro com embalagem "maço" de 20, maço a R$ 12,00 e custo do maço a R$ 9,50: com a unidade
+- [x] Filtrar por categoria e por "Sem categoria" em Produtos, Estoque, PDV e comanda.
+- [x] Cigarro com embalagem "maço" de 20, maço a R$ 12,00 e custo do maço a R$ 9,50: com a unidade
   vazia, ela sai a R$ 0,60; com R$ 1,00, 1 maço + 3 cigarros dão R$ 15,00. O PDV mostra "+ maço (20)"
   com o preço e "Maços de 20" no carrinho, e a venda e a comanda mostram "1 maço de 20 + 3 un." e o
   mesmo total. O lucro confere nas duas formas. Sem nome, continua "fardo".
-- [ ] Produto com fardo e sem preço próprio (ex.: cerveja): continua unidade × quantidade.
-- [ ] Vender em duas categorias, com desconto: o painel mostra "Por categoria (este mês)".
-- [ ] Origem da venda: no PDV, ao finalizar, "Balcão" já vem marcado; vender uma pelo iFood e uma
+- [x] Produto com fardo e sem preço próprio (ex.: cerveja): continua unidade × quantidade.
+- [x] Vender em duas categorias, com desconto: o painel mostra "Por categoria (este mês)".
+- [x] Origem da venda: no PDV, ao finalizar, "Balcão" já vem marcado; vender uma pelo iFood e uma
   pelo WhatsApp. No Histórico de vendas aparecem na coluna Origem, e o filtro "Origem da venda" mostra
   só as de cada uma. O detalhe da venda mostra "Origem: iFood". Vendas de antes aparecem como "Sem
   origem".
-- [ ] Lançar venda antiga e fechar comanda também pedem a origem.
-- [ ] No Início (gerente ou dono) e no Painel da empresa: a tabela "Por origem (este mês)" mostra
-  vendas, faturamento, a barra com a parte de cada origem, o ticket médio e o lucro vendido.
-- [ ] Como gerente ou dono, em Histórico de vendas › Origens da venda: adicionar "Aiqfome", renomear,
+- [x] Lançar venda antiga também pede a origem. Fechar comanda **não** pede: a venda vai como Balcão
+  (mesmo que a padrão seja outra).
+- [x] No Início (gerente ou dono) e no Painel da empresa: a tabela "Por origem (este mês)" mostra
+  vendas, faturamento, a barra com a parte de cada origem, o valor médio por venda e o lucro vendido.
+- [x] Como gerente ou dono, em Menu › Configurações › Origens da venda: adicionar "Aiqfome", renomear,
   tornar padrão (estrela; passa a vir marcada no PDV), tentar excluir a padrão (não tem lixeira),
-  excluir outra e reativar em "Mostrar só as excluídas". Como atendente, o botão não aparece.
-- [ ] Entrar como atendente: o filtro aparece, mas sem custo nem lucro.
+  excluir outra e reativar em "Mostrar só as excluídas". Como atendente, o item Configurações não
+  aparece no menu (e `/configuracoes` diz que não tem permissão).
+- [x] Em Configurações, o quadro Categorias de produto faz o mesmo que Produtos › Categorias (é a
+  mesma lista).
+- [x] Entrar como atendente: o filtro aparece, mas sem custo nem lucro.
 
 ## 9. Permissões (entrar com cada papel) 
 

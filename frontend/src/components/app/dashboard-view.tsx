@@ -60,7 +60,7 @@ function PeriodCards({ title, stats }: { title: string; stats: PeriodStats }) {
 
 /**
  * De onde vieram as vendas do mês (balcão, iFood...): quantas, quanto faturaram, a parte de cada
- * uma no faturamento (barra), o ticket médio e o lucro vendido. Uma medida só, numa cor só.
+ * uma no faturamento (barra), o valor médio por venda e o lucro vendido. Uma medida só, numa cor só.
  */
 function ChannelsSection({ data }: { data: Dashboard }) {
   const rows = data.byChannel;
@@ -85,7 +85,7 @@ function ChannelsSection({ data }: { data: Dashboard }) {
                 <TableHead className="min-w-44">Origem</TableHead>
                 <TableHead className="text-right">Vendas</TableHead>
                 <TableHead className="text-right">Faturamento</TableHead>
-                <TableHead className="text-right">Ticket médio</TableHead>
+                <TableHead className="text-right">Valor médio por venda</TableHead>
                 {showProfit && (
                   <TableHead className="text-right" title="Inclui o fiado ainda não pago">
                     Lucro vendido

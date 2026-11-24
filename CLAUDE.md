@@ -231,8 +231,11 @@ os campos é a extensão do Prisma).
 **Compra do casco do vasilhame (decidido pelo usuário, 2026-11-09)**
 - Na venda e no fechamento de comanda, dos vasilhames que saem o cliente pode **comprar o casco**
   (`bottlePurchases`): fica dele, sem dívida (`CUSTOMER_PURCHASE`); o resto é empréstimo, e os vazios
-  trazidos são devolução. Preço **por tipo de vasilhame, único para a empresa** (`BottleType.price`;
-  null = não vende o casco), editado em Vasilhames › Tipos (gerente ou dono). Fica gravado no
+  trazidos são devolução. Preço **por tipo de vasilhame**: o da empresa (`BottleType.price`; null = não
+  vende o casco), editado em Vasilhames › Tipos, e o **próprio da loja, opcional** (decidido pelo
+  usuário, 2026-11-24: `StoreBottleType.price`, null = vale o da empresa), em Vasilhames › Estoque ›
+  Preço nesta loja (`PUT /stores/:storeId/bottle-types/:id/price`); vale `loja ?? empresa`, os dois
+  só gerente ou dono. Mudar o da empresa muda as lojas sem preço próprio. Fica gravado no
   movimento (`unitPrice`) e soma em `Sale.bottlesTotal`, dentro do `total`, **sem desconto**.
   Comprou todos os cascos ou trocou 1 por 1: não precisa de cliente. Painel e histórico de vendas
   mostram os cascos **à parte** (fora do faturamento e do lucro); o caixa recebe o dinheiro normal.
@@ -245,11 +248,17 @@ os campos é a extensão do Prisma).
   padrão; gerente ou dono), como as categorias. Toda empresa nova começa com `DEFAULT_SALE_CHANNELS`
   (`src/sales/sale-channels.ts`), com **Balcão como padrão** (`isDefault`, uma por empresa; a padrão
   não pode ser excluída).
-- **Obrigatória, com a padrão já marcada:** PDV, Lançar venda antiga e fechamento de comanda escolhem a
-  origem; sem `channelId`, o backend usa a padrão. Vendas de antes da mudança ficam sem origem ("Sem
+- **Tela Configurações (decidido pelo usuário, 2026-11-24):** item do menu da loja só para gerente e
+  dono (`/loja/[storeId]/configuracoes`), com as listas da empresa que o gerente edita: Origens da
+  venda e Categorias de produto (que mantêm o atalho em Produtos). Configuração nova desse tipo
+  entra nela, não num botão escondido em outra tela.
+- **Obrigatória, com a padrão já marcada:** PDV e Lançar venda antiga escolhem a
+  origem; sem `channelId`, o backend usa a padrão. **A comanda não pergunta** (decidido pelo usuário,
+  2026-11-24: comanda é consumo no balcão): sem `channelId`, o fechamento usa a origem chamada
+  "Balcão" e, se ela foi excluída ou renomeada, a padrão (`resolveCounterChannel`). Vendas de antes da mudança ficam sem origem ("Sem
   origem"). Excluir uma origem só a tira da escolha: as vendas antigas continuam com ela.
 - Aparece no histórico de vendas (coluna, detalhe e filtro `channelId`, `none` = sem origem) e nos
-  painéis da loja e da empresa (`byChannel`: vendas, faturamento, ticket médio e lucro vendido do mês).
+  painéis da loja e da empresa (`byChannel`: vendas, faturamento, valor médio por venda e lucro vendido do mês).
 
 **Enquete nas notificações (decidido pelo usuário, 2026-11-18)**
 - A plataforma cria uma notificação do tipo **Enquete** (`POLL`) com 2 a 10 opções, **prazo para votar
@@ -265,7 +274,7 @@ os campos é a extensão do Prisma).
 
 **Outros produtos além de bebidas (decidido pelo usuário, 2026-11-03)**
 - **Categorias:** tabela `ProductCategory`, editável por empresa (criar, renomear, excluir vazia,
-  reativar: Produtos › Categorias, gerente ou dono). Toda empresa nova começa com a lista de
+  reativar: Configurações › Categorias de produto, com atalho em Produtos › Categorias; gerente ou dono). Toda empresa nova começa com a lista de
   `DEFAULT_PRODUCT_CATEGORIES` (`src/catalog/product-categories.ts`). Categoria é opcional no produto
   e filtra PDV, comandas, Estoque e Produtos (`categoryId`; `none` = sem categoria). O painel traz
   `byCategory` do mês, com o desconto da venda repartido entre os itens.

@@ -199,6 +199,19 @@ export function useAddTabItem(storeId: string, tabId: string) {
   });
 }
 
+/** Contador do item da comanda: `quantity` são as unidades avulsas e `packs` as embalagens. */
+export function useUpdateTabItem(storeId: string, tabId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, ...body }: { itemId: string; quantity: number; packs: number }) =>
+      storeApi(storeId).patch<CommandItem>(`/command-tabs/${tabId}/items/${itemId}`, body),
+    onSettled: async () => {
+      await client.invalidateQueries({ queryKey: salesKeys.tabs(storeId) });
+      await client.invalidateQueries({ queryKey: catalogKeys.storeProducts(storeId) });
+    },
+  });
+}
+
 export function useRemoveTabItem(storeId: string, tabId: string) {
   const client = useQueryClient();
   return useMutation({

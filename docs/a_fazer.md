@@ -325,12 +325,29 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     Migration `20261122010000_subscription_exempt` (aprovada pelo usuário). **Ideias para depois:**
     e-mail avisando o fim da isenção (como o do fim do teste); na Fase 10 (Asaas), nunca criar
     cobrança para a isenta.
-27. [x] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp). **Feito (2026-11-22):**
+28. [x] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp). **Feito (2026-11-22):**
     toda venda tem uma origem (PDV, Lançar venda antiga e Fechar comanda), com a padrão (Balcão) já
-    marcada. A lista é editável por empresa em Histórico de vendas › Origens da venda (gerente ou
+    marcada. A lista é editável por empresa em Configurações › Origens da venda (gerente ou
     dono: criar, renomear, escolher a padrão, excluir e reativar). O histórico de vendas tem a
     coluna e o filtro por origem, o detalhe da venda mostra a origem, e o painel da loja e da
     empresa tem a tabela "Por origem (este mês)" (vendas, faturamento, parte de cada uma, ticket
     médio e lucro vendido). Vendas antigas ficam "Sem origem". Migration
     `20261122000000_sale_channels` (aprovada pelo usuário). **Ideia para depois:** taxa de cada
     aplicativo (o iFood cobra comissão) para mostrar o lucro líquido por origem.
+
+29. [ ] ter a certeza de que o desconto apenas sera aplicado quando o outro cliente pagar a primeira mensalidade
+30. [ ] melhor gerenciamento dos fornecedores (pedido do usuário, 2026-11-24). Hoje "Enviar ao
+    fornecedor" e "Receber do fornecedor" (Vasilhames) só registram tipo e quantidade, sem dizer
+    qual fornecedor, e a entrada de mercadoria (Estoque › Entrada) também não tem fornecedor.
+    Ideias:
+    - **Cadastro de fornecedores** por empresa (nome, CNPJ, telefone/WhatsApp, contato, observação;
+      excluir e reativar, como os outros cadastros).
+    - **Escolher o fornecedor** ao enviar e receber vasilhames, e ao dar entrada de mercadoria.
+    - **Saldo de vasilhame por fornecedor:** quantos cascos a loja deve a cada um (recebeu cheio e
+      ainda não devolveu vazio), como o saldo de vasilhame do cliente.
+    - **Preço do casco por fornecedor** (quanto o fornecedor cobra pelo casco não devolvido) e
+      **custo da mercadoria** por fornecedor (último preço pago, para comparar).
+    - Filtro por fornecedor no histórico de movimentações e um resumo por fornecedor (compras do
+      mês, cascos em aberto).
+    Precisa de tabela nova e colunas novas (fornecedor em `BottleMovement` e na entrada de estoque):
+    **mudança de schema, pedir aprovação** e decidir com o usuário o que entra primeiro.

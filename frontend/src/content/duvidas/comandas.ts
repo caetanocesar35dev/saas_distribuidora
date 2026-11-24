@@ -28,8 +28,9 @@ export const comandas: Article[] = [
     audience: ["EMPLOYEE"],
     steps: [
       "Abra a comanda em Menu › Comandas.",
-      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade. Para lançar uma embalagem inteira (ex.: 12 unidades), toque no botão com o nome dela (+ fardo, + caixa, + pacote...), no rodapé do cartão do produto (ao lado de + 1 un.). O filtro ao lado da busca mostra só uma categoria.",
-      "O estoque baixa assim que o item é lançado, e o preço fica o que valia naquele momento, mesmo que mude depois.",
+      "Passe o leitor ou busque o produto e toque nele: cada toque lança 1 unidade. Sem pesquisar, aparecem todos os produtos da loja, por páginas (Próxima e Anterior embaixo da lista; em Mostrar ... por página, escolha quantos de cada vez). Para lançar uma embalagem inteira (ex.: 12 unidades), toque no botão com o nome dela (+ fardo, + caixa, + pacote...), no rodapé do cartão do produto (ao lado de + 1 un.). O filtro ao lado da busca mostra só uma categoria.",
+      "Tocar de novo num produto que já está na comanda soma na mesma linha. Para acertar a quantidade, use o contador do item (− e +, ou digite o número); quando há embalagem, há um contador para ela e outro para as unidades avulsas.",
+      "O estoque baixa assim que o item é lançado (e acompanha o contador), e o preço fica o que valia naquele momento, mesmo que mude depois. Se o preço do produto mudar no meio da comanda, o que for lançado depois entra numa linha separada, com o preço novo.",
       "Para tirar um item, clique na lixeira ao lado dele. O estoque volta.",
     ],
     problems: [
@@ -43,7 +44,7 @@ export const comandas: Article[] = [
       },
     ],
     related: ["comandas-fechar", "comandas-cancelar"],
-    keywords: ["lançar item", "adicionar", "remover item"],
+    keywords: ["lançar item", "adicionar", "remover item", "quantidade", "contador"],
   },
   {
     id: "comandas-fechar",
@@ -56,9 +57,10 @@ export const comandas: Article[] = [
     steps: [
       "Não precisa abrir o caixa antes: se estiver fechado, ele abre sozinho ao fechar a comanda.",
       "Abra a comanda e clique em Fechar comanda.",
-      "Confira a origem da venda (Balcão já vem marcado; mude se o pedido veio de outro canal). Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
+      "Escolha a forma de pagamento, o desconto (opcional) e o cliente, se precisar (fiado ou vasilhames). No fiado, se o cliente já deve, o sistema mostra quanto e em quantas vendas e pergunta se quer mesmo vender.",
       "Se houver produtos com vasilhame, informe quantos vazios o cliente devolve agora e, se ele quer ficar com o vasilhame, quantos cascos ele compra (o valor entra no total).",
       "Clique em Concluir. A venda é registrada sem baixar o estoque de novo, porque ele já baixou ao lançar os itens.",
+      "A comanda não pergunta a origem da venda: ela é consumo no balcão e vai como Balcão (se a empresa excluiu ou renomeou o Balcão, vai a origem padrão).",
     ],
     problems: [
       {

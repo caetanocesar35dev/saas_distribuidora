@@ -9,6 +9,7 @@ import type {
   CustomerBottleBody,
   ManualBottleMovementBody,
   Paginated,
+  StoreBottlePriceBody,
 } from "@/lib/api/types";
 
 export const bottleKeys = {
@@ -30,6 +31,16 @@ export function useBottleMovements(storeId: string, query: BottleMovementsQuery)
     queryFn: () =>
       storeApi(storeId).get<Paginated<BottleMovement>>("/bottle-movements", { ...query }),
     placeholderData: keepPreviousData,
+  });
+}
+
+/** Preço próprio do casco nesta loja (`null` = vale o da empresa). Gerente ou dono. */
+export function useSetStoreBottlePrice(storeId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ bottleTypeId, ...body }: StoreBottlePriceBody & { bottleTypeId: string }) =>
+      storeApi(storeId).put<BottleStockLine>(`/bottle-types/${bottleTypeId}/price`, body),
+    onSuccess: () => client.invalidateQueries({ queryKey: bottleKeys.stock(storeId) }),
   });
 }
 

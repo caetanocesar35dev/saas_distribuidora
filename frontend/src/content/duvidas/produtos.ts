@@ -202,11 +202,11 @@ export const produtos: Article[] = [
     title: "Organizar os produtos por categoria",
     purpose:
       "Separar bebidas, cigarros, salgadinhos e o que mais a distribuidora vende, para filtrar os produtos e ver quanto cada categoria fatura.",
-    where: "Menu › Produtos › Categorias",
+    where: "Menu › Configurações › Categorias de produto · Menu › Produtos › Categorias",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
-      "Abra Menu › Produtos e clique em Categorias. A empresa já começa com Bebidas, Cigarros, Salgadinhos, Mercearia e Gelo e carvão.",
+      "Abra Menu › Configurações e use o quadro Categorias de produto (ou, em Menu › Produtos, clique em Categorias: é a mesma lista). A empresa já começa com Bebidas, Cigarros, Salgadinhos, Mercearia e Gelo e carvão.",
       "Para criar outra, digite o nome e clique em Adicionar. Use o lápis para renomear e a lixeira para excluir.",
       "Para colocar um produto numa categoria, clique em Editar ao lado dele, em Menu › Produtos, e escolha a Categoria. Ao cadastrar um produto novo, o campo já aparece.",
       "No caixa, em Comandas, em Estoque e em Produtos, o filtro ao lado da busca mostra só uma categoria.",
@@ -227,7 +227,7 @@ export const produtos: Article[] = [
         fix: "Os produtos cadastrados antes das categorias começam sem nenhuma. Escolha a categoria de cada um em Menu › Produtos › Editar.",
       },
     ],
-    related: ["produtos-cadastrar", "gestao-painel"],
+    related: ["produtos-cadastrar", "gestao-painel", "gestao-configuracoes"],
     keywords: ["categoria", "cigarro", "salgadinho", "gelo", "carvão", "filtro", "organizar"],
   },
 ];

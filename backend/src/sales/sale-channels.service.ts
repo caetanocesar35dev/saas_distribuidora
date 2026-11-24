@@ -11,6 +11,7 @@ import {
   ListSaleChannelsQuery,
   UpdateSaleChannelDto,
 } from './dto/sales.dto';
+import { DEFAULT_SALE_CHANNELS } from './sale-channels';
 
 const SELECT = {
   id: true,
@@ -151,6 +152,25 @@ export class SaleChannelsService {
  * Origem de uma venda nova: a escolhida (precisa ser desta empresa e não estar excluída) ou, sem
  * escolha, a padrão da empresa. null só quando a empresa não tem nenhuma origem.
  */
+/**
+ * Origem da venda de uma comanda (decidido pelo usuário, 2026-11-24): comanda é consumo no balcão,
+ * então a tela não pergunta a origem. Vale a origem chamada "Balcão" (sem diferenciar maiúsculas)
+ * e, se a empresa a excluiu ou renomeou, a padrão.
+ */
+export async function resolveCounterChannel(
+  tx: PrismaTx,
+  companyId: string,
+): Promise<string | null> {
+  const counter = await tx.saleChannel.findFirst({
+    where: {
+      companyId,
+      name: { equals: DEFAULT_SALE_CHANNELS[0], mode: 'insensitive' },
+    },
+    select: { id: true },
+  });
+  return counter?.id ?? resolveSaleChannel(tx, companyId);
+}
+
 export async function resolveSaleChannel(
   tx: PrismaTx,
   companyId: string,

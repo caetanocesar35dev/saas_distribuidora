@@ -205,7 +205,13 @@ export function useSaveBottleType(companyId: string) {
         ? companyApi(companyId).patch<BottleType>(`/bottle-types/${id}`, body)
         : companyApi(companyId).post<BottleType>("/bottle-types", body),
     meta: { silent: true },
-    onSuccess: () => client.invalidateQueries({ queryKey: catalogKeys.bottleTypes(companyId) }),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: catalogKeys.bottleTypes(companyId) });
+      // O preço da empresa vale nas lojas sem preço próprio: atualiza o estoque de vasilhame delas.
+      await client.invalidateQueries({
+        predicate: (q) => q.queryKey[0] === "store" && q.queryKey[2] === "bottles",
+      });
+    },
   });
 }
 

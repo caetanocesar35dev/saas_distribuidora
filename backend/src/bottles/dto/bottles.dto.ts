@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsIn,
   IsInt,
+  IsNumber,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -13,6 +14,7 @@ import {
   MaxLength,
   Min,
   NotEquals,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -89,4 +91,16 @@ export class CustomerBottleDto {
   @IsNotEmpty()
   @MaxLength(300)
   description?: string;
+}
+
+/**
+ * Preço próprio do casco nesta loja (decidido pelo usuário, 2026-11-24). `null` volta a valer o preço
+ * da empresa.
+ */
+export class SetStoreBottlePriceDto {
+  @ValidateIf((o: SetStoreBottlePriceDto) => o.price !== null)
+  @IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false })
+  @Min(0.01, { message: 'O preço do casco deve ser maior que zero.' })
+  @Max(100_000)
+  price: number | null;
 }

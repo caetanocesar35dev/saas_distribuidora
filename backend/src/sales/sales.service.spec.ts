@@ -834,6 +834,28 @@ describe('SalesService', () => {
       expect(await bottleDebt(customer.id)).toBeFalsy(); // nenhuma dívida de vasilhame
     });
 
+    it('a loja com preço próprio do casco cobra o dela; as outras, o da empresa', async () => {
+      await setLitraoPrice(8);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.storeBottleType.update({
+          where: {
+            storeId_bottleTypeId: {
+              storeId: w.storeA.id,
+              bottleTypeId: litrao.id,
+            },
+          },
+          data: { price: 9.5 },
+        }),
+      );
+      const sale = await sell({
+        items: [{ storeProductId: crate.id, quantity: 1 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 1 }],
+      });
+      expect(sale.bottlesTotal).toBe(9.5);
+      expect(sale.total).toBe(59.5);
+    });
+
     it('recusa casco sem preço e mais cascos do que saem na venda; nada é gravado', async () => {
       await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
       await expect(

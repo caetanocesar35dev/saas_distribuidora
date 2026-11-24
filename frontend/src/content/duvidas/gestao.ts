@@ -20,7 +20,7 @@ export const gestao: Article[] = [
       "Os cascos de vasilhame que os clientes compraram não entram no faturamento nem no lucro (não são produto): o cartão de Faturamento mostra embaixo quanto entrou em cascos no período. O dinheiro deles entra normalmente no caixa.",
       "O cartão Fiado recebido mostra quanto os clientes pagaram de fiado nesta loja no período, de vendas de qualquer data.",
       "O gráfico mostra faturamento e lucro recebido de cada um dos últimos 7 dias.",
-      "Por origem (este mês) mostra de onde vieram as vendas (balcão, WhatsApp, iFood, Zé Delivery...): quantas vendas, o faturamento, a barra com a parte de cada origem no faturamento, o ticket médio (faturamento ÷ vendas) e o lucro vendido. Vendas de antes de existir a origem aparecem como Sem origem.",
+      "Por origem (este mês) mostra de onde vieram as vendas (balcão, WhatsApp, iFood, Zé Delivery...): quantas vendas, o faturamento, a barra com a parte de cada origem no faturamento, o valor médio por venda (faturamento ÷ vendas, também chamado de ticket médio) e o lucro vendido. Vendas de antes de existir a origem aparecem como Sem origem.",
       "Por categoria mostra o faturamento e o lucro vendido do mês de cada categoria de produto (aqui o lucro inclui o fiado ainda não pago, porque o pagamento não é ligado a um produto). O desconto de uma venda é repartido entre os itens dela, por isso a soma pode diferir do total em centavos.",
       "Para o dono, enquanto a loja não estiver pronta, o Início mostra os Primeiros passos: confirmar o endereço da loja, cadastrar os produtos, abrir o caixa e convidar a equipe. Cada item leva para a tela certa e marca sozinho quando você conclui. O botão Esconder tira o quadro só deste navegador.",
     ],
@@ -203,6 +203,33 @@ export const gestao: Article[] = [
       "O CNPJ não pode ser alterado depois do cadastro.",
     ],
     keywords: ["razão social", "nome fantasia", "cnpj"],
+  },
+  {
+    id: "gestao-configuracoes",
+    category: "gestao",
+    title: "Configurações: origens da venda e categorias de produto",
+    purpose:
+      "Arrumar as listas que valem para todas as lojas da empresa: de onde vêm as vendas e as categorias dos produtos.",
+    where: "Menu › Configurações",
+    minRole: "MANAGER",
+    audience: ["MANAGER", "OWNER"],
+    steps: [
+      "Abra Menu › Configurações (logo acima de Dúvidas). O item só aparece para gerente e dono.",
+      "No quadro Origens da venda: adicione uma origem (ex.: Aiqfome), renomeie com o lápis, clique na estrela para escolher a que já vem marcada no fechamento da venda e exclua com a lixeira. A origem padrão não tem lixeira.",
+      "No quadro Categorias de produto: adicione, renomeie e exclua as categorias. Só dá para excluir uma categoria sem produtos.",
+      "As duas listas valem para todas as lojas da empresa: mudar aqui muda em todas.",
+      "Para trazer de volta algo excluído, marque Mostrar só as excluídas no quadro e clique em Reativar.",
+      "O relógio ao lado de cada item mostra quem mudou e quando.",
+      "Os dados da loja (endereço, horário do fechamento automático do caixa) ficam em Menu › Painel da empresa › Lojas, só para o dono; os seus dados ficam em Minha conta.",
+    ],
+    problems: [
+      {
+        message: "O item Configurações não aparece no menu",
+        fix: "Só gerente e dono mudam essas listas. Peça a um deles.",
+      },
+    ],
+    related: ["vendas-origens", "produtos-categorias", "gestao-lojas", "acesso-minha-conta"],
+    keywords: ["configurações", "configurar", "ajustes", "origem", "categoria", "ifood", "aiqfome"],
   },
   {
     id: "gestao-nova-empresa",

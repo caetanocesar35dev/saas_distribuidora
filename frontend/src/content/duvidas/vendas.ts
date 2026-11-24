@@ -12,7 +12,7 @@ export const vendas: Article[] = [
     steps: [
       "Não precisa abrir o caixa antes: se ele estiver fechado, a primeira venda abre o caixa sozinha, com o saldo do último fechamento.",
       "Abra Menu › Vender (PDV). O cursor já fica na busca (tecla F2 volta para ela).",
-      "Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho. Ao tocar, a busca continua filtrada, para você adicionar mais do mesmo produto; pelo leitor, ela limpa sozinha para o próximo código.",
+      "Sem pesquisar, a tela mostra todos os produtos à venda na loja, em ordem de nome: use Próxima e Anterior, embaixo da lista, para ver os outros. Em Mostrar ... por página, escolha quantos aparecem de cada vez (12, 24, 48 ou 96; o padrão é 24); o navegador lembra a escolha. Passe o leitor de código de barras ou digite o nome. Tocar no produto também adiciona. Cada toque soma 1 unidade; ajuste a quantidade no carrinho. Ao tocar, a busca continua filtrada, para você adicionar mais do mesmo produto; pelo leitor, ela limpa sozinha para o próximo código.",
       "Para achar um produto mais rápido, escolha a categoria no filtro ao lado da busca.",
       "Para vender em lote, toque no botão com o nome da embalagem (+ fardo, + caixa, + pacote...), no rodapé do cartão do produto (ao lado de + 1 un.): entra 1 embalagem de uma vez (ex.: 12 unidades). No carrinho, ajuste a embalagem e as Unidades separadas (ex.: 2 maços + 3 cigarros picados). Se a embalagem tem preço próprio, ele aparece no botão e vale para cada uma, e as unidades avulsas usam o preço da unidade; sem preço próprio, a embalagem vale a unidade vezes a quantidade. Para dar outro desconto de atacado, use o campo Desconto no pagamento.",
       "Clique em Finalizar venda (ou tecla F9).",
@@ -140,7 +140,7 @@ export const vendas: Article[] = [
       },
       {
         message: "Casco sem preço: só troca ou empréstimo.",
-        fix: "O tipo de vasilhame ainda não tem preço do casco. O gerente ou o dono define em Menu › Vasilhames › Tipos de vasilhame › Editar.",
+        fix: "O tipo de vasilhame ainda não tem preço do casco. O gerente ou o dono define o da empresa em Menu › Vasilhames › Tipos de vasilhame › Editar, ou só o desta loja em Menu › Vasilhames › aba Estoque › Preço nesta loja.",
       },
     ],
     related: ["vasilhames-tipos", "vasilhames-cliente", "vendas-vender"],
@@ -180,17 +180,17 @@ export const vendas: Article[] = [
     title: "Origem da venda (balcão, WhatsApp, iFood, Zé Delivery)",
     purpose:
       "Registrar de onde veio cada pedido e ver quanto cada canal vende. A lista de origens é da empresa e pode ser mudada.",
-    where: "Menu › Histórico de vendas › Origens da venda",
+    where: "Menu › Configurações › Origens da venda",
     minRole: "EMPLOYEE",
     who: "Todos escolhem a origem na venda; só gerente e dono mudam a lista",
     audience: ["EMPLOYEE", "MANAGER", "OWNER"],
     steps: [
-      "Toda venda tem uma origem. No fechamento da venda (PDV, Lançar venda antiga e Fechar comanda), a origem padrão já vem marcada (Balcão, se ninguém mudou); toque em outra quando o pedido veio de lá.",
+      "Toda venda tem uma origem. No fechamento da venda (PDV e Lançar venda antiga), a origem padrão já vem marcada (Balcão, se ninguém mudou); toque em outra quando o pedido veio de lá. A comanda não pergunta: ela é consumo no balcão e vai como Balcão.",
       "A empresa começa com Balcão, WhatsApp/Telefone, iFood, Zé Delivery e Anota AI. Elas valem para todas as lojas da empresa.",
-      "Para mudar a lista (gerente ou dono), abra Menu › Histórico de vendas e clique em Origens da venda. Ali dá para adicionar uma origem nova (ex.: Aiqfome, site próprio), renomear (lápis) e excluir (lixeira).",
+      "Para mudar a lista (gerente ou dono), abra Menu › Configurações e use o quadro Origens da venda. Ali dá para adicionar uma origem nova (ex.: Aiqfome, site próprio), renomear (lápis) e excluir (lixeira).",
       "Para mudar a que já vem marcada, clique na estrela da origem: ela vira a Padrão. A origem padrão não pode ser excluída; escolha outra como padrão antes.",
       "Excluir uma origem só a tira do fechamento da venda: as vendas feitas com ela continuam mostrando o nome. Para trazê-la de volta, marque Mostrar só as excluídas e clique em Reativar.",
-      "No Histórico de vendas, filtre por origem para ver as vendas e o faturamento de um canal no período. No Início (gerente e dono), a tabela Por origem (este mês) mostra vendas, faturamento, a parte de cada origem, o ticket médio e o lucro vendido.",
+      "No Histórico de vendas, filtre por origem para ver as vendas e o faturamento de um canal no período. No Início (gerente e dono), a tabela Por origem (este mês) mostra vendas, faturamento, a parte de cada origem, o valor médio por venda e o lucro vendido.",
     ],
     problems: [
       {
@@ -202,11 +202,11 @@ export const vendas: Article[] = [
         fix: "Clique em Reativar a origem excluída, em vez de cadastrar com o mesmo nome.",
       },
       {
-        message: "O botão Origens da venda não aparece",
+        message: "O item Configurações não aparece no menu",
         fix: "Só gerente e dono mudam a lista. O atendente só escolhe a origem na hora da venda.",
       },
     ],
-    related: ["vendas-vender", "vendas-historico", "gestao-painel"],
+    related: ["vendas-vender", "vendas-historico", "gestao-painel", "gestao-configuracoes"],
     keywords: [
       "origem",
       "canal",

@@ -497,13 +497,27 @@ export class SalesService {
 
     const types = await tx.bottleType.findMany({
       where: { id: { in: typeIds }, companyId: input.companyId },
-      select: { id: true, name: true, price: true },
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        storeStocks: {
+          where: { storeId: input.storeId, deletedAt: null },
+          select: { price: true },
+        },
+      },
     });
     if (types.length !== typeIds.length)
       throw new NotFoundException(
         'Tipo de vasilhame não encontrado nesta empresa.',
       );
-    const typeById = new Map(types.map((t) => [t.id, t]));
+    // Preço do casco: o próprio da loja e, sem ele, o da empresa.
+    const typeById = new Map(
+      types.map((t) => [
+        t.id,
+        { name: t.name, price: t.storeStocks[0]?.price ?? t.price },
+      ]),
+    );
 
     let purchaseCents = 0;
     const rows = typeIds.map((typeId) => {

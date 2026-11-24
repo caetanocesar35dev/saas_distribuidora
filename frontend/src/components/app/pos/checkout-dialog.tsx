@@ -32,7 +32,7 @@ import {
   bottlesTotal,
   type BottleLine,
 } from "@/components/app/pos/bottle-checkout";
-import { useBottleTypes } from "@/lib/api/hooks/catalog";
+import { useBottleStock } from "@/lib/api/hooks/bottles";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
 import { useSaleChannels } from "@/lib/api/hooks/sales";
 import { effectiveChannelId } from "@/lib/sale-channels";
@@ -86,9 +86,15 @@ export function CheckoutDialog({
   error,
   onSubmit,
   onClose,
+  askChannel = true,
 }: {
   companyId: string;
   title: string;
+  /**
+   * Pergunta a origem da venda. A comanda passa `false`: é sempre consumo no balcão e o backend
+   * grava Balcão (decidido pelo usuário, 2026-11-24).
+   */
+  askChannel?: boolean;
   subtotal: number;
   bottleLines: BottleLine[];
   initialCustomer?: PickedCustomer | null;
@@ -108,16 +114,18 @@ export function CheckoutDialog({
   const [returned, setReturned] = useState<Record<string, number | undefined>>({});
   const [bought, setBought] = useState<Record<string, number | undefined>>({});
 
-  // Preço do casco de cada tipo (da empresa). Enquanto não carrega, a compra fica indisponível.
-  const bottleTypes = useBottleTypes(companyId);
+  // Preço do casco de cada tipo nesta loja (o da loja ou, sem ele, o da empresa). Enquanto não
+  // carrega, a compra fica indisponível.
+  const { storeId } = useStore();
+  const bottleStock = useBottleStock(storeId);
   const bottleBalance = useMemo(() => {
-    const prices = new Map((bottleTypes.data ?? []).map((t) => [t.id, t.price]));
+    const prices = new Map((bottleStock.data ?? []).map((t) => [t.bottleTypeId, t.price]));
     return bottleRows(
       bottleLines.map((line) => ({ ...line, price: prices.get(line.bottleTypeId) ?? null })),
       returned,
       bought,
     );
-  }, [bottleLines, bottleTypes.data, returned, bought]);
+  }, [bottleLines, bottleStock.data, returned, bought]);
   const cascos = bottlesTotal(bottleBalance);
 
   const discountValue = discount ?? 0;
@@ -135,7 +143,6 @@ export function CheckoutDialog({
   // ---- aviso de fiado em aberto e limite de crédito: antes de vender no fiado, mostra quanto o
   // cliente já deve e se a venda passa do limite (atendente é barrado; gerente e dono confirmam)
   const client = useQueryClient();
-  const { storeId } = useStore();
   const canPassLimit = useHasRole("MANAGER");
   const [checkingCredit, setCheckingCredit] = useState(false);
   const [creditCheck, setCreditCheck] = useState<{
@@ -208,7 +215,7 @@ export function CheckoutDialog({
             if (!valid || checkingCredit) return;
             void submit({
               paymentMethod: method,
-              channelId,
+              channelId: askChannel ? channelId : undefined,
               discount: discountValue,
               customerId: customer?.id,
               bottleReturns: bottleBalance
@@ -220,7 +227,7 @@ export function CheckoutDialog({
             });
           }}
         >
-          {channels.data && channels.data.length > 0 && (
+          {askChannel && channels.data && channels.data.length > 0 && (
             <fieldset>
               <legend className="mb-2 text-sm font-medium">Origem da venda</legend>
               <div className="flex flex-wrap gap-2">

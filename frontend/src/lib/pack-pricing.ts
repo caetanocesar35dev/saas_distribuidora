@@ -7,6 +7,11 @@ import { roundMoney } from "@/lib/format";
  * quantidade. O custo é digitado por embalagem e guardado por unidade, com até 4 casas.
  */
 
+/** Unidades avulsas de um item (`quantity` é o total, já com as embalagens). */
+export function looseUnits(item: { quantity: number; packs: number; packSize: number | null }) {
+  return item.quantity - item.packs * (item.packSize ?? 0);
+}
+
 /** Item de venda ou comanda: `quantity` é o total em unidades (já com as embalagens). */
 export function itemTotal(item: {
   quantity: number;
@@ -16,8 +21,9 @@ export function itemTotal(item: {
   packPrice: number | null;
 }): number {
   const size = item.packSize ?? 0;
-  const loose = item.quantity - item.packs * size;
-  return roundMoney(loose * item.price + item.packs * (item.packPrice ?? item.price * size));
+  return roundMoney(
+    looseUnits(item) * item.price + item.packs * (item.packPrice ?? item.price * size),
+  );
 }
 
 export function defaultUnitPrice(packPrice: number, packSize: number): number {

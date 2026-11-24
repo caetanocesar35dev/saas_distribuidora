@@ -403,9 +403,18 @@ export interface UpdateStoreProductBody {
 export interface BottleStockLine {
   bottleTypeId: string;
   bottleTypeName: string;
-  /** Preço do casco (null = não é vendido). */
+  /** Preço do casco que vale nesta loja: o da loja ou, sem ele, o da empresa (null = não é vendido). */
   price: number | null;
+  /** Preço da empresa (Vasilhames › Tipos). */
+  companyPrice: number | null;
+  /** Preço próprio desta loja (null = vale o da empresa). */
+  storePrice: number | null;
   stock: number;
+}
+
+/** `PUT /stores/:storeId/bottle-types/:id/price`: `null` volta ao preço da empresa. */
+export interface StoreBottlePriceBody {
+  price: number | null;
 }
 
 export interface BottleMovement {

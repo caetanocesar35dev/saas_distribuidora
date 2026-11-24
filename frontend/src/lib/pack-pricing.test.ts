@@ -5,6 +5,7 @@ import {
   defaultUnitPrice,
   draftFromOffer,
   itemTotal,
+  looseUnits,
   packCostFromUnit,
   resolvePrices,
   unitCostFromPack,
@@ -28,6 +29,11 @@ describe("valor do item", () => {
     expect(itemTotal({ quantity: 3, packs: 0, packSize: null, price: 4.5, packPrice: null })).toBe(
       13.5,
     );
+  });
+
+  it("unidades avulsas do item (o contador da comanda)", () => {
+    expect(looseUnits({ quantity: 43, packs: 2, packSize: 20 })).toBe(3);
+    expect(looseUnits({ quantity: 5, packs: 0, packSize: null })).toBe(5);
   });
 
   it("o carrinho usa a mesma conta", () => {

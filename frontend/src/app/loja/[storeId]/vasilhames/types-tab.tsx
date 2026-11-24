@@ -54,8 +54,9 @@ function TypeDialog({
         <DialogHeader>
           <DialogTitle>{type ? "Editar tipo de vasilhame" : "Novo tipo de vasilhame"}</DialogTitle>
           <DialogDescription>
-            Ex.: Garrafa 600 ml, Caixa de cerveja, Botijão. O tipo e o preço do casco valem para
-            todas as lojas.
+            Ex.: Garrafa 600 ml, Caixa de cerveja, Botijão. O tipo vale para todas as lojas, e o
+            preço do casco também, menos nas lojas com preço próprio (aba Estoque › Preço nesta
+            loja).
           </DialogDescription>
         </DialogHeader>
         <form

@@ -18,6 +18,7 @@ import {
   PackageIcon,
   PlusIcon,
   ReceiptIcon,
+  SettingsIcon,
   ShoppingCartIcon,
   StoreIcon,
   UsersIcon,
@@ -256,8 +257,12 @@ export function StoreShell({ children }: { children: React.ReactNode }) {
       ],
     });
   }
+  // Listas da empresa que o gerente edita (origens da venda, categorias): só gerente e dono.
+  const settings: NavItem[] = manager
+    ? [{ href: `${base}/configuracoes`, label: "Configurações", icon: SettingsIcon }]
+    : [];
   groups.push({
-    items: [{ href: "/duvidas", label: "Dúvidas", icon: CircleHelpIcon }],
+    items: [...settings, { href: "/duvidas", label: "Dúvidas", icon: CircleHelpIcon }],
   });
 
   return (

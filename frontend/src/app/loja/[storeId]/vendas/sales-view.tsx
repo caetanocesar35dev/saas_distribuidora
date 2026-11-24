@@ -1,6 +1,5 @@
 "use client";
 
-import { WaypointsIcon } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -11,7 +10,7 @@ import {
   PageHeader,
   StatCard,
 } from "@/components/app/common";
-import { ActionButton, RequireRole } from "@/components/app/guards";
+import { RequireRole } from "@/components/app/guards";
 import { SelectField } from "@/components/app/inputs";
 import { Pagination } from "@/components/app/pagination";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +29,6 @@ import type { PaymentMethod, SaleStatus } from "@/lib/api/types";
 import {
   formatDateTime,
   formatInt,
-  hasMinRole,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
   revenueHint,
@@ -39,18 +37,16 @@ import {
 } from "@/lib/format";
 import { channelLabel, NO_CHANNEL, NO_CHANNEL_LABEL } from "@/lib/sale-channels";
 import { useStore } from "@/lib/session/context";
-import { ChannelsDialog } from "./channels-dialog";
 
 const ALL = "all";
 
 export function SalesView() {
-  const { storeId, companyId, role } = useStore();
+  const { storeId, companyId } = useStore();
   const today = todayString();
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [method, setMethod] = useState<string>(ALL);
   const [channel, setChannel] = useState<string>(ALL);
-  const [managingChannels, setManagingChannels] = useState(false);
   const channels = useSaleChannels(companyId);
   const [status, setStatus] = useState<string>(ALL);
   const [search, setSearch] = useState("");
@@ -81,21 +77,7 @@ export function SalesView() {
         title="Histórico de vendas"
         description="Histórico de vendas desta loja. Por padrão, as de hoje."
         help="vendas-historico"
-        actions={
-          hasMinRole(role, "MANAGER") && (
-            <ActionButton
-              variant="outline"
-              minRole="MANAGER"
-              onClick={() => setManagingChannels(true)}
-            >
-              <WaypointsIcon /> Origens da venda
-            </ActionButton>
-          )
-        }
       />
-      {managingChannels && (
-        <ChannelsDialog companyId={companyId} onClose={() => setManagingChannels(false)} />
-      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-2">
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">

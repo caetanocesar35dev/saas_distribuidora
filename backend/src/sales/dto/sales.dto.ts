@@ -225,6 +225,20 @@ export class AddCommandItemDto {
   packs?: number;
 }
 
+/** Contador do item da comanda: unidades avulsas e embalagens (o total precisa ser ≥ 1). */
+export class UpdateCommandItemDto {
+  @IsInt()
+  @Min(0, { message: 'A quantidade não pode ser negativa.' })
+  @Max(100_000)
+  quantity: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0, { message: 'A quantidade de fardos não pode ser negativa.' })
+  @Max(10_000)
+  packs?: number;
+}
+
 export class CloseCommandTabDto {
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
