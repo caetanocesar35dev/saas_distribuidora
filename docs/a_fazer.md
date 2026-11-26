@@ -80,12 +80,11 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
    cadastro do cliente, cartão "Limite de crédito" no detalhe e aviso no PDV e na comanda.
 8. [ ] **Comprovante imprimível ou por WhatsApp** da venda, do pagamento de fiado e do fechamento
    de caixa (não fiscal).
-9. [ ] **Relatórios com exportação** (CSV/Excel): vendas por período e por produto, produtos mais
+9. [ ] **Relatórios com exportação e area do contador** (CSV/Excel): vendas por período e por produto, produtos mais
    vendidos e lista de devedores.
 10. [ ] **Transferência de estoque entre lojas.** Hoje só dá para fazer como saída numa loja e
     entrada na outra.
-11. [ ] **Cobrança de fiado:** botão para mandar mensagem no WhatsApp com o valor devido, a partir
-    da lista de devedores.
+
 12. [ ] **Nota fiscal (NFC-e/NF-e).** Decisão de produto grande: muitas distribuidoras são
     obrigadas a emitir, e isso exige integrar com um emissor.
 13. [x] **vendas antigas** tela para lancar vendar antigas, caso a conexao da internet da loja tenha caido anteriormente ou algo do tipo.
@@ -144,9 +143,10 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       que ficarem sem preço próprio.
     - **Reativar produto** pela tela: Produtos › "Mostrar só os excluídos" › Reativar. Volta com as
       ofertas das lojas (preço e estoque de antes).
-    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. Faturamento e lucro
-      continuam contando o vendido no fiado, mas cada cartão mostra quanto foi no fiado, e há o
-      cartão "Fiado recebido" (pagamentos do período). Cancelar a venda já a tira das contas.
+    - **Fiado no painel.** **Decidido pelo usuário:** separar sem esconder. O faturamento conta o
+      vendido no fiado (o cartão mostra quanto foi no fiado), e há o cartão "Fiado recebido"
+      (pagamentos do período). Cancelar a venda já a tira das contas. **Revisto em 2026-11-13:** o
+      lucro ("Lucro recebido") conta o fiado só quando o cliente paga, proporcional ao pagamento.
     - **Campos de dinheiro com formatação automática** (todos, inclusive receber fiado): o ponto de
       milhar aparece sozinho, "." do teclado numérico vira vírgula, no máximo 2 casas.
     - **Autorização do gerente no balcão.** **Decidido pelo usuário:** venda fiada acima do limite
@@ -155,18 +155,26 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
       `tb_sales.creditApprovedById` registra quem autorizou; o detalhe da venda mostra "Acima do
       limite, autorizado por ...".
 
-25. [ ] **Vender além de bebidas** (pedido do usuário, 2026-10-30: distribuidoras também vendem
-    cigarro, salgadinho, gelo, carvão, descartáveis etc.). Hoje o cadastro já aceita esses produtos
-    (vasilhame é opcional e o "fardo" serve para qualquer embalagem com várias unidades), mas tudo
-    foi pensado para bebida. A decidir com o usuário antes de implementar:
-    - **Categorias de produto** (Bebidas, Cigarros, Salgadinhos, Mercearia, Gelo/Carvão...): filtro
-      no PDV, no Estoque e em Produtos, e faturamento e lucro por categoria no painel. Precisa de
-      tabela ou coluna nova (aprovação do schema).
-    - **Nome da embalagem por produto**: hoje a tela diz sempre "fardo"; cigarro vende em **maço** e
-      **pacote** (10 maços), salgadinho em **caixa** ou **display**. Um campo "nome da embalagem"
-      (fardo, caixa, pacote, display, engradado) muda só o texto, sem mexer na conta.
-    - **Venda por peso ou fração** (gelo em kg, carvão, produtos a granel): hoje a quantidade é
-      inteira. Exige aceitar quantidade decimal em estoque e venda: mudança grande, só se pedirem.
+25. [x] **Vender além de bebidas** (pedido do usuário, 2026-10-30: distribuidoras também vendem
+    cigarro, salgadinho, gelo, carvão, descartáveis etc.). **Feito (marcado pelo usuário em
+    2026-11-03):** o sistema já registra esses produtos, com vasilhame opcional e em quantidades
+    inteiras. Situação de cada ideia (as sem "feito" continuam **em aberto**, a decidir com o usuário
+    antes de implementar):
+    - **Categorias de produto: feito (2026-11-03).** **Decidido pelo usuário:** editáveis por empresa,
+      começando com Bebidas, Cigarros, Salgadinhos, Mercearia e Gelo e carvão. Tela em Produtos ›
+      Categorias, filtro no PDV, nas comandas, no Estoque e em Produtos, e faturamento e lucro do mês
+      por categoria no painel.
+    - **Nome da embalagem por produto: feito (2026-11-03).** **Decidido pelo usuário:** lista com
+      opção livre (fardo, caixa, pacote, display, engradado ou outro). Muda só o texto, sem mexer na
+      conta.
+    - **Preço e custo da embalagem (decidido pelo usuário, 2026-11-03):** o cigarro vende picado e no
+      maço. A embalagem pode ter preço próprio; por padrão, a unidade é o preço da embalagem ÷ a
+      quantidade, e o vendedor pode pôr outro preço na unidade (o picado costuma ser mais caro). O
+      custo é digitado por embalagem, e o sistema guarda o da unidade com até 4 casas. Sem preço da
+      embalagem, continua unidade × quantidade.
+    - **Venda por peso ou fração: não será feita (decidido pelo usuário, 2026-11-03).** Quem vende
+      saco de gelo ou carvão de pesos diferentes cadastra cada peso como um produto. A quantidade
+      continua inteira.
     - **Validade e lote** (salgadinho e alimentos vencem): alerta de produtos perto do vencimento.
       Mudança média; avaliar com os primeiros clientes.
     - **Venda proibida para menores** (bebida alcoólica e cigarro): um aviso opcional no PDV
@@ -276,5 +284,70 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     - O "teste terminou" e o "carência terminou" passam a levar o botão direto para pagar.
     **Talvez depois:** resumo semanal para o dono (faturamento, fiado em aberto, estoque baixo),
     só se os primeiros clientes quiserem.
-21. [ ] revisar termos de uso
-21. [ ] adicionar whatsapp e instagram
+21. [ ] revisar termos de uso e privacidade
+22. [x] adicionar whatsapp e instagram
+23. [x] ao convidar uma pessoa, ter a opcao de dar acesso a todas as lojas de uma vez. **Feito
+    (2026-11-06):** em Equipe › Convidar pessoa, com 2 lojas ou mais, aparece "Todas as lojas (N)",
+    que marca todas (as já marcadas mantêm o papel), e um seletor que põe o mesmo papel em todas.
+    Só na tela: o backend já recebia a lista de lojas. Vale para as lojas ativas no momento do
+    convite; as criadas depois só entram sozinhas para o gerente geral.
+
+24. [ ] SEO. **Feito (2026-11-18):** `robots.txt` (bloqueia a área logada, `/api/` e as telas de
+    senha), `sitemap.xml` (apresentação, cadastro, Central de Dúvidas com cada artigo, termos e
+    privacidade; os artigos da Plataforma ficam fora e com `noindex`), endereço canônico em cada
+    página pública (`/login?next=` e `/cadastro?ref=` apontam para a página sem o parâmetro),
+    descrição em cada uma, imagem de compartilhamento gerada (`app/opengraph-image.tsx`, usada pelo
+    WhatsApp e redes sociais) e dados estruturados na apresentação (empresa, sistema com o preço de
+    cada plano e perguntas frequentes). Regras em `src/lib/seo.ts`. **Falta (com o usuário):**
+    - Comprar o domínio e preencher `SITE_URL` no ambiente do frontend (também no build).
+    - Com o site no ar, cadastrar o domínio no **Google Search Console**, confirmar a posse e
+      enviar `https://<domínio>/sitemap.xml`. Conferir a apresentação no Teste de pesquisa
+      aprimorada (https://search.google.com/test/rich-results).
+    - Opcional: um ícone próprio (`app/icon.svg`) para aparecer ao lado do site no Google, e o
+      título principal da apresentação citar "sistema para distribuidora de bebidas" (hoje só o
+      título da aba e a imagem citam).
+25. [ ] CACHE
+26. [x] votacao nas notificacoes e marcar todas como lidas. **Feito (2026-11-18):**
+    - **Marcar todas:** `POST /me/notifications/read-all` (só as publicadas e não expiradas; as já
+      lidas mantêm a data) e o botão "Marcar todas como lidas" na tela Notificações e no sino.
+    - **Enquete:** tipo Enquete em Plataforma › Notificações, com 2 a 10 opções, prazo para votar
+      obrigatório e "Permitir mais de uma resposta" (como no WhatsApp). Qualquer pessoa vota e muda o
+      voto até o prazo (`PUT /me/notifications/:id/vote`); quem votou vê o resultado na hora, quem
+      não votou só depois do prazo; a plataforma vê os totais na lista, sem saber quem votou em quê.
+      Tabelas novas `tb_notification_poll_options` e `tb_notification_poll_votes` (migration
+      `20261118000000_notification_polls`, aprovada pelo usuário).
+27. [x] loja 100% gratis. **Feito (2026-11-22):** situação **Isenta** da assinatura, posta pela
+    plataforma em Organizações › Ajustar a assinatura: plano escolhido (ex.: Básico, os limites
+    valem), data limite ou "Acesso vitalício", e motivo (só a plataforma vê). Acesso completo sem
+    cobrança; passou da data, somente leitura. A isenta não troca de plano sozinha e não confirma
+    indicação. A tela Assinatura mostra "Isenta até ..." ou "acesso vitalício" e avisa 15 dias antes
+    do fim. A página de apresentação oferece o **pagamento único sem mensalidade** pelo WhatsApp.
+    Migration `20261122010000_subscription_exempt` (aprovada pelo usuário). **Ideias para depois:**
+    e-mail avisando o fim da isenção (como o do fim do teste); na Fase 10 (Asaas), nunca criar
+    cobrança para a isenta.
+28. [x] de onde veio o pedido (balcao, ifood, ze delivery, anotai, whatsapp). **Feito (2026-11-22):**
+    toda venda tem uma origem (PDV, Lançar venda antiga e Fechar comanda), com a padrão (Balcão) já
+    marcada. A lista é editável por empresa em Configurações › Origens da venda (gerente ou
+    dono: criar, renomear, escolher a padrão, excluir e reativar). O histórico de vendas tem a
+    coluna e o filtro por origem, o detalhe da venda mostra a origem, e o painel da loja e da
+    empresa tem a tabela "Por origem (este mês)" (vendas, faturamento, parte de cada uma, ticket
+    médio e lucro vendido). Vendas antigas ficam "Sem origem". Migration
+    `20261122000000_sale_channels` (aprovada pelo usuário). **Ideia para depois:** taxa de cada
+    aplicativo (o iFood cobra comissão) para mostrar o lucro líquido por origem.
+
+29. [ ] ter a certeza de que o desconto apenas sera aplicado quando o outro cliente pagar a primeira mensalidade
+30. [ ] melhor gerenciamento dos fornecedores (pedido do usuário, 2026-11-24). Hoje "Enviar ao
+    fornecedor" e "Receber do fornecedor" (Vasilhames) só registram tipo e quantidade, sem dizer
+    qual fornecedor, e a entrada de mercadoria (Estoque › Entrada) também não tem fornecedor.
+    Ideias:
+    - **Cadastro de fornecedores** por empresa (nome, CNPJ, telefone/WhatsApp, contato, observação;
+      excluir e reativar, como os outros cadastros).
+    - **Escolher o fornecedor** ao enviar e receber vasilhames, e ao dar entrada de mercadoria.
+    - **Saldo de vasilhame por fornecedor:** quantos cascos a loja deve a cada um (recebeu cheio e
+      ainda não devolveu vazio), como o saldo de vasilhame do cliente.
+    - **Preço do casco por fornecedor** (quanto o fornecedor cobra pelo casco não devolvido) e
+      **custo da mercadoria** por fornecedor (último preço pago, para comparar).
+    - Filtro por fornecedor no histórico de movimentações e um resumo por fornecedor (compras do
+      mês, cascos em aberto).
+    Precisa de tabela nova e colunas novas (fornecedor em `BottleMovement` e na entrada de estoque):
+    **mudança de schema, pedir aprovação** e decidir com o usuário o que entra primeiro.

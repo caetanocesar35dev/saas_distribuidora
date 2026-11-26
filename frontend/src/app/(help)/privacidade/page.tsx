@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/app/legal-page";
 import { privacySections } from "@/content/legal";
 
-export const metadata: Metadata = { title: "Política de privacidade" };
+export const metadata: Metadata = {
+  title: "Política de privacidade",
+  description:
+    "Como o Minha Distribuidora Online trata os dados pessoais de quem usa o sistema e dos clientes cadastrados, conforme a LGPD.",
+  alternates: { canonical: "/privacidade" },
+};
 
 // Monta na hora: os dados de quem opera o sistema vêm das variáveis LEGAL_* do ambiente.
 export const dynamic = "force-dynamic";

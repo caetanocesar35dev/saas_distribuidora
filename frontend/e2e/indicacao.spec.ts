@@ -30,7 +30,8 @@ test.describe("programa de indicação", () => {
     await page.getByRole("button", { name: "Menu do usuário" }).click();
     await page.getByRole("menuitem", { name: "Indique e ganhe" }).click();
     await expect(page.getByRole("heading", { name: "Indique e ganhe" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /Compartilhar no WhatsApp/ })).toHaveAttribute(
+    // é um <a> com cara de botão (Base UI): o papel acessível é "button"
+    await expect(page.getByRole("button", { name: /Compartilhar no WhatsApp/ })).toHaveAttribute(
       "href",
       /^https:\/\/wa\.me\/\?text=/,
     );
@@ -107,7 +108,8 @@ test.describe("programa de indicação", () => {
     await expect(row.getByText(/Pago em/)).toBeVisible();
 
     // ---- o detalhe da organização mostra quem indicou
-    await row.getByRole("link", { name }).click();
+    // o nome aparece duas vezes na linha (organização indicada e o link do detalhe)
+    await row.getByRole("link", { name }).first().click();
     await expect(page.getByText(`${repName} (representante)`)).toBeVisible();
 
     // ---- limpa: o representante sai (o código deixa de valer)

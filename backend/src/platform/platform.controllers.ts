@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -20,6 +21,7 @@ import {
   CreateNotificationDto,
   ListMyNotificationsQuery,
   UpdateNotificationDto,
+  VotePollDto,
 } from '../notifications/notifications.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -168,8 +170,24 @@ export class MyNotificationsController {
   }
 
   @HttpCode(200)
+  @Post('read-all')
+  markAllRead(@CurrentUser() user: AuthUser) {
+    return this.notifications.markAllRead(user.id);
+  }
+
+  @HttpCode(200)
   @Post(':id/read')
   markRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.notifications.markRead(user.id, id);
+  }
+
+  /** Vota ou muda o voto numa enquete aberta (a lista substitui o voto anterior). */
+  @Put(':id/vote')
+  vote(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: VotePollDto,
+  ) {
+    return this.notifications.vote(user.id, id, dto.optionIds);
   }
 }

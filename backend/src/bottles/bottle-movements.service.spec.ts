@@ -376,15 +376,79 @@ describe('BottleMovementsService', () => {
       const cx = await ctx.factory.bottleType(w.company.id, 'Caixa');
       await ctx.factory.bottleStock(w.storeA.id, litrao.id, 7);
       const stock = await service.stock(w.storeA.id, w.company.id);
+      const none = { price: null, companyPrice: null, storePrice: null };
       expect(stock).toEqual([
-        { bottleTypeId: cx.id, bottleTypeName: 'Caixa', stock: 0 },
-        { bottleTypeId: litrao.id, bottleTypeName: 'Litrão', stock: 7 },
+        { bottleTypeId: cx.id, bottleTypeName: 'Caixa', ...none, stock: 0 },
+        {
+          bottleTypeId: litrao.id,
+          bottleTypeName: 'Litrão',
+          ...none,
+          stock: 7,
+        },
       ]);
       expect(
         (await service.stock(w.storeB.id, w.company.id)).every(
           (s) => s.stock === 0,
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('preço do casco por loja', () => {
+    const setCompanyPrice = (price: number | null) =>
+      ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.bottleType.update({
+          where: { id: litrao.id },
+          data: { price },
+        }),
+      );
+    const setStorePrice = (storeId: string, price: number | null) =>
+      as(() => service.setStorePrice(storeId, w.company.id, litrao.id, price));
+
+    it('sem preço da loja vale o da empresa; com preço da loja, vale o dela só nela', async () => {
+      await setCompanyPrice(3);
+      expect(await setStorePrice(w.storeA.id, 3.5)).toMatchObject({
+        price: 3.5,
+        companyPrice: 3,
+        storePrice: 3.5,
+        stock: 0, // a linha da loja nasce sem mexer no estoque
+      });
+      const inB = (await service.stock(w.storeB.id, w.company.id))[0];
+      expect(inB).toMatchObject({ price: 3, storePrice: null });
+
+      // mudar o da empresa muda a loja B, não a A
+      await setCompanyPrice(4);
+      expect((await service.stock(w.storeA.id, w.company.id))[0].price).toBe(
+        3.5,
+      );
+      expect((await service.stock(w.storeB.id, w.company.id))[0].price).toBe(4);
+
+      // tirar o da loja volta ao da empresa
+      expect(await setStorePrice(w.storeA.id, null)).toMatchObject({
+        price: 4,
+        storePrice: null,
+      });
+    });
+
+    it('a loja pode vender o casco mesmo sem preço da empresa', async () => {
+      expect(await setStorePrice(w.storeA.id, 2)).toMatchObject({
+        price: 2,
+        companyPrice: null,
+      });
+    });
+
+    it('não mexe no estoque e recusa tipo de outra empresa', async () => {
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 7);
+      await setStorePrice(w.storeA.id, 3);
+      expect(await stockOf(w.storeA.id)).toBe(7);
+
+      const other = await ctx.factory.world();
+      const foreign = await ctx.factory.bottleType(other.company.id, 'Alheio');
+      await expect(
+        as(() =>
+          service.setStorePrice(w.storeA.id, w.company.id, foreign.id, 3),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

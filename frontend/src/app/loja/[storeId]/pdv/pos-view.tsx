@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2Icon, MinusIcon, PlusIcon, ShoppingCartIcon, Trash2Icon } from "lucide-react";
+import { CheckCircle2Icon, ShoppingCartIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Money, PageHeader } from "@/components/app/common";
@@ -9,6 +9,7 @@ import { ActionButton } from "@/components/app/guards";
 import { LinkButton } from "@/components/app/link-button";
 import { CheckoutDialog, type CheckoutPayload } from "@/components/app/pos/checkout-dialog";
 import { ProductSearch } from "@/components/app/pos/product-search";
+import { Stepper } from "@/components/app/pos/stepper";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,16 +26,19 @@ import { useCurrentCash } from "@/lib/api/hooks/cash";
 import { useCreateLateSale, useCreateSale } from "@/lib/api/hooks/sales";
 import type { CreateSaleBody, Sale, StoreProduct } from "@/lib/api/types";
 import {
+  capitalize,
   formatDateTime,
   formatInt,
   fromDatetimeLocal,
   PAYMENT_METHOD_LABEL,
-  roundMoney,
+  packLabel,
+  packPlural,
+  saleBottleSummary,
   toDatetimeLocal,
 } from "@/lib/format";
 import { lateSaleDateError } from "@/lib/late-sale";
 import { useAccess, useStore } from "@/lib/session/context";
-import { cartBottles, cartReducer, cartSubtotal, lineUnits, packSizeOf } from "./cart";
+import { cartBottles, cartReducer, cartSubtotal, lineTotal, lineUnits, packSizeOf } from "./cart";
 
 /**
  * Sem caixa aberto, o PDV não bloqueia mais (decisão do usuário): a primeira venda abre o caixa
@@ -83,11 +87,7 @@ function SaleDoneDialog({
             {sale.bottleMovements.map((m) => (
               <li key={m.id} className="flex justify-between gap-3">
                 <span>{m.bottleType.name}</span>
-                <span className="tabular-nums">
-                  {m.quantity > 0
-                    ? `devolveu ${formatInt(m.quantity)}`
-                    : `levou ${formatInt(-m.quantity)}`}
-                </span>
+                <span className="tabular-nums">{saleBottleSummary(m)}</span>
               </li>
             ))}
           </ul>
@@ -102,62 +102,6 @@ function SaleDoneDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/** Contador − [n] + de uma linha do carrinho (unidades ou fardos). */
-function Stepper({
-  label,
-  name,
-  value,
-  min,
-  max,
-  onChange,
-}: {
-  label?: string;
-  name: string;
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-}) {
-  // Passar do estoque (pelo "+" ou digitando) avisa "Estoque insuficiente" e fica no máximo.
-  const set = (n: number) => {
-    const top = Math.max(max, min);
-    if (n > top) toast.error("Estoque insuficiente");
-    onChange(Math.max(min, Math.min(n, top)));
-  };
-  return (
-    <div className="flex items-center gap-1">
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label={`Diminuir ${name}`}
-        disabled={value <= min}
-        onClick={() => set(value - 1)}
-      >
-        <MinusIcon />
-      </Button>
-      <input
-        aria-label={name}
-        inputMode="numeric"
-        className="h-8 w-12 rounded-lg border bg-transparent text-center text-sm tabular-nums"
-        value={value}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/\D/g, "");
-          if (digits !== "") set(Math.trunc(Number(digits)));
-        }}
-      />
-      <Button
-        variant="outline"
-        size="icon"
-        aria-label={`Aumentar ${name}`}
-        onClick={() => set(value + 1)}
-      >
-        <PlusIcon />
-      </Button>
-      {label && <span className="text-xs text-muted-foreground">{label}</span>}
-    </div>
   );
 }
 
@@ -230,6 +174,7 @@ export function PosView({ late = false }: { late?: boolean }) {
     setCheckoutError(null);
     const body: CreateSaleBody = {
       paymentMethod: payload.paymentMethod,
+      channelId: payload.channelId,
       customerId: payload.customerId,
       discount: payload.discount > 0 ? payload.discount : undefined,
       items: cart.map((l) => ({
@@ -238,6 +183,7 @@ export function PosView({ late = false }: { late?: boolean }) {
         ...(l.packs ? { packs: l.packs } : {}),
       })),
       bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
+      bottlePurchases: payload.bottlePurchases.length > 0 ? payload.bottlePurchases : undefined,
       allowOverCreditLimit: payload.allowOverCreditLimit,
       managerApproval: payload.managerApproval,
     };
@@ -333,6 +279,13 @@ export function PosView({ late = false }: { late?: boolean }) {
                           <p className="text-sm font-medium">{line.item.product.name}</p>
                           <p className="text-xs text-muted-foreground tabular-nums">
                             <Money value={line.item.price} /> cada
+                            {line.item.packPrice !== null && packSizeOf(line.item) > 1 && (
+                              <>
+                                {" · "}
+                                {packLabel(line.item.product.packName)}{" "}
+                                <Money value={line.item.packPrice} />
+                              </>
+                            )}
                             {line.item.product.bottleType &&
                               ` · ${line.item.product.bottleType.name}`}
                           </p>
@@ -350,8 +303,8 @@ export function PosView({ late = false }: { late?: boolean }) {
                         <div className="space-y-1">
                           {packSizeOf(line.item) > 1 && (
                             <Stepper
-                              label={`Fardos de ${packSizeOf(line.item)}`}
-                              name={`Fardos de ${line.item.product.name}`}
+                              label={`${capitalize(packPlural(line.item.product.packName))} de ${packSizeOf(line.item)}`}
+                              name={`${capitalize(packPlural(line.item.product.packName))} de ${line.item.product.name}`}
                               value={line.packs ?? 0}
                               min={0}
                               max={Math.floor(
@@ -380,7 +333,7 @@ export function PosView({ late = false }: { late?: boolean }) {
                             </p>
                           )}
                           <Money
-                            value={roundMoney(line.item.price * lineUnits(line))}
+                            value={lineTotal(line)}
                             className="font-semibold"
                           />
                         </div>

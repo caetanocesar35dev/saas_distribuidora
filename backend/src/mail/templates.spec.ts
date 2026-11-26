@@ -39,6 +39,21 @@ describe('templates de e-mail', () => {
     expect(email.html).toContain('Criar minha senha e acessar');
   });
 
+  it('convite para quem já tem conta: entrar com a senha de sempre, sem falar em criar senha', () => {
+    const email = inviteEmail(
+      'João',
+      'Bebidas Centro',
+      'Ana Dona',
+      'http://localhost:3000/login',
+      true,
+    );
+    expect(email.text).toContain('Você já tem conta');
+    expect(email.text).toContain('Esqueci a senha');
+    expect(email.html).toContain('Entrar no sistema');
+    expect(email.text).not.toContain('crie a sua senha');
+    expect(email.html).not.toContain('Criar minha senha');
+  });
+
   it('lembrete de assinatura: usa o assunto e o texto do job, com o botão para o sistema', () => {
     const email = subscriptionReminderEmail(
       'Carlos',

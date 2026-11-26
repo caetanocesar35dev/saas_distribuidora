@@ -16,6 +16,7 @@ import {
   type CheckoutPayload,
 } from "@/components/app/pos/checkout-dialog";
 import { ProductSearch } from "@/components/app/pos/product-search";
+import { Stepper } from "@/components/app/pos/stepper";
 import { Badge } from "@/components/ui/badge";
 import { errorMessage, storeApi } from "@/lib/api/client";
 import {
@@ -24,9 +25,18 @@ import {
   useCloseCommandTab,
   useCommandTab,
   useRemoveTabItem,
+  useUpdateTabItem,
 } from "@/lib/api/hooks/sales";
 import type { CommandTab, StoreProduct } from "@/lib/api/types";
-import { formatDateTime, formatInt, formatItemQuantity, roundMoney } from "@/lib/format";
+import {
+  capitalize,
+  formatDateTime,
+  formatInt,
+  formatItemQuantity,
+  packLabel,
+  packPlural,
+} from "@/lib/format";
+import { itemTotal, looseUnits } from "@/lib/pack-pricing";
 import { useAccess, useStore } from "@/lib/session/context";
 
 /** Os itens da comanda não trazem o vasilhame do produto: busca os produtos para saber. */
@@ -63,6 +73,7 @@ function TabBody({ tab }: { tab: CommandTab }) {
   const { readOnly } = useAccess();
   const add = useAddTabItem(storeId, tab.id);
   const removeItem = useRemoveTabItem(storeId, tab.id);
+  const updateItem = useUpdateTabItem(storeId, tab.id);
   const close = useCloseCommandTab(storeId, tab.id);
   const cancel = useCancelCommandTab(storeId, tab.id);
   const bottles = useTabBottles(storeId, tab);
@@ -95,9 +106,11 @@ function TabBody({ tab }: { tab: CommandTab }) {
     close.mutate(
       {
         paymentMethod: payload.paymentMethod,
+        channelId: payload.channelId,
         discount: payload.discount > 0 ? payload.discount : undefined,
         customerId: payload.customerId,
         bottleReturns: payload.bottleReturns.length > 0 ? payload.bottleReturns : undefined,
+        bottlePurchases: payload.bottlePurchases.length > 0 ? payload.bottlePurchases : undefined,
         allowOverCreditLimit: payload.allowOverCreditLimit,
         managerApproval: payload.managerApproval,
       },
@@ -146,37 +159,83 @@ function TabBody({ tab }: { tab: CommandTab }) {
           <p className="py-6 text-center text-sm text-muted-foreground">Nenhum item lançado.</p>
         ) : (
           <ul className="divide-y">
-            {tab.items.map((item) => (
-              <li key={item.id} className="flex items-start gap-2 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium">{item.storeProduct.product.name}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">
-                    {formatItemQuantity(item.quantity, item.packs, item.packSize)} ·{" "}
-                    {formatInt(item.quantity)} × <Money value={item.price} /> ·{" "}
-                    {formatDateTime(item.addedAt)}
-                  </p>
-                </div>
-                <Money
-                  value={roundMoney(item.price * item.quantity)}
-                  className="text-sm font-semibold"
-                />
-                {open && (
-                  <ActionButton
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Remover ${item.storeProduct.product.name}`}
-                    disabled={removeItem.isPending}
-                    onClick={() =>
-                      removeItem.mutate(item.id, {
-                        onSuccess: () => toast.success("Item removido e estoque devolvido."),
-                      })
-                    }
-                  >
-                    <Trash2Icon />
-                  </ActionButton>
-                )}
-              </li>
-            ))}
+            {tab.items.map((item) => {
+              const name = item.storeProduct.product.name;
+              const packName = item.storeProduct.product.packName;
+              const loose = looseUnits(item);
+              const setCount = (quantity: number, packs: number) =>
+                updateItem.mutate({ itemId: item.id, quantity, packs });
+              return (
+                <li key={item.id} className="py-2.5">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">{name}</p>
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        <Money value={item.price} /> cada
+                        {item.packs > 0 && item.packPrice !== null && (
+                          <>
+                            {" · "}
+                            {packLabel(packName)} <Money value={item.packPrice} />
+                          </>
+                        )}
+                        {" · "}desde {formatDateTime(item.addedAt)}
+                      </p>
+                    </div>
+                    {open && (
+                      <ActionButton
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remover ${name}`}
+                        disabled={removeItem.isPending}
+                        onClick={() =>
+                          removeItem.mutate(item.id, {
+                            onSuccess: () => toast.success("Item removido e estoque devolvido."),
+                          })
+                        }
+                      >
+                        <Trash2Icon />
+                      </ActionButton>
+                    )}
+                  </div>
+                  <div className="mt-1.5 flex items-end justify-between gap-2">
+                    {open ? (
+                      <div className="space-y-1">
+                        {item.packs > 0 && item.packSize && (
+                          <Stepper
+                            label={`${capitalize(packPlural(packName))} de ${item.packSize}`}
+                            name={`${capitalize(packPlural(packName))} de ${name}`}
+                            value={item.packs}
+                            min={loose > 0 ? 0 : 1}
+                            disabled={readOnly}
+                            onChange={(packs) => setCount(loose, packs)}
+                          />
+                        )}
+                        <Stepper
+                          label={item.packs > 0 ? "Unidades" : undefined}
+                          name={`Quantidade de ${name}`}
+                          value={loose}
+                          min={item.packs > 0 ? 0 : 1}
+                          disabled={readOnly}
+                          onChange={(quantity) => setCount(quantity, item.packs)}
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        {formatItemQuantity(item.quantity, item.packs, item.packSize, packName)}
+                      </p>
+                    )}
+                    <div className="text-right">
+                      {open && item.packs > 0 && (
+                        <p className="text-xs text-muted-foreground tabular-nums">
+                          {formatInt(item.quantity)} un.
+                        </p>
+                      )}
+                      <Money value={itemTotal(item)} className="text-sm font-semibold" />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -214,6 +273,7 @@ function TabBody({ tab }: { tab: CommandTab }) {
         <CheckoutDialog
           companyId={companyId}
           title="Fechar comanda"
+          askChannel={false}
           subtotal={tab.total}
           bottleLines={bottles}
           initialCustomer={tab.customer}

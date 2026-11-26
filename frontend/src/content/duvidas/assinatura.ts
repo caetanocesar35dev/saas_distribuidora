@@ -53,6 +53,10 @@ export const assinatura: Article[] = [
         message: "O período de teste terminou. O sistema está somente para consulta...",
         fix: "A assinatura precisa ser regularizada. Fale com o responsável pela assinatura (normalmente o dono).",
       },
+      {
+        message: "A isenção de mensalidade terminou...",
+        fix: "A isenção tinha data limite e ela passou. O responsável pela assinatura fala com o suporte para renovar ou assinar um plano.",
+      },
     ],
     related: ["assinatura-regularizar", "caixa-fechar"],
     keywords: ["somente leitura", "bloqueado", "botão apagado", "consulta"],
@@ -69,9 +73,22 @@ export const assinatura: Article[] = [
       "Abra Menu › Painel da empresa › Assinatura para ver a situação e o plano. Se o teste acabou, escolha antes um plano pago em Planos, na mesma tela.",
       "O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a assinatura é regularizada pelo suporte: chame no WhatsApp (31) 97562-3307 informando o nome da empresa.",
       'Só o responsável pela assinatura pode tratar disso. Os outros donos e funcionários veem o aviso "fale com o responsável".',
+      "Não quer pagar mensalidade? Dá para pagar um valor único e ficar isento da mensalidade (com ou sem data limite, conforme o combinado). Fale com o suporte no WhatsApp para saber o valor. A conta isenta aparece em Assinatura como Isenta, com a data limite ou acesso vitalício; faltando 15 dias para a data limite, aparece um aviso.",
+      "Se a isenção tinha data limite e ela passou, o sistema fica somente para consulta até você falar com o suporte para renovar ou assinar um plano.",
     ],
     related: ["assinatura-somente-leitura", "assinatura-mudar-plano", "faq-falar-com-suporte"],
-    keywords: ["pagar", "pagamento", "assinar", "regularizar", "plano"],
+    keywords: [
+      "pagar",
+      "pagamento",
+      "assinar",
+      "regularizar",
+      "plano",
+      "isenta",
+      "isenção",
+      "sem mensalidade",
+      "valor único",
+      "vitalícia",
+    ],
   },
   {
     id: "assinatura-mudar-plano",
@@ -91,8 +108,13 @@ export const assinatura: Article[] = [
       "Para ir para um plano menor, a empresa precisa caber nele: se você tem mais lojas ou empresas do que o plano permite, o botão fica apagado e o motivo aparece embaixo. Exclua as lojas que sobram (Menu › Painel da empresa › Lojas) e tente de novo.",
       "O Trial é o plano do período de teste: depois de escolher um plano pago, não dá para voltar a ele.",
       "Dá para mudar de plano mesmo com o sistema em somente leitura (teste vencido ou mensalidade atrasada).",
+      "Conta isenta de mensalidade: o plano é o combinado com o suporte, e os botões de troca não aparecem. Para mudar, fale com o suporte.",
     ],
     problems: [
+      {
+        message: "Sua conta é isenta de mensalidade: para mudar de plano, fale com o suporte.",
+        fix: "Chame o suporte no WhatsApp (31) 97562-3307 e diga qual plano você quer.",
+      },
       {
         message: "O plano ... permite ... loja(s) por empresa e ... tem ...",
         fix: "Exclua as lojas que passam do limite em Menu › Painel da empresa › Lojas, ou escolha um plano maior.",

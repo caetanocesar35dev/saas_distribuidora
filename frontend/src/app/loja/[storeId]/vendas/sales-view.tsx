@@ -24,26 +24,30 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebounced } from "@/hooks/use-debounced";
-import { useSales } from "@/lib/api/hooks/sales";
+import { useSaleChannels, useSales } from "@/lib/api/hooks/sales";
 import type { PaymentMethod, SaleStatus } from "@/lib/api/types";
 import {
   formatDateTime,
   formatInt,
   PAYMENT_METHOD_LABEL,
   PAYMENT_METHODS,
+  revenueHint,
   SALE_STATUS_LABEL,
   todayString,
 } from "@/lib/format";
+import { channelLabel, NO_CHANNEL, NO_CHANNEL_LABEL } from "@/lib/sale-channels";
 import { useStore } from "@/lib/session/context";
 
 const ALL = "all";
 
 export function SalesView() {
-  const { storeId } = useStore();
+  const { storeId, companyId } = useStore();
   const today = todayString();
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(today);
   const [method, setMethod] = useState<string>(ALL);
+  const [channel, setChannel] = useState<string>(ALL);
+  const channels = useSaleChannels(companyId);
   const [status, setStatus] = useState<string>(ALL);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -55,6 +59,7 @@ export function SalesView() {
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     paymentMethod: method === ALL ? undefined : (method as PaymentMethod),
+    channelId: channel === ALL ? undefined : channel,
     status: status === ALL ? undefined : (status as SaleStatus),
     search: debouncedSearch.trim() || undefined,
   });
@@ -105,6 +110,17 @@ export function SalesView() {
           ]}
         />
         <SelectField
+          className="w-44"
+          aria-label="Origem da venda"
+          value={channel}
+          onChange={change(setChannel)}
+          options={[
+            { value: ALL, label: "Todas as origens" },
+            ...(channels.data ?? []).map((c) => ({ value: c.id, label: c.name })),
+            { value: NO_CHANNEL, label: NO_CHANNEL_LABEL },
+          ]}
+        />
+        <SelectField
           className="w-40"
           value={status}
           onChange={change(setStatus)}
@@ -133,6 +149,7 @@ export function SalesView() {
             <StatCard
               label="Faturamento (vendas concluídas)"
               value={<Money value={sales.data.meta.totalRevenue} />}
+              hint={revenueHint(0, sales.data.meta.totalBottles ?? 0)}
             />
             <RequireRole min="MANAGER">
               <StatCard
@@ -160,6 +177,7 @@ export function SalesView() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Vendedor</TableHead>
                       <TableHead>Pagamento</TableHead>
+                      <TableHead>Origem</TableHead>
                       <TableHead className="text-right">Total</TableHead>
                       <TableHead>Situação</TableHead>
                     </TableRow>
@@ -190,6 +208,9 @@ export function SalesView() {
                         <TableCell>{sale.customer?.name ?? "—"}</TableCell>
                         <TableCell>{sale.user.name}</TableCell>
                         <TableCell>{PAYMENT_METHOD_LABEL[sale.paymentMethod]}</TableCell>
+                        <TableCell className={sale.channel ? undefined : "text-muted-foreground"}>
+                          {channelLabel(sale.channel)}
+                        </TableCell>
                         <TableCell className="text-right">
                           <Money value={sale.total} />
                         </TableCell>

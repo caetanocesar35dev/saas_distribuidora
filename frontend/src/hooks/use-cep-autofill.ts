@@ -15,24 +15,40 @@ const HINTS: Record<Status, string> = {
 };
 
 /**
+ * Se a consulta pode gravar `value` no campo: só quando ele está vazio ou ainda tem o último valor
+ * preenchido por ela (ou o salvo, na edição), e o valor muda. O que a pessoa digitou fica.
+ */
+export function canAutofill(
+  current: string | undefined,
+  lastFilled: string | undefined,
+  value: string,
+): boolean {
+  const now = (current ?? "").trim();
+  if (now && now !== (lastFilled ?? "").trim()) return false;
+  return now !== value;
+}
+
+/**
  * Ao completar um CEP (8 dígitos), consulta o endereço e preenche os campos que `pick` devolver
  * (valor null não preenche nada). Nunca apaga o que a pessoa digitou: só preenche campo vazio ou
  * que ainda tem o valor preenchido pela consulta anterior. Chame `onCepChange` no `onChange` do
  * campo de CEP.
+ *
+ * `initial` é o endereço que já estava salvo (edição): ao trocar o CEP, ele é substituído pelo do
+ * CEP novo, mas o que a pessoa mudou à mão nesta edição continua valendo.
  */
 export function useCepAutofill<F extends string>(options: {
   get: (name: F) => string | undefined;
   set: (name: F, value: string) => void;
   pick: (data: CepData) => Record<F, string | null>;
+  initial?: Partial<Record<F, string>>;
 }) {
   const [status, setStatus] = useState<Status>("idle");
-  const autofilled = useRef<Partial<Record<F, string>>>({});
+  const autofilled = useRef<Partial<Record<F, string>>>({ ...options.initial });
   const pending = useRef<AbortController | null>(null);
 
   function fill(name: F, value: string) {
-    const current = (options.get(name) ?? "").trim();
-    if (current && current !== autofilled.current[name]) return;
-    if (current === value) return;
+    if (!canAutofill(options.get(name), autofilled.current[name], value)) return;
     options.set(name, value);
     autofilled.current[name] = value;
   }

@@ -9,6 +9,7 @@ import {
 } from '../../test/helpers/service-module';
 import { World } from '../../test/helpers/factory';
 import { CommandTabsService } from './command-tabs.service';
+import { createDefaultSaleChannels } from './sale-channels';
 import { SalesService } from './sales.service';
 
 describe('CommandTabsService', () => {
@@ -201,6 +202,82 @@ describe('CommandTabsService', () => {
       expect(await stockOf(beer.id)).toBe(50); // devolvido uma vez só
     });
 
+    it('o mesmo produto soma na linha que já existe (unidades e fardos)', async () => {
+      const fardo = await ctx.factory.storeProduct(w.storeA.id, w.company.id, {
+        name: 'Latão',
+        price: 5,
+        costPrice: 3,
+        stock: 100,
+        packQuantity: 12,
+      });
+      const tab = await open();
+      const first = await add(tab.id, fardo.id, 1);
+      const again = await add(tab.id, fardo.id, 2);
+      expect(again.id).toBe(first.id);
+      const pack = await as(() =>
+        tabs.addItem(w.storeA.id, tab.id, {
+          storeProductId: fardo.id,
+          quantity: 0,
+          packs: 1,
+        }),
+      );
+      expect(pack).toMatchObject({
+        id: first.id,
+        quantity: 15,
+        packs: 1,
+        packSize: 12,
+      });
+      await add(tab.id, beer.id, 1);
+      const full = await tabs.get(w.storeA.id, tab.id);
+      expect(full.items).toHaveLength(2);
+      expect(full.total).toBe(85); // 15 × 5 + 10
+      expect(await stockOf(fardo.id)).toBe(85);
+    });
+
+    it('o contador muda a quantidade e o estoque acompanha a diferença', async () => {
+      const fardo = await ctx.factory.storeProduct(w.storeA.id, w.company.id, {
+        name: 'Latão',
+        price: 5,
+        costPrice: 3,
+        stock: 30,
+        packQuantity: 12,
+      });
+      const tab = await open();
+      const item = await add(tab.id, fardo.id, 2);
+      const update = (quantity: number, packs?: number) =>
+        as(() =>
+          tabs.updateItem(w.storeA.id, tab.id, item.id, { quantity, packs }),
+        );
+
+      expect(await update(5)).toMatchObject({ quantity: 5, packs: 0 });
+      expect(await stockOf(fardo.id)).toBe(25);
+      expect(await update(1, 2)).toMatchObject({
+        quantity: 25,
+        packs: 2,
+        packSize: 12,
+      });
+      expect(await stockOf(fardo.id)).toBe(5);
+      expect(await update(3)).toMatchObject({
+        quantity: 3,
+        packs: 0,
+        packSize: null,
+      });
+      expect(await stockOf(fardo.id)).toBe(27);
+
+      // passar do estoque: 409 e nada muda
+      await expect(update(31)).rejects.toThrow(/Estoque insuficiente/);
+      expect(await stockOf(fardo.id)).toBe(27);
+      // zero: use remover
+      await expect(update(0)).rejects.toBeInstanceOf(BadRequestException);
+      // item de outra comanda: 404
+      const other = await open('Outra');
+      await expect(
+        as(() =>
+          tabs.updateItem(w.storeA.id, other.id, item.id, { quantity: 1 }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it('adições simultâneas do último item: só uma passa', async () => {
       await ctx.audit.runAsSystem('seed', () =>
         ctx.prisma.storeProduct.update({
@@ -272,6 +349,101 @@ describe('CommandTabsService', () => {
   });
 
   describe('fechar', () => {
+    it('sem origem informada, a comanda vai como Balcão mesmo com outra padrão; sem Balcão, a padrão', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+      const channel = (name: string) =>
+        ctx.prisma.saleChannel.findFirstOrThrow({
+          where: { companyId: w.company.id, name },
+        });
+      const balcao = await channel('Balcão');
+      const ifood = await channel('iFood');
+      await ctx.audit.runAsSystem('seed', async () => {
+        await ctx.prisma.saleChannel.update({
+          where: { id: balcao.id },
+          data: { isDefault: false },
+        });
+        await ctx.prisma.saleChannel.update({
+          where: { id: ifood.id },
+          data: { isDefault: true },
+        });
+      });
+      const a = await open('A');
+      await add(a.id, beer.id, 1);
+      expect((await close(a.id)).channel).toMatchObject({ name: 'Balcão' });
+
+      // a empresa excluiu o Balcão: vale a padrão
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.saleChannel.update({
+          where: { id: balcao.id },
+          data: { deletedAt: new Date() },
+        }),
+      );
+      const b = await open('B');
+      await add(b.id, beer.id, 1);
+      expect((await close(b.id)).channel).toMatchObject({ name: 'iFood' });
+    });
+
+    it('a venda da comanda guarda a origem escolhida no fechamento (sem escolha, a padrão)', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+      const ifood = await ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: w.company.id, name: 'iFood' },
+      });
+      const a = await open('A');
+      await add(a.id, beer.id, 1);
+      expect((await close(a.id, { channelId: ifood.id })).channel).toEqual({
+        id: ifood.id,
+        name: 'iFood',
+      });
+      const b = await open('B');
+      await add(b.id, beer.id, 1);
+      expect((await close(b.id)).channel).toMatchObject({ name: 'Balcão' });
+    });
+
+    it('embalagem com preço próprio: o total da comanda e da venda usam o preço de quando entrou', async () => {
+      const cigarro = await ctx.factory.storeProduct(
+        w.storeA.id,
+        w.company.id,
+        {
+          price: 1,
+          packPrice: 12,
+          costPrice: 0.475,
+          packQuantity: 20,
+          stock: 100,
+        },
+      );
+      const tab = await open();
+      await as(() =>
+        tabs.addItem(w.storeA.id, tab.id, {
+          storeProductId: cigarro.id,
+          quantity: 3,
+          packs: 1,
+        }),
+      );
+      // o preço muda depois de lançado: a comanda mantém o antigo
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.storeProduct.update({
+          where: { id: cigarro.id },
+          data: { price: 2, packPrice: 20 },
+        }),
+      );
+      expect((await tabs.get(w.storeA.id, tab.id)).total).toBe(15);
+
+      const sale = await close(tab.id);
+      expect(sale.total).toBe(15);
+      expect(sale.totalCost).toBe(10.93); // 23 cigarros a 0,475
+      expect(sale.items[0]).toMatchObject({
+        quantity: 23,
+        packs: 1,
+        packSize: 20,
+        packPrice: 12,
+      });
+      expect(await stockOf(cigarro.id)).toBe(77);
+    });
+
     it('gera a venda com os preços da comanda, SEM baixar o estoque de novo, e fecha a comanda', async () => {
       const tab = await open();
       await add(tab.id, beer.id, 4);
@@ -286,7 +458,8 @@ describe('CommandTabsService', () => {
         commandTabId: tab.id,
         userId: w.owner.id,
       });
-      expect(sale.items.map((i) => i.quantity).sort()).toEqual([1, 4]);
+      // o mesmo produto somou numa linha só
+      expect(sale.items.map((i) => i.quantity)).toEqual([5]);
       expect(await stockOf(beer.id)).toBe(45); // não baixou de novo
       expect(
         (

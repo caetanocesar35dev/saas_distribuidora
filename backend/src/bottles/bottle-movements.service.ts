@@ -25,6 +25,7 @@ const MOVEMENT_SELECT = {
   bottleType: { select: { id: true, name: true } },
   quantity: true,
   type: true,
+  unitPrice: true,
   description: true,
   customerId: true,
   customer: { select: { id: true, name: true } },
@@ -190,18 +191,50 @@ export class BottleMovementsService {
       select: {
         id: true,
         name: true,
+        price: true,
         storeStocks: {
           where: { storeId, deletedAt: null },
-          select: { stock: true },
+          select: { stock: true, price: true },
         },
       },
       orderBy: { name: 'asc' },
     });
-    return types.map((t) => ({
-      bottleTypeId: t.id,
-      bottleTypeName: t.name,
-      stock: t.storeStocks[0]?.stock ?? 0,
-    }));
+    return types.map((t) => {
+      const storePrice = t.storeStocks[0]?.price ?? null;
+      return {
+        bottleTypeId: t.id,
+        bottleTypeName: t.name,
+        /** Preço do casco que vale nesta loja (null = não é vendido). */
+        price: storePrice ?? t.price,
+        /** Preço da empresa (Vasilhames › Tipos). */
+        companyPrice: t.price,
+        /** Preço próprio desta loja (null = vale o da empresa). */
+        storePrice,
+        stock: t.storeStocks[0]?.stock ?? 0,
+      };
+    });
+  }
+
+  /**
+   * Preço próprio do casco nesta loja (decidido pelo usuário, 2026-11-24); `null` volta ao preço da
+   * empresa. Não mexe no estoque (a linha da loja é criada com estoque zero, se ainda não existir).
+   */
+  async setStorePrice(
+    storeId: string,
+    companyId: string,
+    bottleTypeId: string,
+    price: number | null,
+  ) {
+    await this.assertBottleType(companyId, bottleTypeId);
+    await this.prisma.storeBottleType.upsert({
+      where: { storeId_bottleTypeId: { storeId, bottleTypeId } },
+      create: { storeId, bottleTypeId, price },
+      update: { price, deletedAt: null },
+    });
+    const row = (await this.stock(storeId, companyId)).find(
+      (t) => t.bottleTypeId === bottleTypeId,
+    );
+    return row!;
   }
 
   private async assertBottleType(companyId: string, bottleTypeId: string) {

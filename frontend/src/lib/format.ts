@@ -61,19 +61,48 @@ export function formatAddress(a: {
     .join(" · ");
 }
 
+/** Sugestões do campo "Nome da embalagem" (aceita também outro nome digitado). */
+export const PACK_NAME_SUGGESTIONS = ["fardo", "caixa", "pacote", "maço", "display", "engradado"];
+
+/** Nome da embalagem do produto: sem nome cadastrado, é "fardo". */
+export function packLabel(packName: string | null | undefined): string {
+  return packName?.trim() || "fardo";
+}
+
+/** Plural do nome da embalagem: caixa → caixas, engradado → engradados, saco → sacos. */
+export function packPlural(packName: string | null | undefined): string {
+  const name = packLabel(packName);
+  if (/[aeiouyáéíóúâêô]$/i.test(name)) return `${name}s`;
+  if (/m$/i.test(name)) return `${name.slice(0, -1)}ns`;
+  if (/[rz]$/i.test(name)) return `${name}es`;
+  return name;
+}
+
+/** Nome da embalagem com o artigo, para "Preço do maço" e "Preço da caixa". */
+export function packWithArticle(packName: string | null | undefined): string {
+  const name = packLabel(packName);
+  return `${/a$/i.test(name) ? "da" : "do"} ${name}`;
+}
+
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
- * Quantidade de um item de venda ou comanda (venda em lote): "2 fardos de 12 + 3 un." ou "5 un.".
- * `units` é o total em unidades; `packs` × `packSize` são os fardos contidos nele.
+ * Quantidade de um item de venda ou comanda (venda em lote): "2 caixas de 12 + 3 un." ou "5 un.".
+ * `units` é o total em unidades; `packs` × `packSize` são as embalagens contidas nele.
  */
 export function formatItemQuantity(
   units: number,
   packs: number | null | undefined,
   packSize: number | null | undefined,
+  packName?: string | null,
 ): string {
   if (!packs || !packSize) return `${formatInt(units)} un.`;
   const loose = units - packs * packSize;
-  const fardos = `${formatInt(packs)} ${packs === 1 ? "fardo" : "fardos"} de ${formatInt(packSize)}`;
-  return loose > 0 ? `${fardos} + ${formatInt(loose)} un.` : fardos;
+  const name = packs === 1 ? packLabel(packName) : packPlural(packName);
+  const whole = `${formatInt(packs)} ${name} de ${formatInt(packSize)}`;
+  return loose > 0 ? `${whole} + ${formatInt(loose)} un.` : whole;
 }
 
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
@@ -297,16 +326,62 @@ export const SALE_STATUS_LABEL: Record<SaleStatus, string> = {
 export const BOTTLE_MOVEMENT_LABEL: Record<BottleMovementType, string> = {
   CUSTOMER_BORROW: "Empréstimo ao cliente",
   CUSTOMER_RETURN: "Devolução do cliente",
+  CUSTOMER_PURCHASE: "Casco comprado pelo cliente",
   SUPPLIER_SEND: "Envio ao fornecedor",
   SUPPLIER_RECEIVE: "Recebimento do fornecedor",
   MANUAL_ADJUSTMENT: "Ajuste manual",
 };
+
+/**
+ * Observação do cartão de faturamento: quanto foi no fiado e quanto entrou em cascos de vasilhame
+ * (fora do faturamento e do lucro, mas sem esconder). `false` = nada a dizer.
+ */
+export function revenueHint(fiado: number, bottles: number): string | false {
+  const parts: string[] = [];
+  if (fiado > 0) parts.push(`${formatMoney(fiado)} disso foi vendido no fiado`);
+  if (bottles > 0) parts.push(`fora ${formatMoney(bottles)} em cascos de vasilhame vendidos`);
+  if (parts.length === 0) return false;
+  const text = parts.join("; ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Observação do cartão de lucro. O lucro é o recebido: o fiado entra quando o cliente paga
+ * (decisão do usuário, 2026-11-13). Diz quanto do lucro veio de fiado pago e quanto do lucro
+ * vendido no fiado no período ainda não entrou. `false` = nada a dizer.
+ */
+export function profitHint(fiadoReceived: number, fiadoSold: number): string | false {
+  const parts: string[] = [];
+  if (fiadoReceived > 0) parts.push(`${formatMoney(fiadoReceived)} disso veio de fiado pago`);
+  if (fiadoSold > 0)
+    parts.push(`${formatMoney(fiadoSold)} vendido no fiado entra quando o cliente pagar`);
+  if (parts.length === 0) return false;
+  const text = parts.join("; ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Resumo curto de um vasilhame da venda (tela de venda concluída): "levou 3", "comprou 2 cascos"... */
+export function saleBottleSummary(m: {
+  type: BottleMovementType;
+  quantity: number;
+  unitPrice: number | null;
+}): string {
+  const n = Math.abs(m.quantity);
+  if (m.type === "CUSTOMER_PURCHASE") {
+    const what = `comprou ${formatInt(n)} ${n === 1 ? "casco" : "cascos"}`;
+    return m.unitPrice === null
+      ? what
+      : `${what} (${formatMoney(roundMoney(m.unitPrice * n))})`;
+  }
+  return m.quantity > 0 ? `devolveu ${formatInt(n)}` : `levou ${formatInt(n)}`;
+}
 
 export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
   TRIAL: "Em teste",
   ACTIVE: "Ativa",
   PAST_DUE: "Pagamento em atraso",
   CANCELED: "Cancelada",
+  EXEMPT: "Isenta",
 };
 
 export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
@@ -314,6 +389,7 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, string> = {
   UPDATE: "Atualização",
   MAINTENANCE: "Manutenção",
   ALERT: "Aviso",
+  POLL: "Enquete",
 };
 
 const ROLE_ORDER: Record<Role, number> = { EMPLOYEE: 1, MANAGER: 2, OWNER: 3 };

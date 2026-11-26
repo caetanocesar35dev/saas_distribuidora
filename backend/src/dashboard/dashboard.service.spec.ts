@@ -5,6 +5,7 @@ import {
   ServiceTestContext,
 } from '../../test/helpers/service-module';
 import { World } from '../../test/helpers/factory';
+import { createDefaultSaleChannels } from '../sales/sale-channels';
 import { DashboardService } from './dashboard.service';
 
 // "Agora" fixo: 14/10/2026 12:00 em São Paulo (UTC-3) = 15:00 UTC.
@@ -83,18 +84,26 @@ describe('DashboardService', () => {
     cost?: number;
     status?: SaleStatus;
     paymentMethod?: PaymentMethod;
+    /** Cascos comprados (somam no total da venda). */
+    bottlesTotal?: number;
+    customerId?: string;
+    channelId?: string;
   }) {
     const quantity = opts.quantity ?? 1;
     const price = opts.price ?? 10;
     const cost = opts.cost ?? 6;
+    const bottlesTotal = opts.bottlesTotal ?? 0;
     return ctx.audit.runAsSystem('seed', async () => {
       const s = await ctx.prisma.sale.create({
         data: {
           storeId: opts.storeId,
-          total: price * quantity,
+          total: price * quantity + bottlesTotal,
+          bottlesTotal,
           totalCost: cost * quantity,
           paymentMethod: opts.paymentMethod ?? 'MONEY',
           status: opts.status ?? 'COMPLETED',
+          customerId: opts.customerId,
+          channelId: opts.channelId,
           createdAt: new Date(opts.at),
         },
       });
@@ -165,7 +174,173 @@ describe('DashboardService', () => {
       expect(d.month).toMatchObject({ revenue: 70, profit: 28, count: 6 });
     });
 
-    it('fiado: entra no faturamento e no lucro, mas sai separado, com o recebido no período', async () => {
+    it('por categoria: faturamento e lucro do mês, com o desconto repartido e o "sem categoria"', async () => {
+      const bebidas = await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.productCategory.create({
+          data: { companyId: w.company.id, name: 'Bebidas' },
+        }),
+      );
+      const cerveja = await ctx.factory.storeProduct(
+        w.storeA.id,
+        w.company.id,
+        {
+          categoryId: bebidas.id,
+        },
+      );
+      const avulso = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: cerveja.id,
+        at: '2026-10-14T10:00:00Z',
+        quantity: 3,
+      }); // 30 / custo 18
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: avulso.id,
+        at: '2026-10-14T10:00:00Z',
+      }); // 10 / custo 6
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: cerveja.id,
+        at: '2026-10-14T11:00:00Z',
+        status: 'CANCELED',
+      }); // cancelada: fora
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: avulso.id,
+        at: '2026-09-30T11:00:00Z',
+      }); // mês passado: fora
+
+      // embalagem com preço próprio: 1 maço de 20 a R$ 12,00, custo de 20 × R$ 0,50 (sem categoria)
+      await ctx.audit.runAsSystem('seed', async () => {
+        const s = await ctx.prisma.sale.create({
+          data: {
+            storeId: w.storeA.id,
+            total: 12,
+            totalCost: 10,
+            paymentMethod: 'MONEY',
+            createdAt: new Date('2026-10-14T13:00:00Z'),
+          },
+        });
+        await ctx.prisma.saleItem.create({
+          data: {
+            saleId: s.id,
+            storeProductId: avulso.id,
+            quantity: 20,
+            packs: 1,
+            packSize: 20,
+            packPrice: 12,
+            price: 1,
+            costPrice: 0.5,
+          },
+        });
+      });
+
+      // venda de R$ 20 em itens com R$ 5 de desconto, dividida igualmente entre as categorias
+      await ctx.audit.runAsSystem('seed', async () => {
+        const s = await ctx.prisma.sale.create({
+          data: {
+            storeId: w.storeA.id,
+            total: 15,
+            discount: 5,
+            totalCost: 12,
+            paymentMethod: 'MONEY',
+            createdAt: new Date('2026-10-14T12:00:00Z'),
+          },
+        });
+        for (const storeProductId of [cerveja.id, avulso.id]) {
+          await ctx.prisma.saleItem.create({
+            data: {
+              saleId: s.id,
+              storeProductId,
+              quantity: 1,
+              price: 10,
+              costPrice: 6,
+            },
+          });
+        }
+      });
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.byCategory).toEqual([
+        {
+          categoryId: bebidas.id,
+          name: 'Bebidas',
+          revenue: 37.5,
+          profit: 13.5,
+        },
+        {
+          categoryId: null,
+          name: 'Sem categoria',
+          revenue: 29.5,
+          profit: 7.5,
+        },
+      ]);
+    });
+
+    it('por origem: vendas, faturamento sem os cascos e lucro vendido do mês, sem as canceladas', async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+      const channel = (name: string) =>
+        ctx.prisma.saleChannel.findFirstOrThrow({
+          where: { companyId: w.company.id, name },
+        });
+      const balcao = await channel('Balcão');
+      const ifood = await channel('iFood');
+      const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+      const base = { storeId: w.storeA.id, storeProductId: p.id };
+      const at = '2026-10-10T15:00:00Z';
+      await sale({ ...base, at, channelId: balcao.id });
+      await sale({ ...base, at, channelId: balcao.id });
+      await sale({
+        ...base,
+        at,
+        channelId: ifood.id,
+        quantity: 3,
+        bottlesTotal: 8,
+      });
+      await sale({ ...base, at, channelId: ifood.id, status: 'CANCELED' });
+      await sale({ ...base, at: '2026-09-20T15:00:00Z', channelId: ifood.id });
+      await sale({ ...base, at }); // de antes de existir a origem
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.byChannel).toEqual([
+        {
+          channelId: ifood.id,
+          name: 'iFood',
+          count: 1,
+          revenue: 30,
+          profit: 12,
+        },
+        {
+          channelId: balcao.id,
+          name: 'Balcão',
+          count: 2,
+          revenue: 20,
+          profit: 8,
+        },
+        {
+          channelId: null,
+          name: 'Sem origem',
+          count: 1,
+          revenue: 10,
+          profit: 4,
+        },
+      ]);
+      // o painel da empresa soma as lojas
+      await sale({
+        storeId: w.storeB.id,
+        storeProductId: p.id,
+        at,
+        channelId: ifood.id,
+      });
+      const company = await dashboard.forCompany(w.company.id, NOW);
+      expect(company.byChannel[0]).toMatchObject({ name: 'iFood', count: 2 });
+    });
+
+    it('fiado: entra no faturamento (separado), mas não no lucro enquanto não for pago', async () => {
       const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
       await sale({
         storeId: w.storeA.id,
@@ -206,14 +381,112 @@ describe('DashboardService', () => {
       const d = await dashboard.forStore(w.storeA.id, NOW);
       expect(d.today).toEqual({
         revenue: 30,
-        profit: 12,
+        profit: 4, // só o à vista: o fiado entra quando for pago
         count: 2,
         fiado: { revenue: 20, profit: 8 },
+        fiadoProfitReceived: 0,
         fiadoReceived: 7.5,
+        bottles: 0,
       });
       const company = await dashboard.forCompany(w.company.id, NOW);
       expect(company.today.fiadoReceived).toBe(57.5);
       expect(company.byStore?.[1].today.fiadoReceived).toBe(50);
+    });
+
+    it('lucro do fiado entra quando o cliente paga, proporcional, quitando a venda mais antiga', async () => {
+      const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+      const customer = await ctx.factory.customer(w.company.id);
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-09-10T12:00:00Z',
+        quantity: 2,
+        paymentMethod: 'CREDIT_STORE',
+        customerId: customer.id,
+      }); // mês passado: 20, lucro 8
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T11:00:00Z',
+        paymentMethod: 'CREDIT_STORE',
+        customerId: customer.id,
+      }); // hoje: 10, lucro 4
+      await ctx.audit.runAsSystem('seed', async () => {
+        await ctx.prisma.customerStoreBalance.create({
+          data: { customerId: customer.id, storeId: w.storeA.id, balance: 5 },
+        });
+        // Pagamento recebido na loja B abatendo a dívida da loja A.
+        const pay = async (amount: number, at: string) => {
+          const payment = await ctx.prisma.customerPayment.create({
+            data: {
+              customerId: customer.id,
+              storeId: w.storeB.id,
+              amount,
+              paymentMethod: 'MONEY',
+              createdAt: new Date(at),
+            },
+          });
+          await ctx.prisma.customerPaymentAllocation.create({
+            data: { paymentId: payment.id, storeId: w.storeA.id, amount },
+          });
+        };
+        await pay(5, '2026-09-25T12:00:00Z'); // quita 5 da venda de setembro: lucro 2 (setembro)
+        await pay(20, '2026-10-14T13:00:00Z'); // 15 de setembro (lucro 6) + 5 de hoje (lucro 2)
+      });
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.today).toMatchObject({
+        revenue: 10,
+        profit: 8,
+        fiado: { revenue: 10, profit: 4 },
+        fiadoProfitReceived: 8,
+      });
+      expect(d.month).toMatchObject({ profit: 8, fiadoProfitReceived: 8 });
+      expect(d.chart.at(-1)).toMatchObject({ revenue: 10, profit: 8 });
+      // falta 5 da venda de hoje: metade do lucro dela
+      expect(d.pendingFiadoProfit).toBe(2);
+      // o lucro é da loja da venda, não da loja onde o dinheiro entrou
+      const company = await dashboard.forCompany(w.company.id, NOW);
+      const [a, b] = [w.storeA.id, w.storeB.id].map((id) =>
+        company.byStore?.find((s) => s.storeId === id),
+      );
+      expect(a).toMatchObject({ pendingFiadoProfit: 2, today: { profit: 8 } });
+      expect(b).toMatchObject({ pendingFiadoProfit: 0, today: { profit: 0 } });
+      expect(company.today.profit).toBe(8);
+    });
+
+    it('cascos comprados ficam fora do faturamento, do lucro, do gráfico e das categorias', async () => {
+      const p = await ctx.factory.storeProduct(w.storeA.id, w.company.id);
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T10:00:00Z',
+        quantity: 2,
+        bottlesTotal: 16,
+      }); // produtos 20 (lucro 8) + 2 cascos de 8
+      await sale({
+        storeId: w.storeA.id,
+        storeProductId: p.id,
+        at: '2026-10-14T11:00:00Z',
+        paymentMethod: 'CREDIT_STORE',
+        bottlesTotal: 8,
+      }); // fiado: produtos 10 (lucro 4) + 1 casco
+
+      const d = await dashboard.forStore(w.storeA.id, NOW);
+      expect(d.today).toMatchObject({
+        revenue: 30,
+        profit: 8, // o fiado (lucro 4) ainda não foi pago
+        count: 2,
+        fiado: { revenue: 10, profit: 4 },
+        bottles: 24,
+      });
+      expect(d.chart.at(-1)).toMatchObject({ revenue: 30, profit: 8 });
+      // por categoria o lucro é o vendido (inclui o fiado)
+      expect(d.byCategory).toEqual([
+        { categoryId: null, name: 'Sem categoria', revenue: 30, profit: 12 },
+      ]);
+      const company = await dashboard.forCompany(w.company.id, NOW);
+      expect(company.byStore?.[0].today.bottles).toBe(24);
     });
 
     it('não mistura vendas de outra loja', async () => {

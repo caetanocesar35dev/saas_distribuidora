@@ -10,16 +10,28 @@ import {
 } from '../common/utils/time';
 import { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealizedProfit, realizeFiadoProfit } from './fiado-profit';
 
 export interface PeriodStats {
-  /** Tudo o que foi vendido (inclusive no fiado). */
+  /** Tudo o que foi vendido em produtos (inclusive no fiado), sem os cascos comprados. */
   revenue: number;
+  /**
+   * Lucro recebido: o das vendas à vista do período mais o das vendas fiadas (de qualquer data)
+   * pagas no período, proporcional ao pagamento. O fiado não pago não entra.
+   */
   profit: number;
   count: number;
-  /** Parte do faturamento e do lucro que foi vendida no fiado. */
+  /**
+   * Vendido no fiado no período: quanto do faturamento e o lucro dessas vendas (este NÃO está em
+   * `profit`: entra lá só quando o cliente paga).
+   */
   fiado: { revenue: number; profit: number };
+  /** Parte de `profit` que veio de pagamentos de fiado no período. */
+  fiadoProfitReceived: number;
   /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
   fiadoReceived: number;
+  /** Cascos de vasilhame vendidos no período (fora do faturamento e do lucro). */
+  bottles: number;
 }
 
 export interface DashboardStore {
@@ -49,6 +61,24 @@ export interface Dashboard {
     name: string;
     quantity: number;
   }[];
+  /** Faturamento e lucro do mês por categoria (`categoryId` null = sem categoria). */
+  byCategory: {
+    categoryId: string | null;
+    name: string;
+    revenue: number;
+    profit: number;
+  }[];
+  /**
+   * Vendas do mês por origem (balcão, iFood...; `channelId` null = vendas de antes de existir a
+   * origem). Faturamento sem os cascos; `profit` é o lucro vendido (como na tabela por categoria).
+   */
+  byChannel: {
+    channelId: string | null;
+    name: string;
+    count: number;
+    revenue: number;
+    profit: number;
+  }[];
   chart: { date: string; revenue: number; profit: number; count: number }[];
   lowStock: {
     storeProductId: string;
@@ -60,6 +90,8 @@ export interface Dashboard {
   }[];
   /** Fiado em aberto (soma dos saldos das lojas). */
   debt: number;
+  /** Lucro das vendas fiadas ainda não pago (entra em `profit` quando o cliente pagar). */
+  pendingFiadoProfit: number;
   /** Só no painel da empresa: o mesmo resumo por loja. */
   byStore?: {
     storeId: string;
@@ -68,6 +100,7 @@ export interface Dashboard {
     week: PeriodStats;
     month: PeriodStats;
     debt: number;
+    pendingFiadoProfit: number;
   }[];
 }
 
@@ -76,7 +109,9 @@ const EMPTY: PeriodStats = {
   profit: 0,
   count: 0,
   fiado: { revenue: 0, profit: 0 },
+  fiadoProfitReceived: 0,
   fiadoReceived: 0,
+  bottles: 0,
 };
 
 /**
@@ -149,33 +184,59 @@ export class DashboardService {
         week: EMPTY,
         month: EMPTY,
         topProducts: [],
+        byCategory: [],
+        byChannel: [],
         chart: [],
         lowStock: [],
         debt: 0,
+        pendingFiadoProfit: 0,
         ...(breakdown ? { byStore: [] } : {}),
       };
     }
 
-    const [today, week, month, topProducts, chart, lowStock, debts] =
-      await Promise.all([
-        this.periodStats(storeIds, todayStart),
-        this.periodStats(storeIds, weekStart),
-        this.periodStats(storeIds, monthStart),
-        this.topProducts(storeIds, weekStart),
-        this.chart(storeIds, weekStart, now, tz),
-        this.lowStock(storeIds),
-        this.debts(storeIds),
-      ]);
+    // O lucro do fiado entra quando o cliente paga: calculado uma vez e repartido nos períodos.
+    const fiadoProfit = await this.fiadoProfit(
+      storeIds,
+      weekStart < monthStart ? weekStart : monthStart,
+    );
 
+    const [
+      today,
+      week,
+      month,
+      topProducts,
+      byCategory,
+      byChannel,
+      chart,
+      lowStock,
+      debts,
+    ] = await Promise.all([
+      this.periodStats(storeIds, todayStart, fiadoProfit.realized),
+      this.periodStats(storeIds, weekStart, fiadoProfit.realized),
+      this.periodStats(storeIds, monthStart, fiadoProfit.realized),
+      this.topProducts(storeIds, weekStart),
+      this.byCategory(storeIds, monthStart),
+      this.byChannel(storeIds, monthStart),
+      this.chart(storeIds, weekStart, now, tz, fiadoProfit.realized),
+      this.lowStock(storeIds),
+      this.debts(storeIds),
+    ]);
+
+    const pending = fiadoProfit.pendingByStore;
     const result: Dashboard = {
       today: today.total,
       week: week.total,
       month: month.total,
       topProducts,
+      byCategory,
+      byChannel,
       chart,
       lowStock,
       debt: fromCents(
         [...debts.values()].reduce((sum, v) => sum + toCents(v), 0),
+      ),
+      pendingFiadoProfit: fromCents(
+        [...pending.values()].reduce((sum, v) => sum + v, 0),
       ),
     };
 
@@ -187,18 +248,98 @@ export class DashboardService {
         week: week.byStore.get(s.id) ?? EMPTY,
         month: month.byStore.get(s.id) ?? EMPTY,
         debt: roundMoney(debts.get(s.id) ?? 0),
+        pendingFiadoProfit: fromCents(pending.get(s.id) ?? 0),
       }));
     }
     return result;
   }
 
   /**
-   * Receita, lucro e nº de vendas desde `since`, no total e por loja. O fiado entra no faturamento
-   * e no lucro (o que foi vendido), mas sai separado em `fiado` (quanto disso foi vendido no
-   * fiado) e `fiadoReceived` (pagamentos de fiado recebidos na loja no período), decisão do
-   * usuário: separar sem esconder.
+   * Lucro do fiado pelo dinheiro recebido (ver `realizeFiadoProfit`). Só olha os clientes que
+   * pagaram fiado nestas lojas desde `since` ou que ainda devem; desses, traz todo o histórico de
+   * vendas fiadas e pagamentos nestas lojas, porque o pagamento quita a venda mais antiga.
    */
-  private async periodStats(storeIds: string[], since: Date) {
+  private async fiadoProfit(storeIds: string[], since: Date) {
+    const [paid, owing] = await Promise.all([
+      this.prisma.customerPaymentAllocation.findMany({
+        where: {
+          storeId: { in: storeIds },
+          payment: { createdAt: { gte: since }, deletedAt: null },
+        },
+        select: { payment: { select: { customerId: true } } },
+        distinct: ['paymentId'],
+      }),
+      this.prisma.customerStoreBalance.findMany({
+        where: { storeId: { in: storeIds }, balance: { gt: 0 } },
+        select: { customerId: true },
+      }),
+    ]);
+    const customerIds = [
+      ...new Set([
+        ...paid.map((a) => a.payment.customerId),
+        ...owing.map((b) => b.customerId),
+      ]),
+    ];
+    if (customerIds.length === 0) return realizeFiadoProfit([], []);
+
+    const [sales, allocations] = await Promise.all([
+      this.prisma.sale.findMany({
+        where: {
+          storeId: { in: storeIds },
+          customerId: { in: customerIds },
+          paymentMethod: 'CREDIT_STORE',
+          status: 'COMPLETED',
+        },
+        select: {
+          customerId: true,
+          storeId: true,
+          createdAt: true,
+          total: true,
+          bottlesTotal: true,
+          totalCost: true,
+        },
+      }),
+      this.prisma.customerPaymentAllocation.findMany({
+        where: {
+          storeId: { in: storeIds },
+          payment: { customerId: { in: customerIds }, deletedAt: null },
+        },
+        select: {
+          storeId: true,
+          amount: true,
+          payment: { select: { customerId: true, createdAt: true } },
+        },
+      }),
+    ]);
+
+    return realizeFiadoProfit(
+      sales.map((s) => ({
+        customerId: s.customerId!,
+        storeId: s.storeId,
+        createdAt: s.createdAt,
+        totalCents: toCents(s.total),
+        profitCents:
+          toCents(s.total) - toCents(s.bottlesTotal) - toCents(s.totalCost),
+      })),
+      allocations.map((a) => ({
+        customerId: a.payment.customerId,
+        storeId: a.storeId,
+        createdAt: a.payment.createdAt,
+        amountCents: toCents(a.amount),
+      })),
+    );
+  }
+
+  /**
+   * Receita, lucro e nº de vendas desde `since`, no total e por loja. O faturamento conta o fiado
+   * vendido (separado em `fiado`); o lucro conta só o recebido: à vista na venda, fiado quando o
+   * cliente paga (`realized`). `fiadoReceived` são os pagamentos de fiado recebidos na loja.
+   */
+  private async periodStats(
+    storeIds: string[],
+    since: Date,
+    realized: RealizedProfit[],
+  ) {
     const [rows, received] = await Promise.all([
       this.prisma.sale.groupBy({
         by: ['storeId', 'paymentMethod'],
@@ -207,7 +348,7 @@ export class DashboardService {
           status: 'COMPLETED',
           createdAt: { gte: since },
         },
-        _sum: { total: true, totalCost: true },
+        _sum: { total: true, totalCost: true, bottlesTotal: true },
         _count: { _all: true },
       }),
       this.prisma.customerPayment.groupBy({
@@ -224,7 +365,10 @@ export class DashboardService {
       count: number;
       fiado: number;
       fiadoCost: number;
+      /** lucro do fiado pago no período */
+      realized: number;
       received: number;
+      bottles: number;
     };
     const acc = new Map<string | null, Acc>();
     const at = (key: string | null) => {
@@ -236,18 +380,23 @@ export class DashboardService {
           count: 0,
           fiado: 0,
           fiadoCost: 0,
+          realized: 0,
           received: 0,
+          bottles: 0,
         };
         acc.set(key, a);
       }
       return a;
     };
     for (const row of rows) {
-      const r = toCents(row._sum.total ?? 0);
+      // O total da venda inclui os cascos comprados: saem do faturamento e vão à parte.
+      const b = toCents(row._sum.bottlesTotal ?? 0);
+      const r = toCents(row._sum.total ?? 0) - b;
       const c = toCents(row._sum.totalCost ?? 0);
       for (const a of [at(row.storeId), at(null)]) {
         a.revenue += r;
         a.cost += c;
+        a.bottles += b;
         a.count += row._count._all;
         if (row.paymentMethod === 'CREDIT_STORE') {
           a.fiado += r;
@@ -259,16 +408,26 @@ export class DashboardService {
       const r = toCents(row._sum.amount ?? 0);
       for (const a of [at(row.storeId), at(null)]) a.received += r;
     }
+    for (const event of realized) {
+      if (event.at < since) continue;
+      for (const a of [at(event.storeId), at(null)])
+        a.realized += event.profitCents;
+    }
 
     const toStats = (a: Acc): PeriodStats => ({
       revenue: fromCents(a.revenue),
-      profit: fromCents(a.revenue - a.cost),
+      // à vista: lucro na venda; fiado: lucro quando o cliente paga
+      profit: fromCents(
+        a.revenue - a.cost - (a.fiado - a.fiadoCost) + a.realized,
+      ),
       count: a.count,
       fiado: {
         revenue: fromCents(a.fiado),
         profit: fromCents(a.fiado - a.fiadoCost),
       },
+      fiadoProfitReceived: fromCents(a.realized),
       fiadoReceived: fromCents(a.received),
+      bottles: fromCents(a.bottles),
     });
     const byStore = new Map<string, PeriodStats>();
     for (const [key, a] of acc) if (key !== null) byStore.set(key, toStats(a));
@@ -296,13 +455,107 @@ export class DashboardService {
     return rows.map((r) => ({ ...r, quantity: Number(r.quantity) }));
   }
 
-  /** Receita e lucro por dia (no fuso da aplicação) dos últimos 7 dias, com os dias sem venda zerados. */
-  private async chart(storeIds: string[], since: Date, now: Date, tz: string) {
+  /**
+   * Faturamento e lucro por categoria desde `since`. O desconto é da venda inteira, então é
+   * repartido entre os itens na proporção do valor de cada um; a soma pode diferir do faturamento
+   * total em centavos, por causa do arredondamento de cada categoria.
+   */
+  private async byCategory(storeIds: string[], since: Date) {
     const rows = await this.prisma.$queryRaw<
-      { day: string; revenue: number; cost: number; count: number }[]
+      {
+        categoryId: string | null;
+        name: string | null;
+        revenue: number;
+        cost: number;
+      }[]
+    >`
+      SELECT c.id AS "categoryId", c.name AS name,
+             SUM(
+               ((si.quantity - si.packs * COALESCE(si."packSize", 0)) * si.price
+                 + si.packs * COALESCE(si."packPrice", si.price * COALESCE(si."packSize", 0)))
+               * (s.total - s."bottlesTotal") / NULLIF(s.total - s."bottlesTotal" + s.discount, 0)
+             ) AS revenue,
+             SUM(si."costPrice" * si.quantity) AS cost
+      FROM tb_sale_items si
+      JOIN tb_sales s ON s.id = si."saleId"
+      JOIN tb_store_products sp ON sp.id = si."storeProductId"
+      JOIN tb_products p ON p.id = sp."productId"
+      LEFT JOIN tb_product_categories c ON c.id = p."categoryId"
+      WHERE s."storeId" IN (${Prisma.join(storeIds)})
+        AND s.status = 'COMPLETED'
+        AND s."createdAt" >= ${since}
+        AND s."deletedAt" IS NULL
+        AND si."deletedAt" IS NULL
+      GROUP BY c.id, c.name
+      ORDER BY revenue DESC NULLS LAST, c.name ASC`;
+    return rows.map((r) => {
+      const revenue = toCents(Number(r.revenue ?? 0));
+      const cost = toCents(Number(r.cost ?? 0));
+      return {
+        categoryId: r.categoryId,
+        name: r.name ?? 'Sem categoria',
+        revenue: fromCents(revenue),
+        profit: fromCents(revenue - cost),
+      };
+    });
+  }
+
+  /**
+   * Vendas, faturamento (sem os cascos) e lucro vendido por origem desde `since`. A origem
+   * excluída depois continua aparecendo com o nome (as vendas dela existem).
+   */
+  private async byChannel(storeIds: string[], since: Date) {
+    const rows = await this.prisma.$queryRaw<
+      {
+        channelId: string | null;
+        name: string | null;
+        count: bigint;
+        revenue: number | null;
+        cost: number | null;
+      }[]
+    >`
+      SELECT ch.id AS "channelId", ch.name AS name, COUNT(*) AS count,
+             SUM(s.total - s."bottlesTotal") AS revenue, SUM(s."totalCost") AS cost
+      FROM tb_sales s
+      LEFT JOIN tb_sale_channels ch ON ch.id = s."channelId"
+      WHERE s."storeId" IN (${Prisma.join(storeIds)})
+        AND s.status = 'COMPLETED'
+        AND s."createdAt" >= ${since}
+        AND s."deletedAt" IS NULL
+      GROUP BY ch.id, ch.name
+      ORDER BY revenue DESC NULLS LAST, ch.name ASC`;
+    return rows.map((r) => {
+      const revenue = toCents(Number(r.revenue ?? 0));
+      const cost = toCents(Number(r.cost ?? 0));
+      return {
+        channelId: r.channelId,
+        name: r.name ?? 'Sem origem',
+        count: Number(r.count),
+        revenue: fromCents(revenue),
+        profit: fromCents(revenue - cost),
+      };
+    });
+  }
+
+  /**
+   * Receita e lucro por dia (no fuso da aplicação) dos últimos 7 dias, com os dias sem venda
+   * zerados. Como nos cards, o lucro é o recebido: o fiado entra no dia em que o cliente paga.
+   */
+  private async chart(
+    storeIds: string[],
+    since: Date,
+    now: Date,
+    tz: string,
+    realized: RealizedProfit[],
+  ) {
+    const rows = await this.prisma.$queryRaw<
+      { day: string; revenue: number; cashProfit: number; count: number }[]
     >`
       SELECT to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}::text, 'YYYY-MM-DD') AS day,
-             SUM(total) AS revenue, SUM("totalCost") AS cost, COUNT(*)::int AS count
+             SUM(total - "bottlesTotal") AS revenue,
+             COALESCE(SUM(total - "bottlesTotal" - "totalCost")
+               FILTER (WHERE "paymentMethod" <> 'CREDIT_STORE'), 0) AS "cashProfit",
+             COUNT(*)::int AS count
       FROM tb_sales
       WHERE "storeId" IN (${Prisma.join(storeIds)})
         AND status = 'COMPLETED'
@@ -310,17 +563,24 @@ export class DashboardService {
         AND "createdAt" >= ${since}
       GROUP BY 1`;
     const byDay = new Map(rows.map((r) => [r.day, r]));
+    const fiadoByDay = new Map<string, number>();
+    for (const event of realized) {
+      if (event.at < since) continue;
+      const day = formatDayInTz(event.at, tz);
+      fiadoByDay.set(day, (fiadoByDay.get(day) ?? 0) + event.profitCents);
+    }
 
     const days: string[] = [];
     for (let i = 6; i >= 0; i--) days.push(formatDayInTz(addDays(now, -i), tz));
     return days.map((date) => {
       const row = byDay.get(date);
       const revenue = toCents(Number(row?.revenue ?? 0));
-      const cost = toCents(Number(row?.cost ?? 0));
+      const profit =
+        toCents(Number(row?.cashProfit ?? 0)) + (fiadoByDay.get(date) ?? 0);
       return {
         date,
         revenue: fromCents(revenue),
-        profit: fromCents(revenue - cost),
+        profit: fromCents(profit),
         count: Number(row?.count ?? 0),
       };
     });

@@ -1,6 +1,6 @@
 "use client";
 
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { PencilIcon, PlusIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
@@ -9,8 +9,10 @@ import { FormField } from "@/components/app/form";
 import { SelectField } from "@/components/app/inputs";
 import { Pagination } from "@/components/app/pagination";
 import { PlatformActionButton } from "@/components/app/platform-button";
+import { PollDeadline, PollResults } from "@/components/app/poll";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -33,10 +35,20 @@ import {
   NOTIFICATION_TYPE_LABEL,
   toDatetimeLocal,
 } from "@/lib/format";
+import {
+  filledOptions,
+  POLL_MAX_OPTIONS,
+  POLL_MIN_OPTIONS,
+  POLL_OPTION_MAX_LENGTH,
+  pollFormError,
+} from "@/lib/poll";
 
 const TYPE_OPTIONS = (Object.entries(NOTIFICATION_TYPE_LABEL) as [NotificationType, string][]).map(
   ([value, label]) => ({ value, label }),
 );
+
+/** Valor de um `<input type="datetime-local">` em milissegundos (vazio = null). */
+const localMs = (value: string) => (value ? new Date(value).getTime() : null);
 
 function NotificationDialog({
   notification,
@@ -51,6 +63,31 @@ function NotificationDialog({
   const [type, setType] = useState<NotificationType>(notification?.type ?? "NEWS");
   const [publishedAt, setPublishedAt] = useState(toDatetimeLocal(notification?.publishedAt));
   const [expiresAt, setExpiresAt] = useState(toDatetimeLocal(notification?.expiresAt));
+  // Enquete
+  const [options, setOptions] = useState<string[]>(
+    notification?.poll?.options.map((o) => o.label) ?? ["", ""],
+  );
+  const [pollEndsAt, setPollEndsAt] = useState(toDatetimeLocal(notification?.poll?.endsAt));
+  const [pollMultiple, setPollMultiple] = useState(notification?.poll?.multiple ?? false);
+  // Momento em que o formulário abriu: na criação, o prazo precisa estar depois dele.
+  const [openedAt] = useState(() => Date.now());
+
+  const isPoll = type === "POLL";
+  // Com voto, as opções e o tipo de resposta não mudam mais (regra do backend).
+  const hasVotes = (notification?.poll?.totalVoters ?? 0) > 0;
+  // Ao editar, enquete não vira outro tipo nem o contrário.
+  const typeOptions = notification
+    ? TYPE_OPTIONS.filter((o) => (o.value === "POLL") === (notification.type === "POLL"))
+    : TYPE_OPTIONS;
+  const pollError = isPoll
+    ? pollFormError({
+        options,
+        endsAt: localMs(pollEndsAt),
+        publishedAt: localMs(publishedAt),
+        expiresAt: localMs(expiresAt),
+        now: notification ? null : openedAt,
+      })
+    : null;
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -75,6 +112,11 @@ function NotificationDialog({
                   type,
                   publishedAt: fromDatetimeLocal(publishedAt),
                   expiresAt: expiresAt ? fromDatetimeLocal(expiresAt) : notification ? null : undefined,
+                  ...(isPoll && {
+                    pollEndsAt: fromDatetimeLocal(pollEndsAt),
+                    // Com voto, as opções e o tipo de resposta ficam como estão.
+                    ...(!hasVotes && { pollOptions: filledOptions(options), pollMultiple }),
+                  }),
                 },
               },
               {
@@ -109,9 +151,83 @@ function NotificationDialog({
               id="nt-type"
               value={type}
               onChange={setType}
-              options={TYPE_OPTIONS}
+              options={typeOptions}
+              disabled={notification?.type === "POLL"}
             />
           </FormField>
+          {isPoll && (
+            <div className="space-y-4 rounded-lg border bg-muted/30 p-3">
+              <FormField
+                label="Opções da enquete"
+                hint={
+                  hasVotes
+                    ? "A enquete já recebeu votos: as opções não mudam mais."
+                    : `De ${POLL_MIN_OPTIONS} a ${POLL_MAX_OPTIONS} opções. As vazias são ignoradas.`
+                }
+              >
+                <div className="space-y-2">
+                  {options.map((option, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input
+                        aria-label={`Opção ${index + 1}`}
+                        placeholder={`Opção ${index + 1}`}
+                        maxLength={POLL_OPTION_MAX_LENGTH}
+                        value={option}
+                        disabled={hasVotes}
+                        onChange={(e) =>
+                          setOptions((list) =>
+                            list.map((o, i) => (i === index ? e.target.value : o)),
+                          )
+                        }
+                      />
+                      {!hasVotes && options.length > POLL_MIN_OPTIONS && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label={`Remover opção ${index + 1}`}
+                          onClick={() => setOptions((list) => list.filter((_, i) => i !== index))}
+                        >
+                          <XIcon />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  {!hasVotes && options.length < POLL_MAX_OPTIONS && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setOptions((list) => [...list, ""])}
+                    >
+                      <PlusIcon /> Adicionar opção
+                    </Button>
+                  )}
+                </div>
+              </FormField>
+              <FormField
+                label="Prazo para votar"
+                htmlFor="nt-poll-end"
+                hint="Depois dele ninguém vota, e todos veem o resultado."
+              >
+                <Input
+                  id="nt-poll-end"
+                  type="datetime-local"
+                  value={pollEndsAt}
+                  onChange={(e) => setPollEndsAt(e.target.value)}
+                />
+              </FormField>
+              <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+                <Checkbox
+                  checked={pollMultiple}
+                  onCheckedChange={setPollMultiple}
+                  disabled={hasVotes}
+                />
+                Permitir mais de uma resposta
+              </label>
+              {pollError && <p className="text-xs text-muted-foreground">{pollError}</p>}
+            </div>
+          )}
           <div className="grid gap-3 sm:grid-cols-2">
             <FormField label="Publicar em" htmlFor="nt-pub" hint="Vazio = agora.">
               <Input
@@ -136,7 +252,9 @@ function NotificationDialog({
             </Button>
             <Button
               type="submit"
-              disabled={title.trim() === "" || body.trim() === "" || save.isPending}
+              disabled={
+                title.trim() === "" || body.trim() === "" || pollError !== null || save.isPending
+              }
             >
               {save.isPending ? "Salvando..." : "Salvar"}
             </Button>
@@ -192,6 +310,12 @@ export function PlatformNotificationsView() {
                   </span>
                 </div>
                 <p className="mt-2 text-sm whitespace-pre-line text-muted-foreground">{n.body}</p>
+                {n.poll && (
+                  <div className="mt-3 space-y-2">
+                    <PollDeadline poll={n.poll} />
+                    <PollResults poll={n.poll} />
+                  </div>
+                )}
                 <div className="mt-3 flex gap-2">
                   <PlatformActionButton
                     variant="outline"

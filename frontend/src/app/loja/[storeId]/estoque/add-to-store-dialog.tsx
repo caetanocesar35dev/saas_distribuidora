@@ -5,7 +5,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { LoadingRows } from "@/components/app/common";
 import { FormField } from "@/components/app/form";
-import { IntInput, MoneyInput } from "@/components/app/inputs";
+import { IntInput } from "@/components/app/inputs";
+import { PriceFields } from "@/components/app/price-fields";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
   useStoreProducts,
 } from "@/lib/api/hooks/catalog";
 import type { Product } from "@/lib/api/types";
+import { type PriceDraft, resolvePrices } from "@/lib/pack-pricing";
 import { useStore } from "@/lib/session/context";
 
 /**
@@ -40,9 +42,9 @@ export function AddToStoreDialog({
   const [search, setSearch] = useState("");
   const debounced = useDebounced(search);
   const [chosen, setChosen] = useState<Product | null>(null);
-  const [price, setPrice] = useState<number | undefined>();
-  const [cost, setCost] = useState<number | undefined>();
+  const [draft, setDraft] = useState<PriceDraft>({});
   const [stock, setStock] = useState<number | undefined>(0);
+  const { price, packPrice, costPrice } = resolvePrices(draft, chosen?.packQuantity ?? 1);
 
   const catalog = useProducts(companyId, { search: debounced || undefined, limit: 8 }, open);
   const inStore = useStoreProducts(storeId, { search: debounced || undefined, limit: 100 });
@@ -53,8 +55,7 @@ export function AddToStoreDialog({
   function reset() {
     setChosen(null);
     setSearch("");
-    setPrice(undefined);
-    setCost(undefined);
+    setDraft({});
     setStock(0);
   }
 
@@ -121,7 +122,7 @@ export function AddToStoreDialog({
               e.preventDefault();
               if (price === undefined) return;
               add.mutate(
-                { productId: chosen.id, price, costPrice: cost ?? 0, stock: stock ?? 0 },
+                { productId: chosen.id, price, packPrice, costPrice: costPrice ?? 0, stock: stock ?? 0 },
                 {
                   onSuccess: () => {
                     toast.success(`${chosen.name} agora é vendido nesta loja.`);
@@ -135,14 +136,14 @@ export function AddToStoreDialog({
               <strong>{chosen.name}</strong>
               <span className="text-muted-foreground"> · {chosen.code}</span>
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <FormField label="Preço de venda" htmlFor="add-price">
-                <MoneyInput id="add-price" value={price} onChange={setPrice} autoFocus />
-              </FormField>
-              <FormField label="Custo" htmlFor="add-cost">
-                <MoneyInput id="add-cost" value={cost} onChange={setCost} />
-              </FormField>
-            </div>
+            <PriceFields
+              idPrefix="add"
+              packSize={chosen.packQuantity}
+              packName={chosen.packName}
+              value={draft}
+              onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+              autoFocus
+            />
             <FormField
               label="Estoque inicial"
               htmlFor="add-stock"

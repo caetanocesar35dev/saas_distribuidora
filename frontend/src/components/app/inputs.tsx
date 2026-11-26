@@ -172,6 +172,7 @@ export function SelectField<V extends string>({
   id,
   disabled,
   size,
+  "aria-label": ariaLabel,
 }: {
   value: V | "" | undefined;
   onChange: (value: V) => void;
@@ -181,6 +182,7 @@ export function SelectField<V extends string>({
   id?: string;
   disabled?: boolean;
   size?: "sm" | "default";
+  "aria-label"?: string;
 }) {
   return (
     <Select
@@ -191,7 +193,7 @@ export function SelectField<V extends string>({
       items={options}
       disabled={disabled}
     >
-      <SelectTrigger id={id} className={cn("w-full", className)} size={size}>
+      <SelectTrigger id={id} className={cn("w-full", className)} size={size} aria-label={ariaLabel}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false}>

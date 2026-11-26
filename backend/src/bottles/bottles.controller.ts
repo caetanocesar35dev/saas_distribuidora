@@ -6,17 +6,23 @@ import {
   HttpCode,
   Param,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import { hasMinRole, Tenant } from '../common/decorators/access.decorators';
+import {
+  hasMinRole,
+  StoreRole,
+  Tenant,
+} from '../common/decorators/access.decorators';
 import type { StoreTenant } from '../common/decorators/access.decorators';
 import { BottleMovementsService } from './bottle-movements.service';
 import {
   CustomerBottleDto,
   ListBottleMovementsQuery,
   ManualBottleMovementDto,
+  SetStoreBottlePriceDto,
 } from './dto/bottles.dto';
 
 @ApiTags('bottles')
@@ -53,6 +59,22 @@ export class BottlesController {
   @Get('bottle-stock')
   stock(@Tenant() tenant: StoreTenant) {
     return this.movements.stock(tenant.storeId, tenant.companyId);
+  }
+
+  /** Preço próprio do casco nesta loja (`null` = vale o da empresa): gerente ou dono. */
+  @StoreRole(Role.MANAGER)
+  @Put('bottle-types/:id/price')
+  setStorePrice(
+    @Tenant() tenant: StoreTenant,
+    @Param('id') id: string,
+    @Body() dto: SetStoreBottlePriceDto,
+  ) {
+    return this.movements.setStorePrice(
+      tenant.storeId,
+      tenant.companyId,
+      id,
+      dto.price,
+    );
   }
 
   /** Devolução: só abate a dívida da própria loja. */

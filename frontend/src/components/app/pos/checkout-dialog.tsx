@@ -26,7 +26,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  bottleRows,
+  bottlesNeedCustomer,
+  bottlesTotal,
+  type BottleLine,
+} from "@/components/app/pos/bottle-checkout";
+import { useBottleStock } from "@/lib/api/hooks/bottles";
 import { customerBalancesQuery, useCustomerBalances } from "@/lib/api/hooks/customers";
+import { useSaleChannels } from "@/lib/api/hooks/sales";
+import { effectiveChannelId } from "@/lib/sale-channels";
 import type { BottleReturnLine, ManagerApproval, PaymentMethod } from "@/lib/api/types";
 import {
   creditLimitCheck,
@@ -45,18 +54,17 @@ import {
 import { useHasRole, useStore } from "@/lib/session/context";
 import { cn } from "@/lib/utils";
 
-/** Vasilhames que saem junto com a venda (1 por unidade de produto com vasilhame). */
-export interface BottleLine {
-  bottleTypeId: string;
-  name: string;
-  taken: number;
-}
+export type { BottleLine };
 
 export interface CheckoutPayload {
   paymentMethod: PaymentMethod;
+  /** Origem da venda (balcão, iFood...). Sem a lista carregada, o backend usa a padrão. */
+  channelId?: string;
   discount: number;
   customerId?: string;
   bottleReturns: BottleReturnLine[];
+  /** Cascos que o cliente compra (o preço é do tipo de vasilhame; o backend confere). */
+  bottlePurchases: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
   /** Atendente: gerente ou dono digitou o e-mail e a senha para autorizar passar do limite. */
@@ -78,9 +86,15 @@ export function CheckoutDialog({
   error,
   onSubmit,
   onClose,
+  askChannel = true,
 }: {
   companyId: string;
   title: string;
+  /**
+   * Pergunta a origem da venda. A comanda passa `false`: é sempre consumo no balcão e o backend
+   * grava Balcão (decidido pelo usuário, 2026-11-24).
+   */
+  askChannel?: boolean;
   subtotal: number;
   bottleLines: BottleLine[];
   initialCustomer?: PickedCustomer | null;
@@ -90,24 +104,36 @@ export function CheckoutDialog({
   onClose: () => void;
 }) {
   const [method, setMethod] = useState<PaymentMethod>("MONEY");
+  // Origem da venda: já vem marcada a padrão da empresa (Balcão, se ninguém mudou).
+  const channels = useSaleChannels(companyId);
+  const [pickedChannel, setPickedChannel] = useState<string | undefined>();
+  const channelId = effectiveChannelId(pickedChannel, channels.data);
   const [discount, setDiscount] = useState<number | undefined>();
   const [received, setReceived] = useState<number | undefined>();
   const [customer, setCustomer] = useState<PickedCustomer | null>(initialCustomer ?? null);
   const [returned, setReturned] = useState<Record<string, number | undefined>>({});
+  const [bought, setBought] = useState<Record<string, number | undefined>>({});
+
+  // Preço do casco de cada tipo nesta loja (o da loja ou, sem ele, o da empresa). Enquanto não
+  // carrega, a compra fica indisponível.
+  const { storeId } = useStore();
+  const bottleStock = useBottleStock(storeId);
+  const bottleBalance = useMemo(() => {
+    const prices = new Map((bottleStock.data ?? []).map((t) => [t.bottleTypeId, t.price]));
+    return bottleRows(
+      bottleLines.map((line) => ({ ...line, price: prices.get(line.bottleTypeId) ?? null })),
+      returned,
+      bought,
+    );
+  }, [bottleLines, bottleStock.data, returned, bought]);
+  const cascos = bottlesTotal(bottleBalance);
 
   const discountValue = discount ?? 0;
-  const total = roundMoney(subtotal - discountValue);
+  // O desconto vale só sobre os produtos; os cascos entram pelo preço cheio.
+  const total = roundMoney(subtotal - discountValue + cascos);
   const discountTooHigh = discountValue > subtotal;
 
-  const bottleBalance = useMemo(
-    () =>
-      bottleLines.map((line) => {
-        const gave = returned[line.bottleTypeId] ?? 0;
-        return { ...line, gave, balance: line.taken - gave };
-      }),
-    [bottleLines, returned],
-  );
-  const bottlesUnbalanced = bottleBalance.some((l) => l.balance !== 0);
+  const bottlesUnbalanced = bottlesNeedCustomer(bottleBalance);
   const customerRequired = method === "CREDIT_STORE" || bottlesUnbalanced;
   const missingCustomer = customerRequired && !customer;
 
@@ -117,7 +143,6 @@ export function CheckoutDialog({
   // ---- aviso de fiado em aberto e limite de crédito: antes de vender no fiado, mostra quanto o
   // cliente já deve e se a venda passa do limite (atendente é barrado; gerente e dono confirmam)
   const client = useQueryClient();
-  const { storeId } = useStore();
   const canPassLimit = useHasRole("MANAGER");
   const [checkingCredit, setCheckingCredit] = useState(false);
   const [creditCheck, setCreditCheck] = useState<{
@@ -190,14 +215,42 @@ export function CheckoutDialog({
             if (!valid || checkingCredit) return;
             void submit({
               paymentMethod: method,
+              channelId: askChannel ? channelId : undefined,
               discount: discountValue,
               customerId: customer?.id,
               bottleReturns: bottleBalance
                 .filter((l) => l.gave > 0)
                 .map((l) => ({ bottleTypeId: l.bottleTypeId, quantity: l.gave })),
+              bottlePurchases: bottleBalance
+                .filter((l) => l.bought > 0)
+                .map((l) => ({ bottleTypeId: l.bottleTypeId, quantity: l.bought })),
             });
           }}
         >
+          {askChannel && channels.data && channels.data.length > 0 && (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">Origem da venda</legend>
+              <div className="flex flex-wrap gap-2">
+                {channels.data.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setPickedChannel(c.id)}
+                    aria-pressed={channelId === c.id}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                      channelId === c.id
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "hover:bg-muted",
+                    )}
+                  >
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+
           <fieldset>
             <legend className="mb-2 text-sm font-medium">Forma de pagamento</legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -263,12 +316,17 @@ export function CheckoutDialog({
             <fieldset className="space-y-2 rounded-lg border bg-muted/30 p-3">
               <legend className="px-1 text-sm font-medium">Vasilhames</legend>
               <p className="text-xs text-muted-foreground">
-                Cada unidade com vasilhame leva um vasilhame do cliente. Informe quantos ele devolve
-                agora. Se a troca for 1 por 1, não precisa de cliente.
+                Cada unidade com vasilhame leva um vasilhame. Informe quantos vazios o cliente
+                devolve agora e, se ele não tem o vazio e quer ficar com o vasilhame, quantos cascos
+                ele compra. O que sobrar fica emprestado. Troca 1 por 1 ou compra de todos os cascos
+                não precisa de cliente.
               </p>
               {bottleBalance.map((line) => (
-                <div key={line.bottleTypeId} className="flex items-center gap-3">
-                  <div className="min-w-0 flex-1">
+                <div
+                  key={line.bottleTypeId}
+                  className="space-y-1.5 border-t pt-2 first-of-type:border-t-0 first-of-type:pt-0"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
                     <p className="truncate text-sm font-medium">{line.name}</p>
                     <p className="text-xs text-muted-foreground">
                       Saem {line.taken}
@@ -276,16 +334,54 @@ export function CheckoutDialog({
                       {line.balance < 0 && ` · fica com crédito de ${-line.balance}`}
                     </p>
                   </div>
-                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    Devolve
-                    <IntInput
-                      className="w-20"
-                      min={0}
-                      max={100_000}
-                      value={returned[line.bottleTypeId]}
-                      onChange={(v) => setReturned((prev) => ({ ...prev, [line.bottleTypeId]: v }))}
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Devolve
+                      <IntInput
+                        className="w-20"
+                        min={0}
+                        max={100_000}
+                        value={returned[line.bottleTypeId]}
+                        onChange={(v) =>
+                          setReturned((prev) => ({ ...prev, [line.bottleTypeId]: v }))
+                        }
+                      />
+                    </label>
+                    {line.price !== null ? (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <label className="flex items-center gap-1.5">
+                          Compra o casco
+                          <IntInput
+                            className="w-20"
+                            min={0}
+                            max={line.taken}
+                            value={bought[line.bottleTypeId]}
+                            onChange={(v) =>
+                              setBought((prev) => ({ ...prev, [line.bottleTypeId]: v }))
+                            }
+                          />
+                        </label>
+                        <span>× {formatMoney(line.price)}</span>
+                        {line.bought < line.taken && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="xs"
+                            className="h-auto px-0"
+                            onClick={() =>
+                              setBought((prev) => ({ ...prev, [line.bottleTypeId]: line.taken }))
+                            }
+                          >
+                            todos
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Casco sem preço: só troca ou empréstimo.
+                      </span>
+                    )}
+                  </div>
                 </div>
               ))}
             </fieldset>
@@ -302,9 +398,17 @@ export function CheckoutDialog({
                 <span className="tabular-nums">- {formatMoney(discountValue)}</span>
               </div>
             )}
+            {cascos > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  Cascos ({bottleBalance.reduce((n, l) => n + l.bought, 0)})
+                </span>
+                <span className="tabular-nums">+ {formatMoney(cascos)}</span>
+              </div>
+            )}
             <div className="flex items-baseline justify-between border-t pt-1.5 text-lg font-semibold">
               <span>Total</span>
-              <Money value={discountTooHigh ? subtotal : total} />
+              <Money value={discountTooHigh ? roundMoney(subtotal + cascos) : total} />
             </div>
             {change !== null && (
               <div

@@ -17,14 +17,16 @@ export type TabStatus = "OPEN" | "CLOSED";
 export type BottleMovementType =
   | "CUSTOMER_BORROW"
   | "CUSTOMER_RETURN"
+  | "CUSTOMER_PURCHASE"
   | "SUPPLIER_SEND"
   | "SUPPLIER_RECEIVE"
   | "MANUAL_ADJUSTMENT";
 export type ManualBottleMovementType = "SUPPLIER_SEND" | "SUPPLIER_RECEIVE" | "MANUAL_ADJUSTMENT";
-export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED";
-export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT";
+/** EXEMPT = isenta de mensalidade (parceira ou valor único), até `exemptUntil` (null = vitalícia). */
+export type SubscriptionStatus = "TRIAL" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXEMPT";
+export type NotificationType = "NEWS" | "UPDATE" | "MAINTENANCE" | "ALERT" | "POLL";
 export type AccessMode = "FULL" | "GRACE" | "READ_ONLY";
-export type ReadOnlyReason = "TRIAL_EXPIRED" | "PAST_DUE" | "CANCELED";
+export type ReadOnlyReason = "TRIAL_EXPIRED" | "PAST_DUE" | "CANCELED" | "EXEMPTION_EXPIRED";
 
 // ---- Genéricos -------------------------------------------------------------------------------
 
@@ -119,6 +121,8 @@ export interface SubscriptionAccess {
   trialEndsAt: string | null;
   pastDueSince: string | null;
   graceEndsAt: string | null;
+  /** Conta isenta: até quando (null = vitalícia, ou não é isenta). */
+  exemptUntil: string | null;
 }
 
 export interface MembershipStoreView {
@@ -203,6 +207,11 @@ export interface StoreBody {
 export interface Member {
   membershipId: string;
   isGeneralManager: boolean;
+  /**
+   * Responsável pela assinatura (quem criou a conta): só ele mesmo altera os próprios acessos,
+   * nem outro dono pode (a API responde 403). Não vem na lista de removidos.
+   */
+  isBillingOwner?: boolean;
   user: { id: string; name: string; email: string; isActive: boolean };
   stores: MembershipStoreView[];
 }
@@ -222,6 +231,8 @@ export interface InviteMemberResponse {
   membershipId: string;
   userId: string;
   invitedNewUser: boolean;
+  /** true = o e-mail levou o link para criar a senha (conta nova ou que nunca entrou). */
+  passwordSetupSent: boolean;
 }
 
 export interface OrganizationSummary {
@@ -230,6 +241,8 @@ export interface OrganizationSummary {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  /** Conta isenta: até quando (null = vitalícia). */
+  exemptUntil: string | null;
   plan: {
     id: string;
     name: string;
@@ -265,12 +278,31 @@ export interface BottleType {
   id: string;
   companyId: string;
   name: string;
+  /** Preço do casco quando o cliente compra (vale para a empresa toda). null = não é vendido. */
+  price: number | null;
   createdAt: string;
+}
+
+/** Ausente não mexe; `price: null` tira o preço do casco. */
+export interface BottleTypeBody {
+  name?: string;
+  price?: number | null;
 }
 
 export interface BottleTypeRef {
   id: string;
   name: string;
+}
+
+export interface ProductCategoryRef {
+  id: string;
+  name: string;
+}
+
+export interface ProductCategory extends ProductCategoryRef {
+  companyId: string;
+  createdAt: string;
+  deletedAt: string | null;
 }
 
 export interface Product {
@@ -279,8 +311,12 @@ export interface Product {
   code: string;
   name: string;
   packQuantity: number;
+  /** Nome da embalagem (caixa, pacote...). null = "fardo". */
+  packName: string | null;
   bottleTypeId: string | null;
   bottleType: BottleTypeRef | null;
+  categoryId: string | null;
+  category: ProductCategoryRef | null;
   createdAt: string;
   /** Só vem na listagem (`GET /products`); preenchido nos excluídos (`deleted=true`). */
   deletedAt?: string | null;
@@ -290,6 +326,7 @@ export interface ProductOfferSummary {
   id: string;
   storeId: string;
   price: number;
+  packPrice: number | null;
   /** Não vem para o atendente (o backend tira custo e lucro das respostas). */
   costPrice?: number;
   stock: number;
@@ -304,15 +341,20 @@ export interface CreateProductBody {
   name: string;
   code?: string;
   packQuantity?: number;
+  packName?: string;
   bottleTypeId?: string;
+  categoryId?: string;
   costPrice?: number;
-  stores?: { storeId: string; price: number; costPrice?: number }[];
+  stores?: { storeId: string; price: number; packPrice?: number; costPrice?: number }[];
 }
 
 export interface UpdateProductBody {
   name?: string;
   packQuantity?: number;
+  /** Vazio ou null volta ao padrão ("fardo"). */
+  packName?: string | null;
   bottleTypeId?: string | null;
+  categoryId?: string | null;
 }
 
 /** Oferta de um produto numa loja (o que o PDV e o estoque listam). */
@@ -320,8 +362,11 @@ export interface StoreProduct {
   id: string;
   storeId: string;
   productId: string;
+  /** Preço da unidade. */
   price: number;
-  /** Não vem para o atendente. */
+  /** Preço próprio da embalagem. null = preço da unidade × unidades da embalagem. */
+  packPrice: number | null;
+  /** Custo da unidade, com até 4 casas. Não vem para o atendente. */
   costPrice?: number;
   stock: number;
   isActive: boolean;
@@ -329,20 +374,26 @@ export interface StoreProduct {
     code: string;
     name: string;
     packQuantity: number;
+    packName: string | null;
     bottleTypeId: string | null;
     bottleType: BottleTypeRef | null;
+    categoryId: string | null;
+    category: ProductCategoryRef | null;
   };
 }
 
 export interface AddStoreProductBody {
   productId: string;
   price: number;
+  packPrice?: number;
   costPrice?: number;
   stock?: number;
 }
 
 export interface UpdateStoreProductBody {
   price?: number;
+  /** null tira o preço próprio da embalagem. */
+  packPrice?: number | null;
   costPrice?: number;
   isActive?: boolean;
 }
@@ -352,7 +403,18 @@ export interface UpdateStoreProductBody {
 export interface BottleStockLine {
   bottleTypeId: string;
   bottleTypeName: string;
+  /** Preço do casco que vale nesta loja: o da loja ou, sem ele, o da empresa (null = não é vendido). */
+  price: number | null;
+  /** Preço da empresa (Vasilhames › Tipos). */
+  companyPrice: number | null;
+  /** Preço próprio desta loja (null = vale o da empresa). */
+  storePrice: number | null;
   stock: number;
+}
+
+/** `PUT /stores/:storeId/bottle-types/:id/price`: `null` volta ao preço da empresa. */
+export interface StoreBottlePriceBody {
+  price: number | null;
 }
 
 export interface BottleMovement {
@@ -362,6 +424,8 @@ export interface BottleMovement {
   bottleType: BottleTypeRef;
   quantity: number;
   type: BottleMovementType;
+  /** Compra do casco: preço de cada um. null nos outros tipos. */
+  unitPrice: number | null;
   description: string | null;
   customerId: string | null;
   customer: { id: string; name: string } | null;
@@ -449,15 +513,19 @@ export interface SaleItem {
   packs: number;
   /** Unidades por fardo na hora da venda (null = vendido só por unidade). */
   packSize: number | null;
+  /** Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades dela. */
+  packPrice: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
-  storeProduct: { product: { code: string; name: string } };
+  storeProduct: { product: { code: string; name: string; packName: string | null } };
 }
 
 export interface SaleBottleMovement {
   id: string;
   type: BottleMovementType;
   quantity: number;
+  /** Compra do casco: preço de cada um. */
+  unitPrice: number | null;
   bottleTypeId: string;
   bottleType: { name: string };
   description: string | null;
@@ -466,9 +534,12 @@ export interface SaleBottleMovement {
 export interface Sale {
   id: string;
   storeId: string;
+  /** O que o cliente pagou: produtos − desconto + cascos comprados. */
   total: number;
   totalCost?: number; // não vem para o atendente
   discount: number;
+  /** Cascos de vasilhame comprados (já dentro de `total`). */
+  bottlesTotal: number;
   paymentMethod: PaymentMethod;
   status: SaleStatus;
   /** Quando a venda aconteceu. */
@@ -482,13 +553,32 @@ export interface Sale {
   customerId: string | null;
   customer: { id: string; name: string; phone: string | null } | null;
   commandTabId: string | null;
+  /** De onde veio a venda. null = venda de antes de existir a origem. */
+  channel: SaleChannelRef | null;
   items: SaleItem[];
   bottleMovements: SaleBottleMovement[];
 }
 
+/** Origem da venda (balcão, iFood...), editável por empresa. */
+export interface SaleChannelRef {
+  id: string;
+  name: string;
+}
+
+export interface SaleChannel extends SaleChannelRef {
+  companyId: string;
+  /** A que já vem marcada no PDV (uma por empresa). */
+  isDefault: boolean;
+  createdAt: string;
+  deletedAt: string | null;
+}
+
 export interface SalesPage extends Paginated<Sale> {
-  /** `totalProfit` não vem para o atendente. */
-  meta: PageMeta & { totalRevenue: number; totalProfit?: number };
+  /**
+   * `totalRevenue` é só dos produtos; os cascos comprados vêm em `totalBottles`. `totalProfit`
+   * não vem para o atendente.
+   */
+  meta: PageMeta & { totalRevenue: number; totalProfit?: number; totalBottles: number };
 }
 
 export interface BottleReturnLine {
@@ -499,11 +589,15 @@ export interface BottleReturnLine {
 /** Preço e custo NUNCA vão na venda: o backend lê do banco. */
 export interface CreateSaleBody {
   paymentMethod: PaymentMethod;
+  /** Origem da venda; sem ela, o backend usa a padrão da empresa. */
+  channelId?: string;
   customerId?: string;
   discount?: number;
   /** `quantity` = unidades avulsas; `packs` = fardos (o backend converte em unidades). */
   items: { storeProductId: string; quantity: number; packs?: number }[];
   bottleReturns?: BottleReturnLine[];
+  /** Cascos que o cliente compra (o preço vem do tipo de vasilhame, nunca da tela). */
+  bottlePurchases?: BottleReturnLine[];
   /** Gerente ou dono confirmou a venda fiada acima do limite de crédito. */
   allowOverCreditLimit?: boolean;
   /** Atendente: e-mail e senha do gerente/dono que autorizou passar do limite (nunca guardados). */
@@ -527,6 +621,8 @@ export interface SalesQuery extends PageQuery {
   status?: SaleStatus;
   customerId?: string;
   userId?: string;
+  /** Id da origem, ou `none` para as vendas sem origem. */
+  channelId?: string;
   startDate?: string;
   endDate?: string;
 }
@@ -538,10 +634,12 @@ export interface CommandItem {
   quantity: number;
   packs: number;
   packSize: number | null;
+  /** Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades dela. */
+  packPrice: number | null;
   price: number;
   costPrice?: number; // não vem para o atendente
   addedAt: string;
-  storeProduct: { product: { code: string; name: string } };
+  storeProduct: { product: { code: string; name: string; packName: string | null } };
 }
 
 export interface CommandTab {
@@ -558,9 +656,11 @@ export interface CommandTab {
 
 export interface CloseCommandTabBody {
   paymentMethod: PaymentMethod;
+  channelId?: string;
   discount?: number;
   customerId?: string;
   bottleReturns?: BottleReturnLine[];
+  bottlePurchases?: BottleReturnLine[];
   allowOverCreditLimit?: boolean;
   managerApproval?: ManagerApproval;
 }
@@ -650,14 +750,22 @@ export interface CreatePaymentBody {
 // ---- Painéis ---------------------------------------------------------------------------------
 
 export interface PeriodStats {
-  /** Tudo o que foi vendido (inclusive no fiado). */
+  /** Tudo o que foi vendido em produtos (inclusive no fiado), sem os cascos comprados. */
   revenue: number;
+  /**
+   * Lucro recebido: o das vendas à vista do período mais o do fiado pago no período (de vendas de
+   * qualquer data, proporcional ao pagamento). Fiado não pago não entra.
+   */
   profit: number;
   count: number;
-  /** Parte do faturamento e do lucro vendida no fiado. */
+  /** Vendido no fiado no período: parte do faturamento e o lucro dessas vendas (fora de `profit`). */
   fiado: { revenue: number; profit: number };
+  /** Parte de `profit` que veio de pagamentos de fiado no período. Não vem para o atendente. */
+  fiadoProfitReceived?: number;
   /** Pagamentos de fiado recebidos na loja no período (de vendas de qualquer data). */
   fiadoReceived: number;
+  /** Cascos de vasilhame vendidos no período (fora do faturamento e do lucro). */
+  bottles: number;
 }
 
 /** "Primeiros passos" do Início (só o dono): true = já feito. */
@@ -673,6 +781,22 @@ export interface Dashboard {
   week: PeriodStats;
   month: PeriodStats;
   topProducts: { productId: string; code: string; name: string; quantity: number }[];
+  /**
+   * Faturamento e lucro do mês por categoria. Aqui o lucro é o do que foi vendido (inclui o fiado
+   * não pago). `profit` não vem para o atendente.
+   */
+  byCategory: { categoryId: string | null; name: string; revenue: number; profit?: number }[];
+  /**
+   * Vendas do mês por origem (`channelId` null = "Sem origem", vendas de antes). Faturamento sem os
+   * cascos; `profit` é o lucro vendido.
+   */
+  byChannel: {
+    channelId: string | null;
+    name: string;
+    count: number;
+    revenue: number;
+    profit?: number;
+  }[];
   chart: { date: string; revenue: number; profit: number; count: number }[];
   lowStock: {
     storeProductId: string;
@@ -683,6 +807,8 @@ export interface Dashboard {
     stock: number;
   }[];
   debt: number;
+  /** Lucro das vendas fiadas ainda não pago. Não vem para o atendente. */
+  pendingFiadoProfit?: number;
   byStore?: {
     storeId: string;
     storeName: string;
@@ -690,6 +816,7 @@ export interface Dashboard {
     week: PeriodStats;
     month: PeriodStats;
     debt: number;
+    pendingFiadoProfit?: number;
   }[];
 }
 
@@ -724,7 +851,14 @@ export type StoreAuditEntity =
   "store-products" | "sales" | "command-tabs" | "cash-registers" | "bottle-movements";
 
 export type CompanyAuditEntity =
-  "products" | "customers" | "bottle-types" | "stores" | "memberships" | "membership-stores";
+  | "products"
+  | "customers"
+  | "bottle-types"
+  | "product-categories"
+  | "sale-channels"
+  | "stores"
+  | "memberships"
+  | "membership-stores";
 
 // ---- Notificações ----------------------------------------------------------------------------
 
@@ -738,10 +872,37 @@ export interface Notification {
   createdAt: string;
   read: boolean;
   readAt: string | null;
+  /** Só na enquete (type = POLL). */
+  poll: Poll | null;
+}
+
+/**
+ * Enquete (backend `buildPollView`). Quem não votou e a votação está aberta não vê os números
+ * (`showResults` false, `votes` e `totalVoters` null). A plataforma vê sempre.
+ */
+export interface Poll {
+  endsAt: string;
+  multiple: boolean;
+  closed: boolean;
+  showResults: boolean;
+  totalVoters: number | null;
+  /** O que esta pessoa marcou (vazio = não votou; sempre vazio na plataforma). */
+  myOptionIds: string[];
+  options: { id: string; label: string; votes: number | null }[];
+}
+
+/** `PUT /me/notifications/:id/vote`: a escolha completa (substitui o voto anterior). */
+export interface VoteBody {
+  optionIds: string[];
 }
 
 export interface UnreadCount {
   count: number;
+}
+
+/** `POST /me/notifications/read-all`: quantas foram marcadas agora. */
+export interface MarkAllReadResult {
+  marked: number;
 }
 
 // ---- Plataforma (SUPERADMIN / SUPPORT) -------------------------------------------------------
@@ -766,6 +927,7 @@ export interface PlatformOrganizationRow {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  exemptUntil: string | null;
   createdAt: string;
   plan: { id: string; name: string };
   owner: { id: string; name: string; email: string };
@@ -778,6 +940,9 @@ export interface PlatformOrganization {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: string | null;
   pastDueSince: string | null;
+  /** Isenta: até quando (null = vitalícia) e por quê (só a plataforma vê). */
+  exemptUntil: string | null;
+  exemptReason: string | null;
   billingProvider: string | null;
   billingMethod: string | null;
   createdAt: string;
@@ -822,6 +987,9 @@ export interface UpdateOrganizationBody {
   planId?: string;
   trialEndsAt?: string | null;
   pastDueSince?: string | null;
+  /** Só na situação Isenta: data limite (null = vitalícia) e motivo. */
+  exemptUntil?: string | null;
+  exemptReason?: string | null;
 }
 
 export interface PlatformUser {
@@ -843,6 +1011,7 @@ export interface PlatformNotification {
   createdAt: string;
   createdBy: { id: string; name: string };
   readCount: number;
+  poll: Poll | null;
 }
 
 export interface NotificationBody {
@@ -851,6 +1020,10 @@ export interface NotificationBody {
   type?: NotificationType;
   publishedAt?: string;
   expiresAt?: string | null;
+  /** Só na enquete: de 2 a 10 opções, prazo obrigatório e se aceita várias respostas. */
+  pollOptions?: string[];
+  pollEndsAt?: string;
+  pollMultiple?: boolean;
 }
 
 // ---- Indicação e descontos -------------------------------------------------------------------

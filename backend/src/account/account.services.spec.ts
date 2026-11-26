@@ -12,7 +12,7 @@ import {
   createServiceTest,
   ServiceTestContext,
 } from '../../test/helpers/service-module';
-import { World } from '../../test/helpers/factory';
+import { DEFAULT_PASSWORD, World } from '../../test/helpers/factory';
 import { CompaniesService } from './companies.service';
 import { MembershipsService } from './memberships.service';
 import { OrganizationsService } from './organizations.service';
@@ -153,6 +153,24 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
             where: { id: w.organization.id },
           })
         ).planId;
+
+      it('conta isenta não troca de plano sozinha (só a plataforma)', async () => {
+        await ctx.audit.runAsSystem('seed', () =>
+          ctx.prisma.organization.update({
+            where: { id: w.organization.id },
+            data: { subscriptionStatus: 'EXEMPT', exemptUntil: null },
+          }),
+        );
+        const before = await planOf();
+        const rede = await ctx.factory.plan({ priceInCents: 59900 });
+        await expect(change(rede.id)).rejects.toThrow(/isenta de mensalidade/);
+        expect(await planOf()).toBe(before);
+        const [org] = await organizations.mine(w.owner.id);
+        expect(org).toMatchObject({
+          subscriptionStatus: 'EXEMPT',
+          exemptUntil: null,
+        });
+      });
 
       it('a listagem traz quantas lojas cada empresa tem', async () => {
         const [org] = await organizations.mine(w.owner.id);
@@ -506,6 +524,62 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
       ).toBe(1);
     });
 
+    it('convidado de novo sem nunca ter entrado: o e-mail leva outra vez o link para criar a senha', async () => {
+      const invite = (storeId: string) =>
+        as(w.owner.id, () =>
+          members.invite(ownerTenant(), inviter(), {
+            email: 'esqueceu@teste.com',
+            name: 'Esqueceu Convite',
+            stores: [{ storeId, role: 'EMPLOYEE' }],
+          }),
+        );
+      await invite(w.storeA.id);
+      const second = await invite(w.storeB.id);
+      expect(second).toMatchObject({
+        invitedNewUser: false,
+        passwordSetupSent: true,
+      });
+
+      const link = ctx.mail.lastLinkTo('esqueceu@teste.com')!;
+      expect(link).toContain('/redefinir-senha?token=');
+      expect(ctx.mail.sent.at(-1)!.text).toContain('crie a sua senha');
+      await ctx.asRequest(() =>
+        auth.resetPassword({
+          token: decodeURIComponent(link.split('token=')[1]),
+          newPassword: 'MinhaSenha@1',
+        }),
+      );
+      await expect(
+        ctx.asRequest(() =>
+          auth.login({ email: 'esqueceu@teste.com', password: 'MinhaSenha@1' }),
+        ),
+      ).resolves.toBeTruthy();
+    });
+
+    it('quem já usa o sistema recebe o link de login, com o texto de quem já tem conta', async () => {
+      await ctx.factory.user({ email: 'usa@teste.com' });
+      await ctx.asRequest(() =>
+        auth.login({ email: 'usa@teste.com', password: DEFAULT_PASSWORD }),
+      );
+      ctx.mail.reset();
+
+      const result = await as(w.owner.id, () =>
+        members.invite(ownerTenant(), inviter(), {
+          email: 'usa@teste.com',
+          name: 'Qualquer',
+          stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
+        }),
+      );
+      expect(result).toMatchObject({
+        invitedNewUser: false,
+        passwordSetupSent: false,
+      });
+      expect(ctx.mail.lastLinkTo('usa@teste.com')).toMatch(/\/login$/);
+      const text = ctx.mail.sent.at(-1)!.text;
+      expect(text).toContain('Você já tem conta');
+      expect(text).not.toContain('crie a sua senha');
+    });
+
     it('rejeita loja de outra empresa e loja repetida', async () => {
       const other = await ctx.factory.world();
       const invite = (stores: { storeId: string; role: 'MANAGER' }[]) =>
@@ -608,36 +682,96 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
         ),
       ).rejects.toBeInstanceOf(ConflictException);
 
-      // único dono: rebaixar (por outra pessoa) ou remover deve falhar e nada muda
+      // único dono: sair de uma loja pode (ainda sobra OWNER na B); sair da última ou da
+      // empresa deixaria a empresa sem dono e nada muda
       await expect(
         as(w.owner.id, () =>
-          members.setRole(
-            ownerTenant('outro-membro'),
-            actor.id,
-            w.storeA.id,
-            'MANAGER',
-          ),
+          members.removeFromStore(ownerTenant(actor.id), actor.id, w.storeA.id),
         ),
-      ).resolves.toBeTruthy(); // ainda sobra OWNER na loja B
+      ).resolves.toBeTruthy();
       await expect(
         as(w.owner.id, () =>
-          members.setRole(
-            ownerTenant('outro-membro'),
-            actor.id,
-            w.storeB.id,
-            'MANAGER',
-          ),
+          members.removeFromStore(ownerTenant(actor.id), actor.id, w.storeB.id),
         ),
       ).rejects.toBeInstanceOf(ConflictException);
       await expect(
-        as(w.owner.id, () => members.remove(ownerTenant(), actor.id)),
+        as(w.owner.id, () => members.remove(ownerTenant(actor.id), actor.id)),
       ).rejects.toBeInstanceOf(ConflictException);
 
       const roles = await ctx.prisma.membershipStore.findMany({
         where: { membershipId: actor.id },
         select: { role: true },
       });
-      expect(roles.map((r) => r.role).sort()).toEqual(['MANAGER', 'OWNER']);
+      expect(roles.map((r) => r.role)).toEqual(['OWNER']);
+    });
+
+    it('o responsável pela assinatura não tem os acessos alterados por outro dono', async () => {
+      const billing = await ctx.prisma.membership.findFirstOrThrow({
+        where: { userId: w.owner.id, companyId: w.company.id },
+      });
+      // funcionário promovido a dono (sócio)
+      const socio = await ctx.factory.member(w.company.id, [
+        { storeId: w.storeA.id, role: 'OWNER' },
+      ]);
+      const actor = ownerTenant(socio.membership.id);
+      const blocked = /responsável pela assinatura/;
+
+      await expect(
+        as(socio.user.id, () =>
+          members.setRole(actor, billing.id, w.storeA.id, 'EMPLOYEE'),
+        ),
+      ).rejects.toThrow(blocked);
+      await expect(
+        as(socio.user.id, () =>
+          members.removeFromStore(actor, billing.id, w.storeA.id),
+        ),
+      ).rejects.toThrow(blocked);
+      await expect(
+        as(socio.user.id, () => members.remove(actor, billing.id)),
+      ).rejects.toThrow(blocked);
+      await expect(
+        as(socio.user.id, () =>
+          members.setGeneralManager(
+            w.company.id,
+            socio.membership.id,
+            billing.id,
+            true,
+          ),
+        ),
+      ).rejects.toThrow(blocked);
+      await expect(
+        as(socio.user.id, () =>
+          members.invite(
+            actor,
+            { id: socio.user.id, name: 'Sócio' },
+            {
+              email: w.owner.email,
+              name: 'Dono',
+              stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
+            },
+          ),
+        ),
+      ).rejects.toThrow(blocked);
+
+      const roles = await ctx.prisma.membershipStore.findMany({
+        where: { membershipId: billing.id },
+        select: { role: true },
+      });
+      expect(roles.map((r) => r.role)).toEqual(['OWNER', 'OWNER']);
+
+      // a lista marca quem é o responsável; ele continua mexendo no sócio
+      const list = await members.list(w.company.id);
+      expect(
+        list.filter((m) => m.isBillingOwner).map((m) => m.membershipId),
+      ).toEqual([billing.id]);
+      await as(w.owner.id, () =>
+        members.setRole(
+          ownerTenant(billing.id),
+          socio.membership.id,
+          w.storeA.id,
+          'MANAGER',
+        ),
+      );
     });
 
     it('remover o membro encerra todos os acessos dele', async () => {
@@ -897,9 +1031,19 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
           members.remove(actor, employee.membership.id),
         );
 
-        // não pode: dar papel de dono, mexer no dono, remover outro gerente geral
+        // não pode: dar papel de dono, mexer num dono, remover outro gerente geral. O dono aqui é
+        // um sócio (o responsável pela assinatura tem uma trava própria).
         const another = await makeGeneralManager();
-        const owner = await ownerMembership();
+        const owner = (
+          await ctx.factory.member(w.company.id, [
+            { storeId: w.storeA.id, role: 'OWNER' },
+          ])
+        ).membership;
+        const ownerEmail = (
+          await ctx.prisma.user.findUniqueOrThrow({
+            where: { id: owner.userId },
+          })
+        ).email;
         await expect(
           as(gm.user.id, () =>
             members.invite(
@@ -927,7 +1071,7 @@ describe('Serviços de conta (organização, empresa, lojas e membros)', () => {
               actor,
               { id: gm.user.id, name: 'GG' },
               {
-                email: w.owner.email,
+                email: ownerEmail,
                 name: 'Dono',
                 stores: [{ storeId: w.storeA.id, role: 'EMPLOYEE' }],
               },

@@ -232,6 +232,9 @@ export class Factory {
       bottleTypeId?: string;
       /** Unidades por fardo (venda em lote). */
       packQuantity?: number;
+      /** Preço próprio da embalagem. */
+      packPrice?: number;
+      categoryId?: string;
       isActive?: boolean;
     } = {},
   ) {
@@ -244,6 +247,7 @@ export class Factory {
           name: data.name ?? `Produto ${n}`,
           bottleTypeId: data.bottleTypeId,
           packQuantity: data.packQuantity,
+          categoryId: data.categoryId,
         },
       });
       return this.prisma.storeProduct.create({
@@ -251,6 +255,7 @@ export class Factory {
           storeId,
           productId: product.id,
           price: data.price ?? 10,
+          packPrice: data.packPrice,
           costPrice: data.costPrice ?? 6,
           stock: data.stock ?? 100,
           isActive: data.isActive ?? true,

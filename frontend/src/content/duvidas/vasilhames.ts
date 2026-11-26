@@ -11,7 +11,8 @@ export const vasilhames: Article[] = [
     audience: ["EMPLOYEE", "MANAGER"],
     steps: [
       "Abra Menu › Vasilhames.",
-      "Na aba Estoque, cada linha mostra um tipo de vasilhame e quantos estão na loja.",
+      "Na aba Estoque, cada linha mostra um tipo de vasilhame, quantos estão na loja e o preço do casco que vale nesta loja (preço da empresa ou preço desta loja).",
+      "Gerente e dono: para esta loja cobrar um preço do casco diferente do da empresa, clique em Preço nesta loja, digite o valor e salve. As outras lojas continuam com o preço da empresa. Para voltar ao preço da empresa, abra de novo e clique em Usar o preço da empresa.",
       "Na aba Movimentações você vê tudo o que entrou e saiu, com filtros por tipo, vasilhame e data.",
     ],
     problems: [
@@ -20,22 +21,32 @@ export const vasilhames: Article[] = [
         fix: "Numa venda o sistema não impede o estoque de vasilhame de ficar negativo. Registre o recebimento do fornecedor ou peça ao gerente um ajuste manual.",
       },
     ],
-    related: ["vasilhames-fornecedor", "vasilhames-tipos"],
-    keywords: ["vasilhame", "garrafa", "caixa", "casco", "estoque de vasilhames"],
+    related: ["vasilhames-fornecedor", "vasilhames-tipos", "vendas-vasilhame"],
+    keywords: [
+      "vasilhame",
+      "garrafa",
+      "caixa",
+      "casco",
+      "estoque de vasilhames",
+      "preço do casco nesta loja",
+      "preço por loja",
+    ],
   },
   {
     id: "vasilhames-tipos",
     category: "vasilhames",
-    title: "Cadastrar os tipos de vasilhame",
-    purpose: "Criar a lista de vasilhames da empresa (ex.: garrafa 600 ml, caixa de cerveja).",
+    title: "Cadastrar os tipos de vasilhame e o preço do casco",
+    purpose:
+      "Criar a lista de vasilhames da empresa (ex.: garrafa 600 ml, caixa de cerveja) e quanto custa o casco para o cliente que compra.",
     where: "Menu › Vasilhames › aba Tipos de vasilhame",
     minRole: "MANAGER",
     audience: ["MANAGER", "OWNER"],
     steps: [
       "Abra Menu › Vasilhames e clique na aba Tipos de vasilhame.",
       "Clique em Novo tipo, digite o nome e salve.",
+      "Em Preço do casco (opcional), digite quanto o cliente paga quando leva o vasilhame sem trazer um vazio e fica com ele. Esse é o preço da empresa: vale em todas as lojas, menos nas que têm preço próprio (Menu › Vasilhames › aba Estoque › Preço nesta loja). Em branco, o casco não é vendido nas lojas sem preço próprio: na venda, só troca ou empréstimo.",
       "Para ligar um tipo a um produto, edite o produto em Menu › Produtos e escolha o vasilhame dele.",
-      "Para mudar o nome, use Renomear. Para tirar da lista, use a lixeira.",
+      "Para mudar o nome ou o preço do casco, use Editar. Para tirar da lista, use a lixeira. Mudar o preço não muda as vendas já feitas.",
     ],
     problems: [
       {
@@ -52,7 +63,7 @@ export const vasilhames: Article[] = [
       },
     ],
     related: ["vasilhames-estoque", "produtos-cadastrar"],
-    keywords: ["tipo", "cadastrar vasilhame", "garrafeira", "casco"],
+    keywords: ["tipo", "cadastrar vasilhame", "garrafeira", "casco", "preço do casco"],
   },
   {
     id: "vasilhames-fornecedor",

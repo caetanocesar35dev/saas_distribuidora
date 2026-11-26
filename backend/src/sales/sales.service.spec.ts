@@ -14,6 +14,7 @@ import {
   resetManagerApprovalFailures,
   verifyManagerApproval,
 } from '../customers/manager-approval';
+import { createDefaultSaleChannels } from './sale-channels';
 import { SalesService } from './sales.service';
 
 describe('SalesService', () => {
@@ -424,6 +425,49 @@ describe('SalesService', () => {
       ]);
     });
 
+    it('embalagem com preço próprio: maço a 12, cigarro picado a 1 e custo certo nos dois', async () => {
+      const cigarro = await ctx.factory.storeProduct(
+        w.storeA.id,
+        w.company.id,
+        {
+          price: 1,
+          packPrice: 12,
+          costPrice: 0.475,
+          packQuantity: 20,
+          stock: 100,
+        },
+      );
+      const sale = await sell({
+        items: [{ storeProductId: cigarro.id, quantity: 3, packs: 2 }],
+      });
+      // 2 × 12 + 3 × 1; custo de 43 cigarros a 0,475
+      expect(sale.total).toBe(27);
+      expect(sale.totalCost).toBe(20.43);
+      expect(sale.items).toEqual([
+        expect.objectContaining({
+          quantity: 43,
+          packs: 2,
+          packSize: 20,
+          price: 1,
+          packPrice: 12,
+          costPrice: 0.475,
+        }),
+      ]);
+    });
+
+    it('sem embalagem na venda, o item não guarda o preço dela', async () => {
+      const cigarro = await ctx.factory.storeProduct(
+        w.storeA.id,
+        w.company.id,
+        { price: 1, packPrice: 12, packQuantity: 20 },
+      );
+      const sale = await sell({
+        items: [{ storeProductId: cigarro.id, quantity: 3 }],
+      });
+      expect(sale.total).toBe(3);
+      expect(sale.items[0].packPrice).toBeNull();
+    });
+
     it('recusa fardo de produto sem tamanho de fardo e quantidade zerada', async () => {
       await expect(
         sell({ items: [{ storeProductId: beer.id, quantity: 0, packs: 1 }] }),
@@ -732,6 +776,144 @@ describe('SalesService', () => {
     });
   });
 
+  describe('compra do casco na venda', () => {
+    const setLitraoPrice = (price: number | null) =>
+      ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.bottleType.update({
+          where: { id: litrao.id },
+          data: { price },
+        }),
+      );
+
+    it('o casco comprado entra no total pelo preço do tipo, fica do cliente e não vira dívida', async () => {
+      await setLitraoPrice(8);
+      const customer = await ctx.factory.customer(w.company.id);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+
+      // 3 engradados (3 vasilhames): 2 cascos comprados e 1 emprestado; desconto só nos produtos.
+      const sale = await sell({
+        customerId: customer.id,
+        discount: 10,
+        items: [{ storeProductId: crate.id, quantity: 3 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 2 }],
+      });
+
+      expect(sale.total).toBe(156); // 150 - 10 + 2 × 8
+      expect(sale.bottlesTotal).toBe(16);
+      expect(sale.discount).toBe(10);
+      expect(await cashBalance()).toBe(256);
+      expect(await bottleStock()).toBe(7);
+      expect(await bottleDebt(customer.id)).toBe(1);
+      expect(
+        sale.bottleMovements
+          .map((m) => [m.type, m.quantity, m.unitPrice])
+          .sort(),
+      ).toEqual([
+        ['CUSTOMER_BORROW', -1, null],
+        ['CUSTOMER_PURCHASE', -2, 8],
+      ]);
+    });
+
+    it('comprar todos os cascos dispensa o cliente; no fiado, o casco entra na dívida em dinheiro', async () => {
+      await setLitraoPrice(8);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      const anonymous = await sell({
+        items: [{ storeProductId: crate.id, quantity: 2 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 2 }],
+      });
+      expect(anonymous.total).toBe(116);
+
+      const customer = await ctx.factory.customer(w.company.id);
+      await sell({
+        paymentMethod: 'CREDIT_STORE',
+        customerId: customer.id,
+        items: [{ storeProductId: crate.id, quantity: 1 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 1 }],
+      });
+      expect(await fiado(customer.id)).toBe(58);
+      expect(await bottleDebt(customer.id)).toBeFalsy(); // nenhuma dívida de vasilhame
+    });
+
+    it('a loja com preço próprio do casco cobra o dela; as outras, o da empresa', async () => {
+      await setLitraoPrice(8);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.storeBottleType.update({
+          where: {
+            storeId_bottleTypeId: {
+              storeId: w.storeA.id,
+              bottleTypeId: litrao.id,
+            },
+          },
+          data: { price: 9.5 },
+        }),
+      );
+      const sale = await sell({
+        items: [{ storeProductId: crate.id, quantity: 1 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 1 }],
+      });
+      expect(sale.bottlesTotal).toBe(9.5);
+      expect(sale.total).toBe(59.5);
+    });
+
+    it('recusa casco sem preço e mais cascos do que saem na venda; nada é gravado', async () => {
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      await expect(
+        sell({
+          items: [{ storeProductId: crate.id, quantity: 1 }],
+          bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 1 }],
+        }),
+      ).rejects.toThrow(/não tem preço/);
+
+      await setLitraoPrice(8);
+      await expect(
+        sell({
+          items: [{ storeProductId: crate.id, quantity: 1 }],
+          bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 2 }],
+        }),
+      ).rejects.toThrow(/Só dá para comprar/);
+      expect(await ctx.prisma.sale.count()).toBe(0);
+      expect(await bottleStock()).toBe(10);
+    });
+
+    it('cancelar devolve o casco ao estoque e estorna o valor junto com a venda', async () => {
+      await setLitraoPrice(8);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      const sale = await sell({
+        items: [{ storeProductId: crate.id, quantity: 2 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 2 }],
+      });
+      const canceled = await cancel(sale.id);
+
+      expect(canceled.status).toBe('CANCELED');
+      expect(await bottleStock()).toBe(10);
+      expect(await cashBalance()).toBe(100);
+      expect(canceled.bottleMovements.map((m) => [m.type, m.quantity])).toEqual(
+        [
+          ['CUSTOMER_PURCHASE', -2],
+          ['CUSTOMER_PURCHASE', 2],
+        ],
+      );
+    });
+
+    it('no histórico de vendas, o faturamento é só dos produtos e os cascos vêm à parte', async () => {
+      await setLitraoPrice(8);
+      await ctx.factory.bottleStock(w.storeA.id, litrao.id, 10);
+      await sell({
+        items: [{ storeProductId: crate.id, quantity: 1 }],
+        bottlePurchases: [{ bottleTypeId: litrao.id, quantity: 1 }],
+      });
+      const list = await ctx.asRequest(() =>
+        sales.list(w.storeA.id, { page: 1, limit: 20 }),
+      );
+      expect(list.meta).toMatchObject({
+        totalRevenue: 50,
+        totalProfit: 20,
+        totalBottles: 8,
+      });
+    });
+  });
+
   describe('vasilhames na venda', () => {
     it('produto com vasilhame: tira do estoque da loja, vira dívida do cliente e registra o movimento', async () => {
       const customer = await ctx.factory.customer(w.company.id);
@@ -850,6 +1032,137 @@ describe('SalesService', () => {
       });
       expect(await bottleStock(w.storeB.id)).toBe(9);
       expect(await bottleDebt(customer.id, w.storeB.id)).toBeUndefined();
+    });
+  });
+
+  describe('origem da venda', () => {
+    const channel = (name: string) =>
+      ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: w.company.id, name },
+      });
+    beforeEach(async () => {
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, w.company.id),
+      );
+    });
+
+    it('sem escolha, a venda fica com a origem padrão (Balcão); com escolha, com a escolhida', async () => {
+      const balcao = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(balcao.channel).toMatchObject({ name: 'Balcão' });
+
+      const ifood = await channel('iFood');
+      const sale = await sell({
+        channelId: ifood.id,
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      expect(sale.channel).toEqual({ id: ifood.id, name: 'iFood' });
+    });
+
+    it('recusa origem de outra empresa ou excluída, sem gravar a venda', async () => {
+      const other = await ctx.factory.world();
+      await ctx.audit.runAsSystem('seed', () =>
+        createDefaultSaleChannels(ctx.prisma, other.company.id),
+      );
+      const foreign = await ctx.prisma.saleChannel.findFirstOrThrow({
+        where: { companyId: other.company.id },
+      });
+      await expect(
+        sell({
+          channelId: foreign.id,
+          items: [{ storeProductId: beer.id, quantity: 1 }],
+        }),
+      ).rejects.toThrow('Origem da venda não encontrada.');
+
+      const ze = await channel('Zé Delivery');
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.saleChannel.update({
+          where: { id: ze.id },
+          data: { deletedAt: new Date() },
+        }),
+      );
+      await expect(
+        sell({
+          channelId: ze.id,
+          items: [{ storeProductId: beer.id, quantity: 1 }],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(await stockOf(beer.id)).toBe(100);
+    });
+
+    it('a venda continua mostrando a origem excluída depois', async () => {
+      const ze = await channel('Zé Delivery');
+      const sale = await sell({
+        channelId: ze.id,
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.saleChannel.update({
+          where: { id: ze.id },
+          data: { deletedAt: new Date() },
+        }),
+      );
+      expect((await sales.get(w.storeA.id, sale.id)).channel).toEqual({
+        id: ze.id,
+        name: 'Zé Delivery',
+      });
+    });
+
+    it('a venda antiga também guarda a origem', async () => {
+      const whats = await channel('WhatsApp/Telefone');
+      const late = await ctx.asRequest(
+        () =>
+          sales.createLate(
+            w.storeA.id,
+            w.company.id,
+            w.owner.id,
+            {
+              paymentMethod: 'MONEY',
+              channelId: whats.id,
+              soldAt: new Date(Date.now() - 86_400_000).toISOString(),
+              items: [{ storeProductId: beer.id, quantity: 1 }],
+            },
+            'OWNER',
+          ),
+        {
+          userId: w.owner.id,
+          endpoint: 'POST /api/stores/:storeId/sales/late',
+        },
+      );
+      expect(late.channel).toMatchObject({ name: 'WhatsApp/Telefone' });
+    });
+
+    it('o histórico filtra por origem e pelas vendas sem origem', async () => {
+      const ifood = await channel('iFood');
+      // venda de antes de existir a origem
+      const semOrigem = await sell({
+        items: [{ storeProductId: beer.id, quantity: 1 }],
+      });
+      await ctx.audit.runAsSystem('seed', () =>
+        ctx.prisma.sale.update({
+          where: { id: semOrigem.id },
+          data: { channelId: null },
+        }),
+      );
+      const doIfood = await sell({
+        channelId: ifood.id,
+        items: [{ storeProductId: beer.id, quantity: 2 }],
+      });
+      await sell({ items: [{ storeProductId: beer.id, quantity: 1 }] });
+
+      const page = { page: 1, limit: 20 };
+      const byIfood = await sales.list(w.storeA.id, {
+        ...page,
+        channelId: ifood.id,
+      });
+      expect(byIfood.data.map((s) => s.id)).toEqual([doIfood.id]);
+      expect(byIfood.meta.totalRevenue).toBe(20);
+      const none = await sales.list(w.storeA.id, {
+        ...page,
+        channelId: 'none',
+      });
+      expect(none.data.map((s) => s.id)).toEqual([semOrigem.id]);
     });
   });
 

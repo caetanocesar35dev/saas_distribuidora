@@ -85,6 +85,15 @@ describe('AuthService', () => {
       expect(access[0]).toMatchObject({ role: 'OWNER' });
       expect(access[0].store.name).toBe('Matriz');
 
+      // a empresa nova já vem com as origens da venda, com Balcão como padrão
+      const channels = await ctx.prisma.saleChannel.findMany({
+        where: { companyId: access[0].store.companyId },
+      });
+      expect(channels).toHaveLength(5);
+      expect(channels.filter((c) => c.isDefault).map((c) => c.name)).toEqual([
+        'Balcão',
+      ]);
+
       // boas-vindas com o fim do teste
       const [welcome] = ctx.mail.sentTo('maria@dist.com');
       expect(welcome.subject).toContain('Maria Bebidas');

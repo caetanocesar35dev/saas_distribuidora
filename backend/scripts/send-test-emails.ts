@@ -41,6 +41,17 @@ async function main() {
       ),
     ],
     [
+      'Convite (quem já tem conta)',
+      await mail.sendInvite(
+        to,
+        'Maria Exemplo',
+        'Distribuidora Exemplo',
+        'João Dono',
+        `${env.APP_URL}/login`,
+        true,
+      ),
+    ],
+    [
       'Lembrete de assinatura',
       await mail.sendSubscriptionReminder(
         to,

@@ -364,7 +364,9 @@ describe('AuditLogService', () => {
         'customers',
         'membership-stores',
         'memberships',
+        'product-categories',
         'products',
+        'sale-channels',
         'stores',
       ]);
     });

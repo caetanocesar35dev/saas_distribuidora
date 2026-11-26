@@ -24,16 +24,20 @@ import { BottleTypesService } from './bottle-types.service';
 import {
   AddStoreProductDto,
   CreateBottleTypeDto,
+  CreateProductCategoryDto,
   CreateProductDto,
+  ListProductCategoriesQuery,
   ListProductsQuery,
   ListStoreProductsQuery,
   LowStockQuery,
   StockAdjustmentDto,
   StockEntryDto,
   UpdateBottleTypeDto,
+  UpdateProductCategoryDto,
   UpdateProductDto,
   UpdateStoreProductDto,
 } from './dto/catalog.dto';
+import { ProductCategoriesService } from './product-categories.service';
 import { ProductsService } from './products.service';
 import { StoreProductsService } from './store-products.service';
 
@@ -121,6 +125,53 @@ export class BottleTypesController {
   @Post(':id/restore')
   restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
     return this.bottleTypes.restore(tenant.companyId, id);
+  }
+}
+
+@ApiTags('catalog')
+@ApiBearerAuth()
+@Controller('companies/:companyId/product-categories')
+export class ProductCategoriesController {
+  constructor(private readonly categories: ProductCategoriesService) {}
+
+  @Get()
+  list(
+    @Tenant() tenant: CompanyTenant,
+    @Query() query: ListProductCategoriesQuery,
+  ) {
+    return this.categories.list(tenant.companyId, query);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Post()
+  create(
+    @Tenant() tenant: CompanyTenant,
+    @Body() dto: CreateProductCategoryDto,
+  ) {
+    return this.categories.create(tenant.companyId, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Patch(':id')
+  update(
+    @Tenant() tenant: CompanyTenant,
+    @Param('id') id: string,
+    @Body() dto: UpdateProductCategoryDto,
+  ) {
+    return this.categories.update(tenant.companyId, id, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Delete(':id')
+  remove(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.categories.remove(tenant.companyId, id);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.categories.restore(tenant.companyId, id);
   }
 }
 

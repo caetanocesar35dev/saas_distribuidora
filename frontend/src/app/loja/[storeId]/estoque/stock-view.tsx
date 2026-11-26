@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { CategoryFilter } from "@/components/app/category-filter";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { EmptyState, ErrorState, LoadingRows, Money, PageHeader } from "@/components/app/common";
 import { ActionButton, RequireRole } from "@/components/app/guards";
@@ -44,7 +45,8 @@ import {
   useUpdateStoreProduct,
 } from "@/lib/api/hooks/catalog";
 import type { StoreProduct } from "@/lib/api/types";
-import { formatInt, hasMinRole } from "@/lib/format";
+import { formatInt, hasMinRole, packLabel } from "@/lib/format";
+import { packCostFromUnit } from "@/lib/pack-pricing";
 import { useStore } from "@/lib/session/context";
 import { AddToStoreDialog } from "./add-to-store-dialog";
 import { PriceDialog, StockAdjustDialog, StockEntryDialog } from "./stock-dialogs";
@@ -81,15 +83,27 @@ function ProductRow({
         <p className="font-medium">{item.product.name}</p>
         <p className="text-xs text-muted-foreground">
           {item.product.code}
+          {item.product.category && ` · ${item.product.category.name}`}
           {item.product.bottleType && ` · vasilhame: ${item.product.bottleType.name}`}
         </p>
       </TableCell>
       <TableCell className="text-right">
         <Money value={item.price} />
+        {item.packPrice !== null && item.product.packQuantity > 1 && (
+          <p className="text-xs text-muted-foreground">
+            {packLabel(item.product.packName)} <Money value={item.packPrice} />
+          </p>
+        )}
       </TableCell>
       {manager && (
         <TableCell className="text-right">
           <Money value={item.costPrice} />
+          {item.product.packQuantity > 1 && item.costPrice !== undefined && (
+            <p className="text-xs text-muted-foreground">
+              {packLabel(item.product.packName)}{" "}
+              <Money value={packCostFromUnit(item.costPrice, item.product.packQuantity)} />
+            </p>
+          )}
         </TableCell>
       )}
       <TableCell className="text-right">
@@ -157,16 +171,18 @@ function ProductRow({
 }
 
 function ProductsTable({ onDialog }: { onDialog: (d: Dialogs) => void }) {
-  const { storeId, role } = useStore();
+  const { companyId, storeId, role } = useStore();
   const manager = hasMinRole(role, "MANAGER");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [categoryId, setCategoryId] = useState<string | undefined>();
   const [page, setPage] = useState(1);
   const debounced = useDebounced(search);
 
   const list = useStoreProducts(storeId, {
     search: debounced || undefined,
     isActive: status === "all" ? undefined : status === "active",
+    categoryId,
     page,
     limit: 20,
   });
@@ -187,6 +203,15 @@ function ProductsTable({ onDialog }: { onDialog: (d: Dialogs) => void }) {
             aria-label="Buscar produtos"
           />
         </div>
+        <CategoryFilter
+          className="w-52"
+          companyId={companyId}
+          value={categoryId}
+          onChange={(value) => {
+            setCategoryId(value);
+            setPage(1);
+          }}
+        />
         <SelectField<StatusFilter>
           className="w-44"
           value={status}
@@ -210,8 +235,8 @@ function ProductsTable({ onDialog }: { onDialog: (d: Dialogs) => void }) {
         <EmptyState
           title="Nenhum produto encontrado"
           description={
-            debounced
-              ? "Tente outra busca."
+            debounced || categoryId
+              ? "Tente outra busca ou outra categoria."
               : "Coloque produtos nesta loja para vender e controlar o estoque."
           }
         />

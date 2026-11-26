@@ -32,6 +32,7 @@ interface OrgRow {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: Date | null;
   pastDueSince: Date | null;
+  exemptUntil: Date | null;
 }
 
 const ORG_SELECT = {
@@ -40,6 +41,7 @@ const ORG_SELECT = {
   subscriptionStatus: true,
   trialEndsAt: true,
   pastDueSince: true,
+  exemptUntil: true,
 } as const;
 
 /**
@@ -112,6 +114,7 @@ export class TenantGuard implements CanActivate {
         subscriptionStatus: org.subscriptionStatus,
         trialEndsAt: org.trialEndsAt,
         pastDueSince: org.pastDueSince,
+        exemptUntil: org.exemptUntil,
       },
       new Date(),
       this.config.get('SUBSCRIPTION_GRACE_DAYS', { infer: true }),

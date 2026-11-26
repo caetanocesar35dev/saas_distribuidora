@@ -1,11 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { isValidCnpj, normalizeCnpj } from '../common/utils/document';
 import { PrismaService } from '../prisma/prisma.service';
+import { createDefaultCategories } from '../catalog/product-categories';
+import { createDefaultSaleChannels } from '../sales/sale-channels';
 import { CreateCompanyDto } from './dto/account.dto';
 
 @Injectable()
@@ -35,6 +38,7 @@ export class OrganizationsService {
         subscriptionStatus: true,
         trialEndsAt: true,
         pastDueSince: true,
+        exemptUntil: true,
         plan: {
           select: {
             id: true,
@@ -78,7 +82,7 @@ export class OrganizationsService {
     const [org, plan] = await Promise.all([
       this.prisma.organization.findFirst({
         where: { id: organizationId },
-        select: { planId: true },
+        select: { planId: true, subscriptionStatus: true },
       }),
       this.prisma.plan.findFirst({
         where: { id: planId },
@@ -93,6 +97,12 @@ export class OrganizationsService {
     ]);
     if (!org) throw new NotFoundException('Organização não encontrada.');
     if (!plan) throw new NotFoundException('Plano não encontrado.');
+    // A isenta tem o plano combinado com a plataforma (decisão do usuário, 2026-11-22): sem isso,
+    // subiria para o maior plano sem pagar.
+    if (org.subscriptionStatus === 'EXEMPT')
+      throw new ForbiddenException(
+        'Sua conta é isenta de mensalidade: para mudar de plano, fale com o suporte.',
+      );
     if (org.planId === plan.id)
       throw new ConflictException(`Você já está no plano ${plan.name}.`);
     if (plan.priceInCents === 0) {
@@ -177,6 +187,8 @@ export class OrganizationsService {
           organizationId,
         },
       });
+      await createDefaultCategories(tx, company.id);
+      await createDefaultSaleChannels(tx, company.id);
       const store = await tx.store.create({
         data: { companyId: company.id, name: dto.storeName },
       });

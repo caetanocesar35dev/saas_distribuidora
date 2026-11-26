@@ -5,18 +5,21 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import {
+  CompanyRole,
   CurrentUser,
   StoreRole,
   Tenant,
 } from '../common/decorators/access.decorators';
 import type {
   AuthUser,
+  CompanyTenant,
   StoreTenant,
 } from '../common/decorators/access.decorators';
 import { CommandTabsService } from './command-tabs.service';
@@ -25,10 +28,15 @@ import {
   CloseCommandTabDto,
   CreateCommandTabDto,
   CreateLateSaleDto,
+  CreateSaleChannelDto,
   CreateSaleDto,
   ListCommandTabsQuery,
+  ListSaleChannelsQuery,
   ListSalesQuery,
+  UpdateCommandItemDto,
+  UpdateSaleChannelDto,
 } from './dto/sales.dto';
+import { SaleChannelsService } from './sale-channels.service';
 import { SalesService } from './sales.service';
 
 @ApiTags('sales')
@@ -117,6 +125,16 @@ export class CommandTabsController {
     return this.tabs.addItem(tenant.storeId, id, dto);
   }
 
+  @Patch(':id/items/:itemId')
+  updateItem(
+    @Tenant() tenant: StoreTenant,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdateCommandItemDto,
+  ) {
+    return this.tabs.updateItem(tenant.storeId, id, itemId, dto);
+  }
+
   @Delete(':id/items/:itemId')
   removeItem(
     @Tenant() tenant: StoreTenant,
@@ -148,5 +166,54 @@ export class CommandTabsController {
   @Post(':id/cancel')
   cancel(@Tenant() tenant: StoreTenant, @Param('id') id: string) {
     return this.tabs.cancel(tenant.storeId, id);
+  }
+}
+
+/** Origens da venda da empresa (balcão, iFood...). Todos listam; gerente e dono editam. */
+@ApiTags('sales')
+@ApiBearerAuth()
+@Controller('companies/:companyId/sale-channels')
+export class SaleChannelsController {
+  constructor(private readonly channels: SaleChannelsService) {}
+
+  @Get()
+  list(@Tenant() tenant: CompanyTenant, @Query() query: ListSaleChannelsQuery) {
+    return this.channels.list(tenant.companyId, query);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Post()
+  create(@Tenant() tenant: CompanyTenant, @Body() dto: CreateSaleChannelDto) {
+    return this.channels.create(tenant.companyId, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Patch(':id')
+  update(
+    @Tenant() tenant: CompanyTenant,
+    @Param('id') id: string,
+    @Body() dto: UpdateSaleChannelDto,
+  ) {
+    return this.channels.update(tenant.companyId, id, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @HttpCode(200)
+  @Post(':id/default')
+  setDefault(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.channels.setDefault(tenant.companyId, id);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Delete(':id')
+  remove(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.channels.remove(tenant.companyId, id);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.channels.restore(tenant.companyId, id);
   }
 }

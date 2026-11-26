@@ -18,10 +18,16 @@ import {
 } from "@/components/app/contact-channels";
 import { LinkButton } from "@/components/app/link-button";
 import { buttonVariants } from "@/components/ui/button";
-import { INSTAGRAM_URL, SALES_MESSAGE, whatsappUrl } from "@/content/contact";
+import {
+  INSTAGRAM_URL,
+  LIFETIME_MESSAGE,
+  SALES_MESSAGE,
+  whatsappUrl,
+} from "@/content/contact";
 import type { Plan } from "@/lib/api/types";
 import { formatCents } from "@/lib/format";
 import { planLimits } from "@/lib/plans";
+import { jsonLd, landingStructuredData, siteUrl } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 const SIGNUP = "/cadastro";
@@ -31,7 +37,7 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   {
     icon: ContainerIcon,
     title: "Vasilhame por cliente",
-    text: "Saiba quem levou, quantos cascos deve e em qual loja. A venda já registra o empréstimo, e a devolução abate a dívida.",
+    text: "Saiba quem levou, quantos cascos deve e em qual loja. Na venda, o cliente troca o vazio, leva emprestado ou compra o casco, e a devolução abate a dívida.",
   },
   {
     icon: WalletIcon,
@@ -55,14 +61,15 @@ const FEATURES: { icon: LucideIcon; title: string; text: string }[] = [
   },
   {
     icon: BoxesIcon,
-    title: "Fardo e unidade na mesma venda",
-    text: "Venda 2 fardos e mais 3 unidades sem fazer conta. O preço e o estoque continuam certos, sempre em unidades.",
+    title: "Fardo, caixa e unidade na mesma venda",
+    text: "Venda 2 fardos e mais 3 unidades sem fazer conta. Cigarro picado ou no maço, salgadinho na caixa: cada produto com a sua embalagem e o seu preço, e o estoque sempre certo.",
   },
 ];
 
 const ALSO = [
   "PDV com leitor de código de barras e atalhos de teclado",
   "Comandas para quem consome no local",
+  "Origem de cada venda (balcão, WhatsApp, iFood, Zé Delivery) e quanto cada uma fatura",
   "Lançamento de venda antiga, para quando a internet cair",
   "Funciona no computador, no tablet e no celular",
   "Central de Dúvidas com o passo a passo de cada tela",
@@ -113,6 +120,11 @@ const FAQ = [
     question: "Posso vender outros produtos além de bebidas?",
     answer:
       "Pode. Cigarro, salgadinho, gelo, carvão e outros itens são cadastrados como qualquer produto. O vasilhame é opcional, só para o que tem retorno.",
+  },
+  {
+    question: "Dá para não pagar mensalidade?",
+    answer:
+      "Dá. Além dos planos mensais, você pode pagar um valor único e ficar isento da mensalidade. O valor e as condições são combinados pelo WhatsApp do suporte.",
   },
   {
     question: "Posso mudar de plano ou cancelar depois?",
@@ -207,8 +219,19 @@ function Plans({ plans }: { plans: Plan[] }) {
 
 /** Página pública de apresentação (`/`). Quem já está logado é levado direto para a loja. */
 export function LandingPage({ plans }: { plans: Plan[] }) {
+  const structuredData = landingStructuredData({
+    url: siteUrl(),
+    plans,
+    faq: FAQ,
+    sameAs: [INSTAGRAM_URL],
+  });
   return (
     <div className="min-h-screen bg-background">
+      {/* Dados estruturados (schema.org) para os buscadores; não aparecem na tela. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(structuredData) }}
+      />
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-3 sm:px-6">
           <Link href="/" aria-label="Início" className="min-w-0">
@@ -326,7 +349,21 @@ export function LandingPage({ plans }: { plans: Plan[] }) {
               grátis valem para qualquer um.
             </p>
             <Plans plans={plans} />
-            <p className="mt-6 rounded-xl bg-primary/10 px-4 py-3 text-sm">
+            <div className="mt-6 flex flex-col gap-3 rounded-xl border bg-card px-4 py-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                <strong className="font-semibold">Prefere não pagar mensalidade?</strong> Pague um
+                valor único e fique isento da mensalidade. Fale com o suporte para saber o valor.
+              </p>
+              <a
+                href={whatsappUrl(LIFETIME_MESSAGE)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(buttonVariants({ variant: "outline" }), "shrink-0")}
+              >
+                <WhatsAppIcon /> Falar no WhatsApp
+              </a>
+            </div>
+            <p className="mt-3 rounded-xl bg-primary/10 px-4 py-3 text-sm">
               <strong className="font-semibold">Foi indicado por alguém?</strong> Cadastre-se com o
               código de indicação e ganhe 20% de desconto nos 2 primeiros meses depois do teste.
             </p>

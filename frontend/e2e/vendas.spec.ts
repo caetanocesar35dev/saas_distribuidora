@@ -22,7 +22,7 @@ test.describe("PDV, fiado, comandas e caixa", () => {
 
     const concluir = checkout.getByRole("button", { name: "Concluir", exact: true });
     await expect(concluir, "sai devendo vasilhame sem cliente").toBeDisabled();
-    await checkout.getByRole("spinbutton").fill("1");
+    await checkout.getByLabel("Devolve").fill("1");
     await expect(concluir, "troca 1 por 1 não precisa de cliente").toBeEnabled();
     await concluir.click();
     await expect(page.getByText("Venda concluída")).toBeVisible();
@@ -124,8 +124,18 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await page.getByPlaceholder(/Passe o leitor/).fill("Refri");
     await page.locator("ul button", { hasText: "Refrigerante" }).first().click();
     await expect(page.getByText("Refrigerante 2L").nth(1)).toBeVisible();
+    // o mesmo produto de novo soma na mesma linha (contador), não abre outra
+    const qty = page.getByLabel("Quantidade de Refrigerante 2L");
+    await expect(qty).toHaveValue("1");
+    await page.locator("ul button", { hasText: "Refrigerante" }).first().click();
+    await expect(qty).toHaveValue("2");
+    await expect(page.getByRole("button", { name: "Remover Refrigerante 2L" })).toHaveCount(1);
+    await page.getByRole("button", { name: "Diminuir Quantidade de Refrigerante 2L" }).click();
+    await expect(qty).toHaveValue("1");
     await page.getByRole("button", { name: "Fechar comanda" }).click();
     const close = page.getByRole("dialog");
+    // comanda é consumo no balcão: não pergunta a origem
+    await expect(close.getByText("Origem da venda")).toHaveCount(0);
     await close.getByRole("button", { name: "PIX", exact: true }).click();
     await close.getByRole("button", { name: "Concluir", exact: true }).click();
     await page.waitForURL(/\/vendas\//);
@@ -139,6 +149,96 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await expect(history.getByText("Criado")).toBeVisible();
     await expect(history.getByText("Alterado")).toBeVisible();
     await expect(history.getByText("Cancelada")).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+
+  test("compra do casco: preço no tipo de vasilhame, venda sem cliente e o casco no total", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // preço do casco do Litrão (vale para a empresa toda)
+    await goToStore(page, storeId, "/vasilhames");
+    await page.getByRole("tab", { name: "Tipos de vasilhame" }).click();
+    const litrao = page.getByRole("listitem").filter({ hasText: /^Litrão/ });
+    await litrao.getByRole("button", { name: "Editar" }).click();
+    const tipo = page.getByRole("dialog");
+    await tipo.getByLabel("Preço do casco (opcional)").fill("8,00");
+    await tipo.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Tipo atualizado.")).toBeVisible();
+    await expect(litrao).toContainText(/Casco: R\$\s*8,00/);
+
+    // venda: 2 litrões, o cliente compra os 2 cascos (não precisa de cliente)
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Litr");
+    const card = page.locator("ul button", { hasText: "Cerveja Litrão" }).first();
+    await card.click();
+    await card.click();
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    const checkout = page.getByRole("dialog");
+    const concluir = checkout.getByRole("button", { name: "Concluir", exact: true });
+    await expect(concluir, "sai devendo vasilhame sem cliente").toBeDisabled();
+    await checkout.getByRole("button", { name: "todos" }).click();
+    await expect(checkout.getByLabel("Compra o casco")).toHaveValue("2");
+    await expect(checkout).toContainText(/Cascos \(2\)\s*\+\s*R\$\s*16,00/);
+    await expect(concluir, "comprou todos os cascos: não precisa de cliente").toBeEnabled();
+    await checkout.getByRole("button", { name: "PIX", exact: true }).click();
+    await concluir.click();
+    await expect(page.getByText("Venda concluída")).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText(/comprou 2 cascos \(R\$\s*16,00\)/);
+
+    await page.getByRole("link", { name: "Ver venda" }).click();
+    await page.waitForURL(/\/vendas\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Cascos de vasilhame comprados")).toBeVisible();
+    await expect(page.getByText(/Casco comprado pelo cliente · R\$\s*8,00 cada/)).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+
+  test("preço do casco só desta loja: a venda cobra o da loja; tirar volta ao da empresa", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // preço da empresa: R$ 8,00
+    await goToStore(page, storeId, "/vasilhames");
+    await page.getByRole("tab", { name: "Tipos de vasilhame" }).click();
+    const litrao = page.getByRole("listitem").filter({ hasText: /^Litrão/ });
+    await litrao.getByRole("button", { name: "Editar" }).click();
+    await page.getByRole("dialog").getByLabel("Preço do casco (opcional)").fill("8,00");
+    await page.getByRole("dialog").getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Tipo atualizado.")).toBeVisible();
+
+    // preço só desta loja: R$ 9,50
+    await page.getByRole("tab", { name: "Estoque" }).click();
+    const row = page.getByRole("row", { name: /Litrão/ });
+    await expect(row).toContainText(/R\$\s*8,00\s*preço da empresa/);
+    await row.getByRole("button", { name: /Preço do casco Litrão nesta loja/ }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Preço do casco nesta loja").fill("9,50");
+    await dialog.getByRole("button", { name: "Salvar" }).click();
+    await expect(row).toContainText(/R\$\s*9,50\s*preço desta loja/);
+
+    // a venda cobra o da loja
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Litr");
+    await page.locator("ul button", { hasText: "Cerveja Litrão" }).first().click();
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    const checkout = page.getByRole("dialog");
+    await checkout.getByRole("button", { name: "todos" }).click();
+    await expect(checkout).toContainText(/Cascos \(1\)\s*\+\s*R\$\s*9,50/);
+    await page.keyboard.press("Escape");
+
+    // desfaz: volta ao preço da empresa
+    await goToStore(page, storeId, "/vasilhames");
+    await row.getByRole("button", { name: /Preço do casco Litrão nesta loja/ }).click();
+    await dialog.getByRole("button", { name: "Usar o preço da empresa" }).click();
+    await expect(row).toContainText(/R\$\s*8,00\s*preço da empresa/);
 
     expect(errors).toEqual([]);
   });
@@ -292,6 +392,79 @@ test.describe("PDV, fiado, comandas e caixa", () => {
     await filtros.fill(day);
     await page.locator("label", { hasText: "até" }).locator("input").fill(day);
     await expect(page.getByText("lançada depois").first()).toBeVisible();
+
+    expect(errors).toEqual([]);
+  });
+
+  test("origem da venda: Balcão já marcado, venda do iFood no histórico e no painel, lista editável", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    await ensureCashOpen(page, storeId);
+
+    // ---- venda do iFood
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Refrigerante");
+    await page.locator("ul button", { hasText: "Refrigerante 2L" }).first().click();
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    const checkout = page.getByRole("dialog");
+    await expect(checkout.getByRole("button", { name: "Balcão" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await checkout.getByRole("button", { name: "iFood" }).click();
+    await expect(checkout.getByRole("button", { name: "iFood" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await checkout.getByRole("button", { name: "Concluir", exact: true }).click();
+    await expect(page.getByText("Venda concluída")).toBeVisible();
+
+    // ---- histórico: coluna e filtro por origem
+    await goToStore(page, storeId, "/vendas");
+    await page.getByLabel("Origem da venda").click();
+    await page.getByRole("option", { name: "iFood" }).click();
+    const firstRow = page.locator("tbody tr").first();
+    await expect(firstRow).toContainText("iFood");
+    await expect(page.locator("tbody tr", { hasText: "Balcão" })).toHaveCount(0);
+
+    // ---- painel: tabela por origem
+    await goToStore(page, storeId);
+    const porOrigem = page.locator("section", {
+      has: page.getByRole("heading", { name: "Por origem (este mês)" }),
+    });
+    await expect(porOrigem.getByRole("cell", { name: /iFood/ })).toBeVisible();
+
+    // ---- lista editável: origem nova vira a padrão e já vem marcada no PDV
+    const nova = `Origem E2E ${Date.now() % 100000}`;
+    await goToStore(page, storeId, "/configuracoes");
+    const dialog = page.getByRole("region", { name: "Origens da venda" });
+    await dialog.getByLabel("Nome da nova origem").fill(nova);
+    await dialog.getByRole("button", { name: "Adicionar" }).click();
+    await expect(page.getByText("Origem cadastrada.")).toBeVisible();
+    await dialog.getByRole("button", { name: `Tornar ${nova} a origem padrão` }).click();
+    await expect(page.getByText(`${nova} agora é a origem padrão.`)).toBeVisible();
+    // a padrão não tem lixeira
+    await expect(dialog.getByRole("button", { name: `Excluir ${nova}` })).toHaveCount(0);
+
+    await goToStore(page, storeId, "/pdv");
+    await page.getByPlaceholder(/Passe o leitor/).fill("Refrigerante");
+    await page.locator("ul button", { hasText: "Refrigerante 2L" }).first().click();
+    await page.getByRole("button", { name: /Finalizar venda/ }).click();
+    await expect(page.getByRole("dialog").getByRole("button", { name: nova })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.keyboard.press("Escape");
+
+    // ---- desfaz: Balcão volta a ser a padrão e a origem de teste sai da lista
+    await goToStore(page, storeId, "/configuracoes");
+    await dialog.getByRole("button", { name: "Tornar Balcão a origem padrão" }).click();
+    await expect(page.getByText("Balcão agora é a origem padrão.")).toBeVisible();
+    await dialog.getByRole("button", { name: `Excluir ${nova}` }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Excluir origem" }).click();
+    await expect(page.getByText("Origem excluída.")).toBeVisible();
 
     expect(errors).toEqual([]);
   });

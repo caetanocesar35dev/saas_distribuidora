@@ -14,6 +14,9 @@ export const COST_KEYS = new Set([
   'totalCost',
   'totalProfit',
   'profit',
+  // painel: lucro do fiado recebido no período e o que ainda falta receber
+  'fiadoProfitReceived',
+  'pendingFiadoProfit',
 ]);
 
 /** Cópia da resposta sem os campos de custo, em qualquer nível (listas, itens, `meta`). */

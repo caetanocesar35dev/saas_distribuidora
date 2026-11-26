@@ -142,24 +142,43 @@ export function passwordResetEmail(name: string, url: string): EmailContent {
   });
 }
 
+/**
+ * Convite para a equipe. Sem `hasAccount`, o link cria a senha (conta nova ou que nunca entrou);
+ * com `hasAccount`, a pessoa já usa o sistema: o link é o login, com a senha que ela já tem.
+ */
 export function inviteEmail(
   name: string,
   companyName: string,
   invitedBy: string,
   url: string,
+  hasAccount = false,
 ): EmailContent {
+  const intro = `${invitedBy} convidou você para usar o sistema de ${companyName}: vendas, caixa, estoque e fiado.`;
+  const reason = `Você recebeu este e-mail porque foi convidado para a equipe de ${companyName}.`;
+  if (hasAccount) {
+    return render({
+      subject: `Convite para ${companyName} - ${APP_NAME}`,
+      preheader: `${invitedBy} deu a você acesso ao sistema de ${companyName}.`,
+      title: `Você foi convidado para ${companyName}`,
+      name,
+      paragraphs: [
+        intro,
+        `Você já tem conta no ${APP_NAME}: entre com o seu e-mail e a senha de sempre e escolha ${companyName} na lista de empresas.`,
+      ],
+      button: { label: 'Entrar no sistema', url },
+      note: 'Esqueceu a senha? Na tela de entrada, clique em "Esqueci a senha". Se você não esperava este convite, pode ignorar este e-mail.',
+      reason,
+    });
+  }
   return render({
     subject: `Convite para ${companyName} - ${APP_NAME}`,
     preheader: `${invitedBy} convidou você para usar o sistema de ${companyName}.`,
     title: `Você foi convidado para ${companyName}`,
     name,
-    paragraphs: [
-      `${invitedBy} convidou você para usar o sistema de ${companyName}: vendas, caixa, estoque e fiado.`,
-      'Para entrar, crie a sua senha pelo botão abaixo.',
-    ],
+    paragraphs: [intro, 'Para entrar, crie a sua senha pelo botão abaixo.'],
     button: { label: 'Criar minha senha e acessar', url },
     note: 'O convite vale por 7 dias. Se você não esperava este convite, pode ignorar este e-mail.',
-    reason: `Você recebeu este e-mail porque foi convidado para a equipe de ${companyName}.`,
+    reason,
   });
 }
 

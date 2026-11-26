@@ -8,7 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
-import { roundMoney } from '../common/utils/money';
+import { roundMoney, roundUnitCost } from '../common/utils/money';
 import { Env } from '../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -17,12 +17,14 @@ import {
   StockAdjustmentDto,
   UpdateStoreProductDto,
 } from './dto/catalog.dto';
+import { categoryWhere } from './product-categories';
 
 const SELECT = {
   id: true,
   storeId: true,
   productId: true,
   price: true,
+  packPrice: true,
   costPrice: true,
   stock: true,
   isActive: true,
@@ -31,8 +33,11 @@ const SELECT = {
       code: true,
       name: true,
       packQuantity: true,
+      packName: true,
       bottleTypeId: true,
       bottleType: { select: { id: true, name: true } },
+      categoryId: true,
+      category: { select: { id: true, name: true } },
     },
   },
 } satisfies Prisma.StoreProductSelect;
@@ -53,6 +58,7 @@ export class StoreProductsService {
       storeId,
       product: {
         deletedAt: null,
+        ...categoryWhere(query.categoryId),
         ...(query.search
           ? {
               OR: [
@@ -120,7 +126,8 @@ export class StoreProductsService {
 
     const data = {
       price: roundMoney(dto.price),
-      costPrice: roundMoney(dto.costPrice ?? 0),
+      packPrice: dto.packPrice === undefined ? null : roundMoney(dto.packPrice),
+      costPrice: roundUnitCost(dto.costPrice ?? 0),
       stock: dto.stock ?? 0,
       isActive: true,
     };
@@ -144,8 +151,14 @@ export class StoreProductsService {
       where: { id },
       data: {
         price: dto.price === undefined ? undefined : roundMoney(dto.price),
+        packPrice:
+          dto.packPrice === undefined || dto.packPrice === null
+            ? dto.packPrice
+            : roundMoney(dto.packPrice),
         costPrice:
-          dto.costPrice === undefined ? undefined : roundMoney(dto.costPrice),
+          dto.costPrice === undefined
+            ? undefined
+            : roundUnitCost(dto.costPrice),
         isActive: dto.isActive,
       },
     });

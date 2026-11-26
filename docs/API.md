@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **118 rotas**. Todas começam com `/api`.
+Total: **133 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -61,6 +61,7 @@ Total: **118 rotas**. Todas começam com `/api`.
 | GET | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/bottle-stock` | Loja: EMPLOYEE ou mais | Funciona |
+| PUT | `/api/stores/:storeId/bottle-types/:id/price` | Loja: MANAGER ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-loans` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-returns` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 
@@ -84,6 +85,11 @@ Total: **118 rotas**. Todas começam com `/api`.
 | DELETE | `/api/companies/:companyId/bottle-types/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | PATCH | `/api/companies/:companyId/bottle-types/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | POST | `/api/companies/:companyId/bottle-types/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| GET | `/api/companies/:companyId/product-categories` | Empresa: EMPLOYEE ou mais | Funciona |
+| POST | `/api/companies/:companyId/product-categories` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| DELETE | `/api/companies/:companyId/product-categories/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| PATCH | `/api/companies/:companyId/product-categories/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/product-categories/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/companies/:companyId/products` | Empresa: EMPLOYEE ou mais | Funciona |
 | POST | `/api/companies/:companyId/products` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/companies/:companyId/products/:id` | Empresa: EMPLOYEE ou mais | Funciona |
@@ -144,6 +150,8 @@ Total: **118 rotas**. Todas começam com `/api`.
 | GET | `/api/me/memberships` | Qualquer usuário logado | — |
 | GET | `/api/me/notifications` | Qualquer usuário logado | — |
 | POST | `/api/me/notifications/:id/read` | Qualquer usuário logado | — |
+| PUT | `/api/me/notifications/:id/vote` | Qualquer usuário logado | — |
+| POST | `/api/me/notifications/read-all` | Qualquer usuário logado | — |
 | GET | `/api/me/notifications/unread-count` | Qualquer usuário logado | — |
 
 ## members
@@ -207,6 +215,12 @@ Total: **118 rotas**. Todas começam com `/api`.
 
 | Método | Rota | Quem pode | Em somente leitura |
 |---|---|---|---|
+| GET | `/api/companies/:companyId/sale-channels` | Empresa: EMPLOYEE ou mais | Funciona |
+| POST | `/api/companies/:companyId/sale-channels` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| DELETE | `/api/companies/:companyId/sale-channels/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| PATCH | `/api/companies/:companyId/sale-channels/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/sale-channels/:id/default` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/sale-channels/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/command-tabs` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/command-tabs` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/command-tabs/:id` | Loja: EMPLOYEE ou mais | Funciona |
@@ -214,6 +228,7 @@ Total: **118 rotas**. Todas começam com `/api`.
 | POST | `/api/stores/:storeId/command-tabs/:id/close` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/command-tabs/:id/items` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | DELETE | `/api/stores/:storeId/command-tabs/:id/items/:itemId` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
+| PATCH | `/api/stores/:storeId/command-tabs/:id/items/:itemId` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/sales` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/sales/:id` | Loja: EMPLOYEE ou mais | Funciona |

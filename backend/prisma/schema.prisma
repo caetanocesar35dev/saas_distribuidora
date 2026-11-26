@@ -72,6 +72,7 @@ enum TabStatus {
 enum BottleMovementType {
   CUSTOMER_BORROW // Cliente pegou vasilhame emprestado (sai do estoque da loja, aumenta o saldo devedor do cliente)
   CUSTOMER_RETURN // Cliente devolveu vasilhame (entra no estoque da loja, reduz o saldo devedor do cliente)
+  CUSTOMER_PURCHASE // Cliente comprou o casco na venda (sai do estoque da loja e fica dele: não vira dívida). Positivo = estorno do cancelamento
   SUPPLIER_SEND // Loja enviou vasilhame para fornecedor (sai do estoque da loja)
   SUPPLIER_RECEIVE // Loja recebeu vasilhame do fornecedor (entra no estoque da loja)
   MANUAL_ADJUSTMENT // Ajuste manual de estoque
@@ -82,6 +83,7 @@ enum SubscriptionStatus {
   ACTIVE
   PAST_DUE
   CANCELED
+  EXEMPT // isenta de mensalidade (parceira ou valor único), até exemptUntil (null = vitalícia)
 }
 
 enum BillingProvider {
@@ -98,6 +100,7 @@ enum NotificationType {
   UPDATE // notas de atualização do sistema
   MAINTENANCE
   ALERT
+  POLL // enquete: tem opções, prazo para votar e resultado
 }
 
 enum ReferralStatus {
@@ -133,13 +136,14 @@ model User {
 
   memberships Membership[]
 
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  sales                Sale[]             @relation("SaleSeller")
-  creditApprovedSales  Sale[]             @relation("SaleCreditApprover")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+  sales                Sale[]                 @relation("SaleSeller")
+  creditApprovedSales  Sale[]                 @relation("SaleCreditApprover")
   organizations        Organization[]
-  notificationsCreated Notification[]     @relation("NotificationsCreated")
+  notificationsCreated Notification[]         @relation("NotificationsCreated")
   notificationReads    NotificationRead[]
+  notificationVotes    NotificationPollVote[]
   refreshTokens        RefreshToken[]
 
   // Auditoria
@@ -165,6 +169,9 @@ model Company {
   products    Product[]
   bottleTypes BottleType[]
   customers   Customer[]
+
+  productCategories ProductCategory[]
+  saleChannels      SaleChannel[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -221,9 +228,14 @@ model Organization {
   subscriptionStatus SubscriptionStatus @default(TRIAL)
   trialEndsAt        DateTime? // fim do trial, gravado no cadastro (createdAt + TRIAL_DAYS); a plataforma pode estender
   pastDueSince       DateTime? // quando a mensalidade venceu sem pagamento; null quando em dia. Base da carência
+  /// Conta isenta de mensalidade (EXEMPT): até quando vale. null = vitalícia.
+  exemptUntil        DateTime?
+  /// Por que é isenta (ex.: "Parceiro", "Vitalícia paga em 22/11/2026"). Só a plataforma vê.
+  exemptReason       String?
 
   // Acesso pela assinatura: TRIAL até trialEndsAt e ACTIVE = completo; PAST_DUE = completo até
   // pastDueSince + SUBSCRIPTION_GRACE_DAYS, depois somente leitura; CANCELED ou trial vencido = somente leitura.
+  // EXEMPT = completo até exemptUntil (null = sempre), depois somente leitura.
 
   // Cobrança no gateway (hoje só Asaas). Todos nulos = ainda não integrou (ex.: em TRIAL).
   billingProvider           BillingProvider?
@@ -354,14 +366,21 @@ model MembershipStore {
 /// Catálogo "mestre" do produto — pertence à Company. Compartilhado entre lojas,
 /// evita recadastro quando o mesmo produto é vendido em mais de uma loja.
 model Product {
-  id           String @id @default(uuid())
+  id           String  @id @default(uuid())
   companyId    String
   code         String
   name         String
-  packQuantity Int    @default(1)
+  packQuantity Int     @default(1)
+  /// Nome da embalagem na tela (caixa, pacote, display...). null = "fardo". Só muda o texto: a conta
+  /// continua em unidades, com `packQuantity`.
+  packName     String?
 
   bottleTypeId String?
   bottleType   BottleType? @relation(fields: [bottleTypeId], references: [id])
+
+  /// Categoria do produto (opcional), usada em filtros e no painel.
+  categoryId String?
+  category   ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   storeProducts StoreProduct[]
@@ -376,7 +395,30 @@ model Product {
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([categoryId])
   @@map("tb_products")
+}
+
+/// Categoria de produto (Bebidas, Cigarros, Salgadinhos...): catálogo editável de cada Company.
+model ProductCategory {
+  id        String @id @default(uuid())
+  companyId String
+  name      String
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_product_categories")
 }
 
 /// A "oferta" do produto dentro de uma loja específica: preço, custo, estoque e status,
@@ -386,7 +428,12 @@ model StoreProduct {
   storeId   String
   productId String
 
+  /// Preço da unidade.
   price     Float
+  /// Preço próprio da embalagem nesta loja (ex.: maço a R$ 12 e cigarro a R$ 1). null = `price` ×
+  /// `Product.packQuantity`.
+  packPrice Float?
+  /// Custo da unidade, com até 4 casas (a tela pede o custo da embalagem e divide).
   costPrice Float   @default(0)
   stock     Int     @default(0)
   isActive  Boolean @default(true)
@@ -420,6 +467,9 @@ model BottleType {
   id        String @id @default(uuid())
   companyId String
   name      String
+  /// Preço do casco quando o cliente compra o vasilhame (fica dele; vale para todas as lojas da
+  /// empresa). null = o casco não é vendido: na venda, só troca ou empréstimo.
+  price     Float?
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
 
@@ -447,6 +497,9 @@ model StoreBottleType {
   storeId      String
   bottleTypeId String
   stock        Int    @default(0)
+  /// Preço próprio do casco nesta loja (decidido pelo usuário, 2026-11-24). null = vale o preço da
+  /// empresa (`BottleType.price`). O preço que vale na loja é `price ?? BottleType.price`.
+  price        Float?
 
   store      Store      @relation(fields: [storeId], references: [id], onDelete: Restrict)
   bottleType BottleType @relation(fields: [bottleTypeId], references: [id], onDelete: Restrict)
@@ -609,9 +662,13 @@ model CustomerStoreBottleBalance {
 model Sale {
   id            String        @id @default(uuid())
   storeId       String
+  /// O que o cliente pagou: produtos − desconto + cascos comprados (`bottlesTotal`).
   total         Float
   totalCost     Float         @default(0)
   discount      Float         @default(0)
+  /// Cascos de vasilhame comprados nesta venda (já incluídos em `total`). Não é faturamento de
+  /// produto nem tem lucro: o painel mostra separado.
+  bottlesTotal  Float         @default(0)
   paymentMethod PaymentMethod
   status        SaleStatus    @default(COMPLETED)
   /// Data e hora em que a venda aconteceu (é a que conta em relatórios e painéis).
@@ -637,6 +694,10 @@ model Sale {
   commandTabId String?     @unique
   commandTab   CommandTab? @relation(fields: [commandTabId], references: [id])
 
+  /// De onde veio a venda (balcão, iFood...). null = venda de antes de existir a origem.
+  channelId String?
+  channel   SaleChannel? @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
   items           SaleItem[]
   bottleMovements BottleMovement[]
 
@@ -647,7 +708,32 @@ model Sale {
 
   @@index([storeId])
   @@index([customerId])
+  @@index([channelId])
   @@map("tb_sales")
+}
+
+/// Origem da venda (balcão, WhatsApp, iFood, Zé Delivery...), editável por empresa. `isDefault` é
+/// a que já vem marcada no PDV (uma por empresa; não pode ser excluída).
+model SaleChannel {
+  id        String  @id @default(uuid())
+  companyId String
+  name      String
+  isDefault Boolean @default(false)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  sales   Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_sale_channels")
 }
 
 /// Item de produto (StoreProduct) vendido dentro de uma Sale.
@@ -660,6 +746,8 @@ model SaleItem {
   /// quantas unidades tinha o fardo na hora. 0 / null = vendido só por unidade.
   packs          Int    @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float  @default(0)
 
@@ -755,6 +843,8 @@ model CommandItem {
   /// Venda em lote (igual a SaleItem): fardos contidos em `quantity` e unidades por fardo.
   packs          Int      @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float    @default(0)
   addedAt        DateTime @default(now())
@@ -780,6 +870,8 @@ model BottleMovement {
   bottleTypeId String
   quantity     Int // positivo (entra na loja/devolve) ou negativo (sai da loja/empresta)
   type         BottleMovementType
+  /// Compra do casco (CUSTOMER_PURCHASE): preço de cada casco no momento da venda. null nos outros tipos.
+  unitPrice    Float?
   description  String?
   createdAt    DateTime           @default(now())
 
@@ -811,10 +903,16 @@ model Notification {
   publishedAt DateTime  @default(now()) // pode ser futuro = notificação agendada
   expiresAt   DateTime? // null = nunca expira
 
+  // Enquete (type = POLL): prazo para votar (obrigatório) e se aceita mais de uma resposta.
+  pollEndsAt   DateTime?
+  pollMultiple Boolean   @default(false)
+
   createdByUserId String
   createdBy       User   @relation("NotificationsCreated", fields: [createdByUserId], references: [id])
 
-  reads NotificationRead[]
+  reads       NotificationRead[]
+  pollOptions NotificationPollOption[]
+  pollVotes   NotificationPollVote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -845,6 +943,50 @@ model NotificationRead {
   @@id([notificationId, userId])
   @@index([userId])
   @@map("tb_notification_reads")
+}
+
+/// Opção de uma enquete (notificação do tipo POLL), na ordem de `position`.
+model NotificationPollOption {
+  id             String @id @default(uuid())
+  notificationId String
+  label          String
+  position       Int
+
+  notification Notification           @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  votes        NotificationPollVote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@index([notificationId])
+  @@map("tb_notification_poll_options")
+}
+
+/// Voto de um usuário numa opção. Trocar o voto exclui (soft delete) a linha antiga; votar de novo
+/// na mesma opção reativa a linha. A tela da plataforma mostra só os totais, nunca quem votou.
+model NotificationPollVote {
+  optionId       String
+  userId         String
+  notificationId String // repetido da opção, para contar quem votou na enquete
+  votedAt        DateTime @default(now())
+
+  option       NotificationPollOption @relation(fields: [optionId], references: [id], onDelete: Restrict)
+  notification Notification           @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@id([optionId, userId])
+  @@index([notificationId, userId])
+  @@map("tb_notification_poll_votes")
 }
 
 // ============================================================
@@ -1094,6 +1236,8 @@ model OrganizationHistory {
   subscriptionStatus        SubscriptionStatus
   trialEndsAt               DateTime?
   pastDueSince              DateTime?
+  exemptUntil               DateTime?
+  exemptReason              String?
   billingProvider           BillingProvider?
   billingMethod             BillingMethod?
   billingDocument           String?
@@ -1183,7 +1327,9 @@ model ProductHistory {
   code         String
   name         String
   packQuantity Int
+  packName     String?
   bottleTypeId String?
+  categoryId   String?
   createdAt    DateTime
 
   modifierId       String?
@@ -1196,6 +1342,41 @@ model ProductHistory {
   @@map("th_product_history")
 }
 
+model ProductCategoryHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_product_category_history_vigente")
+  @@map("th_product_category_history")
+}
+
+model SaleChannelHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_sale_channel_history_vigente")
+  @@map("th_sale_channel_history")
+}
+
 /// Inclui stock: entradas de mercadoria e ajustes manuais não são registrados em outra tabela.
 model StoreProductHistory {
   historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
@@ -1203,6 +1384,7 @@ model StoreProductHistory {
   storeId   String
   productId String
   price     Float
+  packPrice Float?
   costPrice Float
   stock     Int
   isActive  Boolean
@@ -1224,6 +1406,7 @@ model BottleTypeHistory {
   id        String
   companyId String
   name      String
+  price     Float?
   createdAt DateTime
 
   modifierId       String?
@@ -1242,6 +1425,7 @@ model StoreBottleTypeHistory {
   id           String
   storeId      String
   bottleTypeId String
+  price        Float?
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1357,6 +1541,7 @@ model SaleHistory {
   total              Float
   totalCost          Float
   discount           Float
+  bottlesTotal       Float         @default(0)
   paymentMethod      PaymentMethod
   status             SaleStatus
   createdAt          DateTime
@@ -1365,6 +1550,7 @@ model SaleHistory {
   creditApprovedById String?
   customerId         String?
   commandTabId       String?
+  channelId          String?
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1384,6 +1570,8 @@ model SaleItemHistory {
   quantity       Int
   packs          Int    @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float
 
@@ -1464,6 +1652,8 @@ model CommandItemHistory {
   quantity       Int
   packs          Int      @default(0)
   packSize       Int?
+  /// Preço próprio da embalagem na hora da venda. null = preço da unidade × unidades da embalagem.
+  packPrice      Float?
   price          Float
   costPrice      Float
   addedAt        DateTime
@@ -1485,6 +1675,7 @@ model BottleMovementHistory {
   bottleTypeId String
   quantity     Int
   type         BottleMovementType
+  unitPrice    Float?
   description  String?
   createdAt    DateTime
   customerId   String?
@@ -1508,6 +1699,8 @@ model NotificationHistory {
   type            NotificationType
   publishedAt     DateTime
   expiresAt       DateTime?
+  pollEndsAt      DateTime?
+  pollMultiple    Boolean          @default(false)
   createdByUserId String
   createdAt       DateTime
 
@@ -1535,6 +1728,41 @@ model NotificationReadHistory {
 
   @@index([notificationId, userId, historyEnd], map: "ix_th_notification_read_history_vigente")
   @@map("th_notification_read_history")
+}
+
+model NotificationPollOptionHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id             String
+  notificationId String
+  label          String
+  position       Int
+  createdAt      DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_notification_poll_option_history_vigente")
+  @@map("th_notification_poll_option_history")
+}
+
+model NotificationPollVoteHistory {
+  historyId      String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  optionId       String
+  userId         String
+  notificationId String
+  votedAt        DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([optionId, userId, historyEnd], map: "ix_th_notification_poll_vote_history_vigente")
+  @@map("th_notification_poll_vote_history")
 }
 
 /// Sem payload: o corpo é imutável e já fica em tb_billing_events.

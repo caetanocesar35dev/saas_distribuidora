@@ -24,6 +24,8 @@ import {
   ResetPasswordDto,
   SignupDto,
 } from './dto/auth.dto';
+import { createDefaultCategories } from '../catalog/product-categories';
+import { createDefaultSaleChannels } from '../sales/sale-channels';
 import { Session, SessionMeta, TokenService } from './token.service';
 
 const INVALID_CREDENTIALS = 'E-mail ou senha incorretos.';
@@ -163,6 +165,8 @@ export class AuthService {
             organizationId: organization.id,
           },
         });
+        await createDefaultCategories(tx, company.id);
+        await createDefaultSaleChannels(tx, company.id);
         // Endereço e telefone da primeira loja: o que a consulta pública do CNPJ trouxe na tela
         // (opcional; campos vazios ficam nulos). O dono confere depois em Lojas.
         const address = dto.storeAddress ?? {};

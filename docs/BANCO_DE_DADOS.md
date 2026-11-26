@@ -18,17 +18,17 @@ PostgreSQL 16, acessado via Prisma 7. A fonte da verdade é o [schema.prisma](..
 
 ## 1. Visão geral
 
-São 30 tabelas de negócio (`tb_*`) e 30 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
+São 31 tabelas de negócio (`tb_*`) e 31 tabelas de histórico (`th_*_history`, uma para cada). Elas se organizam nestes domínios:
 
 | Domínio | Tabelas | Em uma frase |
 |---|---|---|
 | Identidade e multi-tenancy | `tb_plans`, `tb_organizations`, `tb_users`, `tb_companies`, `tb_stores`, `tb_memberships`, `tb_membership_stores` | Quem paga, quem é o dono de quê e quem pode acessar qual loja |
 | Sessão | `tb_refresh_tokens` | Refresh tokens com rotação: cada login é uma sessão que pode ser encerrada |
-| Catálogo e estoque | `tb_products`, `tb_store_products` | Produto é da distribuidora; preço, custo e estoque são de cada loja |
+| Catálogo e estoque | `tb_products`, `tb_product_categories`, `tb_store_products` | Produto e categoria são da distribuidora; preço, custo e estoque são de cada loja |
 | Vasilhames | `tb_bottle_types`, `tb_store_bottle_types`, `tb_bottle_movements` | Tipos de vasilhame, estoque físico por loja e o registro de cada movimentação |
 | Clientes e fiado | `tb_customers`, `tb_customer_store_balances`, `tb_customer_store_bottle_balances`, `tb_customer_payments`, `tb_customer_payment_allocations` | Cadastro único por distribuidora, dívida separada por loja |
-| Vendas e caixa | `tb_sales`, `tb_sale_items`, `tb_command_tabs`, `tb_command_items`, `tb_cash_registers`, `tb_cash_movements` | Tudo que acontece no PDV, por loja |
-| Avisos | `tb_notifications`, `tb_notification_reads` | Comunicados do sistema e quem já leu |
+| Vendas e caixa | `tb_sales`, `tb_sale_items`, `tb_sale_channels`, `tb_command_tabs`, `tb_command_items`, `tb_cash_registers`, `tb_cash_movements` | Tudo que acontece no PDV, por loja; as origens da venda são da distribuidora |
+| Avisos | `tb_notifications`, `tb_notification_reads`, `tb_notification_poll_options`, `tb_notification_poll_votes` | Comunicados do sistema, quem já leu e as enquetes (opções e votos) |
 | Cobrança (Asaas) | campos `billing*` de `tb_organizations`, `tb_billing_events` | Assinatura no cartão ou Pix Automático e o registro dos webhooks do gateway |
 | Indicação e descontos | `tb_sales_representatives`, `tb_referrals`, `tb_subscription_discounts`, `tb_organizations.referralCode` | Quem indicou quem, a comissão do representante e os meses de desconto na mensalidade |
 
@@ -48,7 +48,7 @@ Regra geral: todo dado operacional pertence a uma `Company` (catálogo compartil
 
 ### Convenções
 
-- **IDs** são `TEXT` com UUID, gerados pelo Prisma (`@default(uuid())`). Exceção: `tb_membership_stores` e `tb_notification_reads` têm chave primária composta.
+- **IDs** são `TEXT` com UUID, gerados pelo Prisma (`@default(uuid())`). Exceção: `tb_membership_stores`, `tb_notification_reads` e `tb_notification_poll_votes` têm chave primária composta.
 - **Nomes:** tabelas em `snake_case` com prefixo (`tb_` negócio, `th_` histórico); colunas em `camelCase`. Como o Postgres converte nomes sem aspas para minúsculas, **em SQL puro as colunas precisam de aspas duplas**: `"storeId"`, `"historyEnd"`.
 - **Dinheiro** está em `Float` (R$ com casas decimais). A única exceção é o preço do plano, em centavos inteiros (`Plan.priceInCents`).
 - **Datas** são `timestamp` sem fuso, gravadas em UTC.
@@ -75,6 +75,9 @@ erDiagram
     User ||--o{ Notification : "cria"
     Notification ||--o{ NotificationRead : "lida por"
     User ||--o{ NotificationRead : "leu"
+    Notification ||--o{ NotificationPollOption : "opções da enquete"
+    NotificationPollOption ||--o{ NotificationPollVote : "votos"
+    User ||--o{ NotificationPollVote : "votou"
     User ||--o{ RefreshToken : "sessões"
     Organization |o--o{ BillingEvent : "webhooks do gateway"
 ```
@@ -85,6 +88,8 @@ erDiagram
 erDiagram
     Company ||--o{ Product : "catálogo"
     Company ||--o{ BottleType : "catálogo"
+    Company ||--o{ ProductCategory : "catálogo"
+    ProductCategory |o--o{ Product : "agrupa"
     Product ||--o{ StoreProduct : "ofertado em"
     Store ||--o{ StoreProduct : "oferta"
     BottleType |o--o{ Product : "embalagem retornável"
@@ -141,7 +146,7 @@ Todas as tabelas abaixo também têm `modifierId`, `modifiedEndpoint` e `deleted
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
 | `tb_plans` | Planos de assinatura | `name` (único), `priceInCents`, `maxCompanies` e `maxStoresPerCompany` (`null` = ilimitado) |
-| `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`), `trialEndsAt`, `pastDueSince` e os campos de cobrança `billing*` (ver 3.7) |
+| `tb_organizations` | Entidade de cobrança | `ownerUserId` (responsável), `planId`, `subscriptionStatus` (`TRIAL`, `ACTIVE`, `PAST_DUE`, `CANCELED`, `EXEMPT` = isenta de mensalidade), `trialEndsAt`, `pastDueSince`, `exemptUntil` (isenta: data limite; null = vitalícia; passou = somente leitura) e `exemptReason` (por que é isenta; só a plataforma vê) e os campos de cobrança `billing*` (ver 3.7). A isenta nunca é cobrada, mantém os limites do plano escolhido pela plataforma e não troca de plano sozinha (decidido pelo usuário, 2026-11-22) |
 | `tb_users` | Login | `email` (único), `passwordHash`, `isActive`, `platformRole` (`SUPPORT`/`SUPERADMIN`, `null` = usuário comum), `phone` (celular/WhatsApp, só dígitos; obrigatório no cadastro público, null em contas por convite ou do seed), `termsAcceptedAt` e `termsVersion` (aceite dos termos de uso e da política de privacidade no cadastro público; `null` em contas por convite ou do seed). **Não tem papel fixo**: o papel é por loja |
 | `tb_companies` | A distribuidora (tenant) | `cnpj` (único; numérico ou **alfanumérico**, gravado sem máscara e em maiúsculas, validado em `src/common/utils/document.ts`), `razaoSocial`, `nomeFantasia`, `organizationId` |
 | `tb_stores` | Loja física | `companyId`, `name`, `cnpj` (opcional; quando vem, é conferido e gravado como o da company), `phone` e o endereço (`zipCode`, `street`, `number`, `complement`, `neighborhood`, `city`, `state`). O endereço (menos `complement`) é **obrigatório na API ao criar ou editar a loja** (decisão do usuário); as colunas continuam opcionais no banco, porque a primeira loja do cadastro pode ficar sem endereço quando a consulta do CNPJ falha. `cashAutoCloseTime`: horário em que o caixa esquecido aberto fecha sozinho (padrão `00:00`, o dono muda) |
@@ -172,8 +177,9 @@ Cuidados com os dados:
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_products` | Produto "mestre" da company | `code` (único **por company**), `name`, `packQuantity` (unidades por fardo), `bottleTypeId` (vasilhame retornável, opcional) |
-| `tb_store_products` | O produto numa loja | Único por (`storeId`, `productId`). `price`, `costPrice`, `stock` e `isActive` são independentes por loja. Alterar o preço numa loja não afeta a outra nem o `Product` |
+| `tb_products` | Produto "mestre" da company | `code` (único **por company**), `name`, `packQuantity` (unidades por embalagem), `packName` (nome da embalagem; null = "fardo", só muda o texto), `bottleTypeId` (vasilhame retornável, opcional), `categoryId` (categoria, opcional) |
+| `tb_product_categories` | Categoria de produto (Bebidas, Cigarros...), editável por company | Única por (`companyId`, `name`), inclusive entre as excluídas. Toda company nova começa com uma lista sugerida. Só exclui sem produtos |
+| `tb_store_products` | O produto numa loja | Único por (`storeId`, `productId`). `price` (unidade), `packPrice` (preço próprio da embalagem; null = unidade × `packQuantity`), `costPrice` (custo da unidade, até 4 casas), `stock` e `isActive` são independentes por loja. Alterar o preço numa loja não afeta a outra nem o `Product` |
 
 `isActive` é regra de negócio ("não vender mais este item") e é diferente de `deletedAt` (registro excluído).
 
@@ -181,9 +187,11 @@ Cuidados com os dados:
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_bottle_types` | Tipo de vasilhame (litrão, 600 ml, engradado…) | Único por (`companyId`, `name`) |
-| `tb_store_bottle_types` | Estoque físico do tipo em cada loja | Único por (`storeId`, `bottleTypeId`); `stock`. Sem `createdAt` |
-| `tb_bottle_movements` | Registro de cada movimentação | `type`: `CUSTOMER_BORROW`, `CUSTOMER_RETURN`, `SUPPLIER_SEND`, `SUPPLIER_RECEIVE`, `MANUAL_ADJUSTMENT`. `quantity` **com sinal** (positivo entra na loja, negativo sai), `customerId` e `saleId` opcionais. Tem **um único `storeId`**. Sem `updatedAt` |
+| `tb_bottle_types` | Tipo de vasilhame (litrão, 600 ml, engradado…) | Único por (`companyId`, `name`). `price` = preço do casco da empresa quando o cliente compra o vasilhame (vale nas lojas sem preço próprio; `null` = o casco não é vendido nelas) |
+| `tb_store_bottle_types` | Estoque físico do tipo em cada loja | Único por (`storeId`, `bottleTypeId`); `stock` (sem histórico) e `price` (preço próprio do casco nesta loja, com histórico; `null` = vale o da empresa; decidido pelo usuário, 2026-11-24). Definir o preço cria a linha com `stock` 0 se ela não existir, sem mexer no estoque. Sem `createdAt` |
+| `tb_bottle_movements` | Registro de cada movimentação | `type`: `CUSTOMER_BORROW`, `CUSTOMER_RETURN`, `CUSTOMER_PURCHASE`, `SUPPLIER_SEND`, `SUPPLIER_RECEIVE`, `MANUAL_ADJUSTMENT`. `quantity` **com sinal** (positivo entra na loja, negativo sai), `unitPrice` (só na compra do casco: preço de cada um na hora), `customerId` e `saleId` opcionais. Tem **um único `storeId`**. Sem `updatedAt` |
+
+**Compra do casco (decidido pelo usuário, 2026-11-09).** Na venda (PDV, venda antiga e fechamento de comanda), cada unidade de produto com vasilhame leva um vasilhame. Desses, o cliente pode **comprar** o casco (`bottlePurchases`): ele fica do cliente, sai do estoque da loja num `CUSTOMER_PURCHASE` e **não vira dívida**; o resto vai emprestado (`CUSTOMER_BORROW`), e os vazios que ele traz são `CUSTOMER_RETURN`. O preço vem de `tb_store_bottle_types.price` da loja e, sem ele, de `tb_bottle_types.price` (nunca da tela), fica gravado em `unitPrice`, e o valor entra no total da venda em `tb_sales.bottlesTotal`, pelo preço cheio (o desconto vale só nos produtos). Só dá para comprar até o número de vasilhames que saem na venda, e só tipo com preço. Quem só troca 1 por 1 ou compra todos os cascos não precisa ser identificado. Cancelar a venda devolve o casco ao estoque com um `CUSTOMER_PURCHASE` positivo, e o dinheiro sai junto com o resto. No painel e no histórico de vendas, o valor dos cascos aparece **à parte** (não é faturamento de produto nem tem lucro); no caixa, o dinheiro entra normalmente.
 
 **Regra: devolução de vasilhame só na mesma loja da dívida.** O saldo que o cliente deve (`tb_customer_store_bottle_balances`) é por loja, e o `tb_bottle_movements` registra uma loja só. Por isso o schema não consegue representar "o cliente devolveu na loja B para abater a dívida da loja A" (diferente do fiado em dinheiro, que tem alocação entre lojas). A aplicação, então, **só aceita a devolução na própria loja onde o cliente deve**: se ele deve na loja A e tenta devolver na B, a operação é recusada com mensagem explicando. Isso foi uma decisão do produto; permitir devolução entre lojas exigiria mudar o schema (o movimento teria de guardar a loja da dívida) e passa por aprovação.
 
@@ -205,10 +213,11 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_sales` | Venda no PDV | `total`, `totalCost`, `discount`, `paymentMethod` (`MONEY`, `PIX`, `DEBIT`, `CREDIT`, `CREDIT_STORE` = fiado), `status` (`COMPLETED`/`CANCELED`). `userId` (vendedor), `customerId` e `commandTabId` opcionais. `commandTabId` é único: uma comanda gera no máximo uma venda. `createdAt` é quando a venda aconteceu; `registeredAt` (opcional) marca a **venda antiga lançada depois** (quando foi lançada; `null` = lançada na hora). No resumo do caixa, a venda antiga conta pelo `registeredAt` |
-| `tb_sale_items` | Itens da venda | `quantity`, `price` e `costPrice` **copiados no momento da venda** (preço histórico). Sem `createdAt`. **Venda em lote:** `quantity` é sempre o total em unidades; `packs` (fardos contidos nela, 0 = só unidades) e `packSize` (unidades por fardo na hora da venda) |
+| `tb_sales` | Venda no PDV | `total` (o que o cliente pagou: produtos − desconto + cascos), `totalCost`, `discount` (só sobre os produtos), `bottlesTotal` (cascos de vasilhame comprados, já dentro de `total`; fora do faturamento e do lucro do painel), `paymentMethod` (`MONEY`, `PIX`, `DEBIT`, `CREDIT`, `CREDIT_STORE` = fiado), `status` (`COMPLETED`/`CANCELED`). `userId` (vendedor), `customerId` e `commandTabId` opcionais. `commandTabId` é único: uma comanda gera no máximo uma venda. `channelId` (FK para `tb_sale_channels`, `Restrict`): de onde veio a venda; toda venda nova tem (sem escolha, a padrão da company), `null` = venda de antes de existir a origem. `createdAt` é quando a venda aconteceu; `registeredAt` (opcional) marca a **venda antiga lançada depois** (quando foi lançada; `null` = lançada na hora). No resumo do caixa, a venda antiga conta pelo `registeredAt` |
+| `tb_sale_channels` | Origem da venda (Balcão, WhatsApp/Telefone, iFood, Zé Delivery, Anota AI...), editável por company | Única por (`companyId`, `name`), inclusive entre as excluídas. `isDefault`: a que o PDV já deixa marcada (uma por company; não pode ser excluída). Toda company nova começa com a lista padrão, com Balcão como padrão. Excluir só tira da escolha: as vendas continuam apontando para ela (decidido pelo usuário, 2026-11-22) |
+| `tb_sale_items` | Itens da venda | `quantity`, `price` e `costPrice` **copiados no momento da venda** (preço histórico). Sem `createdAt`. **Venda em lote:** `quantity` é sempre o total em unidades; `packs` (fardos contidos nela, 0 = só unidades) , `packSize` (unidades por fardo na hora da venda) e `packPrice` (preço próprio da embalagem na hora da venda; null = unidade × `packSize`). O valor do item é avulsas × `price` + `packs` × preço da embalagem |
 | `tb_command_tabs` | Comanda (conta aberta) | `name`, `status` (`OPEN`/`CLOSED`), `customerId` opcional |
-| `tb_command_items` | Consumo da comanda | Mesmo padrão do item de venda (inclusive `packs`/`packSize`), com `addedAt` |
+| `tb_command_items` | Consumo da comanda | Mesmo padrão do item de venda (inclusive `packs`/`packSize`/`packPrice`), com `addedAt` |
 | `tb_cash_registers` | Sessão de caixa | `openedAt`, `closedAt`, `initialBalance`, `finalBalance`, `status` (`OPEN`/`CLOSED`), `autoClosed` (fechado sozinho pelo job `cash-auto-close` no horário da loja). **Abre sozinho** na primeira operação com dinheiro, com `initialBalance` = `finalBalance` do último fechamento (decisão do usuário) |
 | `tb_cash_movements` | Entradas e saídas do caixa | `type`: `IN`, `OUT`, `SALE`; `amount`, `description` |
 
@@ -216,8 +225,16 @@ O estoque de vasilhame da loja e os saldos dos clientes **só mudam junto com um
 
 | Tabela | Para que serve | Colunas e regras principais |
 |---|---|---|
-| `tb_notifications` | Comunicado do sistema | `type`: `NEWS`, `UPDATE`, `MAINTENANCE`, `ALERT`; `publishedAt` (pode ser futuro = agendado), `expiresAt` (`null` = não expira), `createdByUserId` |
+| `tb_notifications` | Comunicado do sistema | `type`: `NEWS`, `UPDATE`, `MAINTENANCE`, `ALERT`, `POLL` (enquete); `publishedAt` (pode ser futuro = agendado), `expiresAt` (`null` = não expira), `createdByUserId`. Na enquete: `pollEndsAt` (prazo para votar, obrigatório) e `pollMultiple` (aceita várias respostas) |
 | `tb_notification_reads` | Quem leu | PK composta (`notificationId`, `userId`). Sem linha = não lida |
+| `tb_notification_poll_options` | Opções da enquete | `notificationId`, `label`, `position` (ordem). De 2 a 10. Trocar as opções (só sem votos) exclui as antigas (soft delete) e cria as novas |
+| `tb_notification_poll_votes` | Votos da enquete | PK composta (`optionId`, `userId`); `notificationId` repetido da opção. Mudar o voto exclui (soft delete) a linha da opção desmarcada; marcar de novo a reativa |
+
+**Enquete (decidido pelo usuário, 2026-11-18):** qualquer pessoa logada vota, uma vez cada, e muda o
+voto até `pollEndsAt`. Quem votou vê o resultado na hora; quem não votou, só depois do prazo. A
+plataforma vê sempre os totais, nunca quem votou em quê (o `userId` só existe para impedir voto
+duplicado). Com voto, as opções e o `pollMultiple` não mudam mais; a notificação não pode expirar
+antes do prazo.
 
 ### 3.7 Cobrança (Asaas)
 
@@ -408,6 +425,13 @@ O banco cuida do histórico, mas depende de a aplicação informar **quem** e **
 | `20261027000000_sale_credit_approver` | Adiciona `creditApprovedById` (FK para `tb_users`, `Restrict`) em `tb_sales` (e no histórico): gerente ou dono que autorizou a venda fiada acima do limite de crédito (null = não passou do limite) |
 | `20261030000000_referrals` | Programa de indicação: enums `ReferralStatus`/`DiscountReason`, `referralCode` em `tb_organizations` (e no histórico), `tb_sales_representatives`, `tb_referrals` e `tb_subscription_discounts` com os históricos e os 6 triggers |
 | `20261030010000_general_manager` | Adiciona `isGeneralManager` (padrão `false`) em `tb_memberships` (e no histórico): gerente geral da empresa |
+| `20261103000000_product_categories_and_pack_name` | Cria `tb_product_categories`, `th_product_category_history` e os 2 triggers; adiciona `categoryId` e `packName` em `tb_products` (e no histórico); dá a lista sugerida de categorias às companies que já existem (`modifiedEndpoint = 'migration:product_categories'`) |
+| `20261103010000_pack_price` | Adiciona `packPrice` em `tb_store_products`, `tb_sale_items` e `tb_command_items` (e nos históricos): preço próprio da embalagem |
+| `20261109000000_bottle_purchase` | Compra do casco: valor `CUSTOMER_PURCHASE` em `BottleMovementType`, `price` em `tb_bottle_types`, `bottlesTotal` em `tb_sales` e `unitPrice` em `tb_bottle_movements` (e nos históricos) |
+| `20261118000000_notification_polls` | Enquete nas notificações: valor `POLL` em `NotificationType`, `pollEndsAt` e `pollMultiple` em `tb_notifications` (e no histórico), `tb_notification_poll_options` e `tb_notification_poll_votes` com os históricos e os 4 triggers |
+| `20261122000000_sale_channels` | Origem da venda: cria `tb_sale_channels`, `th_sale_channel_history` e os 2 triggers; adiciona `channelId` em `tb_sales` (e no histórico); dá a lista padrão às companies que já existem, com Balcão como padrão (`modifiedEndpoint = 'migration:sale_channels'`). As vendas antigas ficam sem origem |
+| `20261122010000_subscription_exempt` | Conta isenta de mensalidade: valor `EXEMPT` em `SubscriptionStatus` e `exemptUntil`/`exemptReason` em `tb_organizations` (e no histórico) |
+| `20261124000000_store_bottle_price` | Adiciona `price` (preço próprio do casco na loja; null = o da empresa) em `tb_store_bottle_types` (e no histórico) |
 
 Em produção, as pendentes são aplicadas pela pipeline de deploy com
 `npx prisma migrate deploy`, antes de subir a nova versão (a imagem Docker não roda

@@ -8,13 +8,14 @@ import { Prisma } from '@prisma/client';
 import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { generateEan13 } from '../common/utils/ean13';
-import { roundMoney } from '../common/utils/money';
+import { roundMoney, roundUnitCost } from '../common/utils/money';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateProductDto,
   ListProductsQuery,
   UpdateProductDto,
 } from './dto/catalog.dto';
+import { categoryWhere } from './product-categories';
 
 const PRODUCT_SELECT = {
   id: true,
@@ -22,8 +23,11 @@ const PRODUCT_SELECT = {
   code: true,
   name: true,
   packQuantity: true,
+  packName: true,
   bottleTypeId: true,
   bottleType: { select: { id: true, name: true } },
+  categoryId: true,
+  category: { select: { id: true, name: true } },
   createdAt: true,
 } satisfies Prisma.ProductSelect;
 
@@ -37,6 +41,7 @@ export class ProductsService {
   async list(companyId: string, query: ListProductsQuery) {
     const where: Prisma.ProductWhereInput = {
       companyId,
+      ...categoryWhere(query.categoryId),
       ...(query.search
         ? {
             OR: [
@@ -75,6 +80,7 @@ export class ProductsService {
             id: true,
             storeId: true,
             price: true,
+            packPrice: true,
             costPrice: true,
             stock: true,
             isActive: true,
@@ -89,6 +95,7 @@ export class ProductsService {
   async create(companyId: string, dto: CreateProductDto) {
     if (dto.bottleTypeId)
       await this.assertBottleType(companyId, dto.bottleTypeId);
+    if (dto.categoryId) await this.assertCategory(companyId, dto.categoryId);
 
     const offers = dto.stores ?? [];
     const storeIds = offers.map((o) => o.storeId);
@@ -113,7 +120,9 @@ export class ProductsService {
           code,
           name: dto.name,
           packQuantity: dto.packQuantity ?? 1,
+          packName: dto.packName,
           bottleTypeId: dto.bottleTypeId,
+          categoryId: dto.categoryId,
         },
         select: PRODUCT_SELECT,
       });
@@ -123,7 +132,9 @@ export class ProductsService {
             storeId: o.storeId,
             productId: product.id,
             price: roundMoney(o.price),
-            costPrice: roundMoney(o.costPrice ?? dto.costPrice ?? 0),
+            packPrice:
+              o.packPrice === undefined ? null : roundMoney(o.packPrice),
+            costPrice: roundUnitCost(o.costPrice ?? dto.costPrice ?? 0),
           })),
         });
       }
@@ -135,12 +146,15 @@ export class ProductsService {
     await this.get(companyId, id);
     if (dto.bottleTypeId)
       await this.assertBottleType(companyId, dto.bottleTypeId);
+    if (dto.categoryId) await this.assertCategory(companyId, dto.categoryId);
     return this.prisma.product.update({
       where: { id },
       data: {
         name: dto.name,
         packQuantity: dto.packQuantity,
+        packName: dto.packName,
         bottleTypeId: dto.bottleTypeId,
+        categoryId: dto.categoryId,
       },
       select: PRODUCT_SELECT,
     });
@@ -173,6 +187,14 @@ export class ProductsService {
       throw new ConflictException('O produto não está excluído.');
     const deletedAt = product.deletedAt;
 
+    // A categoria pode ter sido excluída enquanto o produto estava fora: volta sem categoria.
+    const category =
+      product.categoryId &&
+      (await this.prisma.productCategory.findFirst({
+        where: { id: product.categoryId, companyId },
+        select: { id: true },
+      }));
+
     await this.audit.withDeleted(() =>
       this.prisma.$transaction(async (tx) => {
         await tx.storeProduct.updateMany({
@@ -183,7 +205,13 @@ export class ProductsService {
           },
           data: { deletedAt: null },
         });
-        await tx.product.update({ where: { id }, data: { deletedAt: null } });
+        await tx.product.update({
+          where: { id },
+          data: {
+            deletedAt: null,
+            ...(product.categoryId && !category ? { categoryId: null } : {}),
+          },
+        });
       }),
     );
     return this.get(companyId, id);
@@ -197,6 +225,14 @@ export class ProductsService {
       throw new BadRequestException(
         'Tipo de vasilhame não encontrado nesta empresa.',
       );
+  }
+
+  private async assertCategory(companyId: string, categoryId: string) {
+    const category = await this.prisma.productCategory.findFirst({
+      where: { id: categoryId, companyId },
+    });
+    if (!category)
+      throw new BadRequestException('Categoria não encontrada nesta empresa.');
   }
 
   /** O código é único por empresa, inclusive entre os excluídos. */

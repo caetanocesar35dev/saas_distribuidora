@@ -2,12 +2,15 @@ import { SubscriptionStatus } from '@prisma/client';
 import { addDays } from './time';
 
 export type AccessMode = 'FULL' | 'GRACE' | 'READ_ONLY';
-export type ReadOnlyReason = 'TRIAL_EXPIRED' | 'PAST_DUE' | 'CANCELED';
+export type ReadOnlyReason =
+  'TRIAL_EXPIRED' | 'PAST_DUE' | 'CANCELED' | 'EXEMPTION_EXPIRED';
 
 export interface SubscriptionFields {
   subscriptionStatus: SubscriptionStatus;
   trialEndsAt: Date | null;
   pastDueSince: Date | null;
+  /** Só na conta isenta (EXEMPT): até quando vale. null = vitalícia. */
+  exemptUntil?: Date | null;
 }
 
 export interface SubscriptionAccess {
@@ -17,6 +20,8 @@ export interface SubscriptionAccess {
   trialEndsAt: Date | null;
   pastDueSince: Date | null;
   graceEndsAt: Date | null;
+  /** Conta isenta: até quando (null = vitalícia ou não é isenta). */
+  exemptUntil: Date | null;
 }
 
 /**
@@ -37,10 +42,23 @@ export function resolveAccessMode(
     trialEndsAt: org.trialEndsAt,
     pastDueSince: org.pastDueSince,
     graceEndsAt: null as Date | null,
+    exemptUntil:
+      org.subscriptionStatus === 'EXEMPT' ? (org.exemptUntil ?? null) : null,
   };
 
   switch (org.subscriptionStatus) {
     case 'ACTIVE':
+      return { ...base, accessMode: 'FULL', reason: null };
+
+    // Isenta (parceira ou valor único): completo até a data limite; sem data, para sempre.
+    case 'EXEMPT':
+      if (org.exemptUntil && now.getTime() > org.exemptUntil.getTime()) {
+        return {
+          ...base,
+          accessMode: 'READ_ONLY',
+          reason: 'EXEMPTION_EXPIRED',
+        };
+      }
       return { ...base, accessMode: 'FULL', reason: null };
 
     case 'TRIAL':

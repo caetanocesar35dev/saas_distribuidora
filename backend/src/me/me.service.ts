@@ -79,6 +79,7 @@ export class MeService {
                 subscriptionStatus: true,
                 trialEndsAt: true,
                 pastDueSince: true,
+                exemptUntil: true,
               },
             },
           },

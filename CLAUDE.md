@@ -36,8 +36,9 @@ os campos é a extensão do Prisma).
 - **Frontend em Next.js implementado** (`plano_implementacao_frontend.md`, relatório nele):
   login/cadastro, seleção de empresa e loja, PDV, caixa, comandas, vendas, estoque, produtos,
   vasilhames, clientes/fiado, painéis, histórico de alterações, equipe, lojas, assinatura
-  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 96
-  testes unitários e 39 de ponta a ponta. **Falta** só a tela de pagamento da assinatura
+  (aviso e somente leitura), área da plataforma (`/plataforma`) e Central de Dúvidas, com 121
+  testes unitários e 48 de ponta a ponta (contados em 2026-11-03; os de ponta a ponta não foram
+  todos rodados de novo). **Falta** só a tela de pagamento da assinatura
   (depende do Asaas, Fase 10 do backend). As regras de negócio do sistema antigo ficam no git
   (`git show a4ff703:<arquivo>`).
 
@@ -91,6 +92,15 @@ os campos é a extensão do Prisma).
   da empresa, editar loja, equipe); o que ele não pode dentro da equipe o `MembershipsService` confere.
   No frontend: `isCompanyAdmin` no `useAccess()` e `RequireCompanyAdmin(Page)`.
 
+**Papel de dono e responsável pela assinatura (decidido pelo usuário, 2026-11-13)**
+- Não existe "dono só de uma loja": OWNER em qualquer loja é dono da **empresa inteira**. Por isso a
+  tela Equipe pede confirmação ao escolher Dono numa loja e mostra um aviso no convite (`OWNER_WARNING`
+  em `team-view.tsx`).
+- O **responsável pela assinatura** (`Organization.ownerUserId`) é protegido: ninguém além dele mesmo
+  muda o papel, revoga loja, remove, marca como gerente geral ou reconvida (403,
+  `assertNotBillingOwner` no `MembershipsService`), nem outro dono. A lista da equipe traz
+  `isBillingOwner` e a tela mostra o selo "Responsável pela assinatura" sem os controles.
+
 **Multi-tenancy**
 - Os ids da company/loja vêm na rota (`/companies/:companyId/...`,
   `/stores/:storeId/...`). Toda consulta é filtrada pelo tenant; ids recebidos no body
@@ -132,6 +142,17 @@ os campos é a extensão do Prisma).
   Trial) não pode ser escolhido na troca. Liberado em somente leitura. A plataforma continua
   podendo pôr qualquer plano (ajuste manual, sem essa conferência).
 
+**Conta isenta de mensalidade (decidido pelo usuário, 2026-11-22)**
+- A plataforma pode pôr uma organização na situação **Isenta** (`SubscriptionStatus.EXEMPT`): parceira
+  ou que pagou um **valor único** (vendido pelo WhatsApp do suporte; a página de apresentação avisa).
+  Acesso completo, sem cobrança, com o **plano que a plataforma escolheu** (os limites de empresas e
+  lojas continuam valendo). Campos `exemptUntil` (data limite; **null = vitalícia**, checkbox na
+  tela) e `exemptReason` (motivo, só a plataforma vê).
+- Passou de `exemptUntil`: **somente leitura** (motivo `EXEMPTION_EXPIRED`), como o teste vencido, até
+  assinar ou a plataforma mudar a situação.
+- A isenta **não troca de plano sozinha** (só a plataforma) e **não confirma indicação** (a
+  recompensa é pela 1ª mensalidade paga).
+
 **Indicação e descontos (decidido pelo usuário, 2026-10-30)**
 - Dois jeitos de indicar: o **cliente** (o responsável pela assinatura, pelo código da organização,
   na tela "Indique e ganhe" do menu do usuário, `/indique`) e o **representante** (não usa o
@@ -172,10 +193,23 @@ os campos é a extensão do Prisma).
   autorizou em `Sale.creditApprovedById` (o próprio vendedor quando gerente/dono confirma; null =
   não passou), mostrado no detalhe da venda.
 
-**Fiado no painel (decidido pelo usuário)**
-- Faturamento e lucro do painel contam tudo o que foi vendido, inclusive o fiado (competência), mas
-  **separado sem esconder**: cada período traz `fiado` (quanto do faturamento/lucro foi no fiado) e
-  `fiadoReceived` (pagamentos de fiado recebidos na loja no período). Venda cancelada não conta.
+**Troco no recebimento de fiado (decidido pelo usuário, 2026-11-13)**
+- Em dinheiro, a tela tem "Valor a abater" e "Valor entregue pelo cliente" (opcional): o troco é a
+  diferença (entregou 200, abate 180: troco 20). Se o valor a abater passar da dívida total (modo
+  Automático), quita a dívida e o resto também vira troco. Só o abatido vai à API e entra no caixa
+  (`splitCashPayment` em `clientes/[customerId]/pay-change.ts`). A API continua recusando
+  pagamento maior que a dívida (não existe saldo a favor). PIX e cartão não têm troco.
+
+**Fiado no painel (decidido pelo usuário; lucro revisto em 2026-11-13)**
+- **Faturamento** conta tudo o que foi vendido, inclusive o fiado (competência), mas **separado sem
+  esconder**: cada período traz `fiado` (quanto do faturamento foi no fiado) e `fiadoReceived`
+  (pagamentos de fiado recebidos na loja no período). Venda cancelada não conta.
+- **Lucro** conta só o que virou dinheiro: o da venda à vista entra no dia da venda; o da venda fiada
+  entra quando o cliente **paga**, proporcional ao valor pago (pagamento alocado à venda × lucro ÷
+  total da venda). O pagamento não é ligado à venda, então quita primeiro a venda fiada mais antiga
+  do cliente na loja (`src/dashboard/fiado-profit.ts`). O lucro do fiado ainda não pago aparece à
+  parte (`pendingFiadoProfit`). Vale para os cards, a tabela por loja e o gráfico; a tabela por
+  categoria segue com o lucro **vendido** ("Lucro vendido").
 
 **Venda antiga lançada depois (decidido pelo usuário)**
 - `POST /stores/:storeId/sales/late` (só MANAGER ou mais): venda que aconteceu sem o sistema
@@ -187,16 +221,82 @@ os campos é a extensão do Prisma).
 
 **Venda em lote (decidido pelo usuário)**
 - Itens de venda e de comanda aceitam `packs` (fardos) além de `quantity` (unidades avulsas); o
-  backend converte com o `packQuantity` do produto (`toUnits` em `src/sales/packs.ts`). Preço do
-  fardo = preço da unidade × unidades do fardo (sem preço próprio). Estoque, preço e vasilhames
-  continuam em unidades; o item grava `quantity` (total), `packs` e `packSize`. Na tela, o botão
-  "+ fardo (N)" no rodapé do cartão do produto na busca e os contadores Fardos/Unidades do carrinho.
+  backend converte com o `packQuantity` do produto (`toUnits` em `src/sales/packs.ts`). Sem preço
+  próprio (`StoreProduct.packPrice` null), o fardo vale preço da unidade × unidades do fardo.
+  Estoque e vasilhames continuam em unidades; o item grava `quantity` (total), `packs`, `packSize`
+  e `packPrice`, e toda conta de valor usa `itemTotalCents` (backend) ou `itemTotal` (frontend). Na tela, o botão
+  "+ fardo (N)" (ou o nome da embalagem do produto, ver abaixo) no rodapé do cartão do produto na
+  busca e os contadores da embalagem e de Unidades no carrinho.
+
+**Compra do casco do vasilhame (decidido pelo usuário, 2026-11-09)**
+- Na venda e no fechamento de comanda, dos vasilhames que saem o cliente pode **comprar o casco**
+  (`bottlePurchases`): fica dele, sem dívida (`CUSTOMER_PURCHASE`); o resto é empréstimo, e os vazios
+  trazidos são devolução. Preço **por tipo de vasilhame**: o da empresa (`BottleType.price`; null = não
+  vende o casco), editado em Vasilhames › Tipos, e o **próprio da loja, opcional** (decidido pelo
+  usuário, 2026-11-24: `StoreBottleType.price`, null = vale o da empresa), em Vasilhames › Estoque ›
+  Preço nesta loja (`PUT /stores/:storeId/bottle-types/:id/price`); vale `loja ?? empresa`, os dois
+  só gerente ou dono. Mudar o da empresa muda as lojas sem preço próprio. Fica gravado no
+  movimento (`unitPrice`) e soma em `Sale.bottlesTotal`, dentro do `total`, **sem desconto**.
+  Comprou todos os cascos ou trocou 1 por 1: não precisa de cliente. Painel e histórico de vendas
+  mostram os cascos **à parte** (fora do faturamento e do lucro); o caixa recebe o dinheiro normal.
+  Detalhes em `docs/BANCO_DE_DADOS.md` §3.3. Tela: `CheckoutDialog` (lógica em
+  `components/app/pos/bottle-checkout.ts`).
+
+**Origem da venda (decidido pelo usuário, 2026-11-22)**
+- Toda venda nova tem uma **origem** (`Sale.channelId` → `SaleChannel`): balcão, WhatsApp, iFood, Zé
+  Delivery etc. A lista é **editável por empresa** (criar, renomear, excluir, reativar e escolher a
+  padrão; gerente ou dono), como as categorias. Toda empresa nova começa com `DEFAULT_SALE_CHANNELS`
+  (`src/sales/sale-channels.ts`), com **Balcão como padrão** (`isDefault`, uma por empresa; a padrão
+  não pode ser excluída).
+- **Tela Configurações (decidido pelo usuário, 2026-11-24):** item do menu da loja só para gerente e
+  dono (`/loja/[storeId]/configuracoes`), com as listas da empresa que o gerente edita: Origens da
+  venda e Categorias de produto (que mantêm o atalho em Produtos). Configuração nova desse tipo
+  entra nela, não num botão escondido em outra tela.
+- **Obrigatória, com a padrão já marcada:** PDV e Lançar venda antiga escolhem a
+  origem; sem `channelId`, o backend usa a padrão. **A comanda não pergunta** (decidido pelo usuário,
+  2026-11-24: comanda é consumo no balcão): sem `channelId`, o fechamento usa a origem chamada
+  "Balcão" e, se ela foi excluída ou renomeada, a padrão (`resolveCounterChannel`). Vendas de antes da mudança ficam sem origem ("Sem
+  origem"). Excluir uma origem só a tira da escolha: as vendas antigas continuam com ela.
+- Aparece no histórico de vendas (coluna, detalhe e filtro `channelId`, `none` = sem origem) e nos
+  painéis da loja e da empresa (`byChannel`: vendas, faturamento, valor médio por venda e lucro vendido do mês).
+
+**Enquete nas notificações (decidido pelo usuário, 2026-11-18)**
+- A plataforma cria uma notificação do tipo **Enquete** (`POLL`) com 2 a 10 opções, **prazo para votar
+  obrigatório** (`Notification.pollEndsAt`) e a escolha de aceitar **várias respostas**
+  (`pollMultiple`, como no WhatsApp). Tabelas `NotificationPollOption` e `NotificationPollVote`.
+- **Qualquer pessoa logada vota**, 1 voto por pessoa, e pode mudar o voto até o prazo
+  (`PUT /me/notifications/:id/vote`, a lista enviada substitui o voto). Votar marca como lida.
+- Quem votou vê o resultado **na hora**; quem não votou, **só depois do prazo**. A plataforma vê
+  sempre, **só os totais** (a tela nunca mostra quem votou em quê). Regra em
+  `src/notifications/poll.ts` (`buildPollView`).
+- Com voto, as opções e o tipo de resposta não mudam mais (409); o prazo pode mudar. Enquete não vira
+  outro tipo nem o contrário. A notificação não pode expirar antes do prazo.
+
+**Outros produtos além de bebidas (decidido pelo usuário, 2026-11-03)**
+- **Categorias:** tabela `ProductCategory`, editável por empresa (criar, renomear, excluir vazia,
+  reativar: Configurações › Categorias de produto, com atalho em Produtos › Categorias; gerente ou dono). Toda empresa nova começa com a lista de
+  `DEFAULT_PRODUCT_CATEGORIES` (`src/catalog/product-categories.ts`). Categoria é opcional no produto
+  e filtra PDV, comandas, Estoque e Produtos (`categoryId`; `none` = sem categoria). O painel traz
+  `byCategory` do mês, com o desconto da venda repartido entre os itens.
+- **Embalagem:** `Product.packName` (null = "fardo") só muda o texto; a conta segue com
+  `packQuantity`. Lista com opção livre (`PACK_NAME_SUGGESTIONS`). O item vendido não guarda esse
+  nome: venda antiga mostra o nome atual do produto.
+- **Preço e custo da embalagem (o cigarro vende picado e no maço):** a embalagem pode ter preço
+  próprio por loja (`StoreProduct.packPrice`, copiado no item da venda e da comanda). Na tela, a
+  unidade vazia é o preço da embalagem ÷ a quantidade, e o vendedor pode pôr outro preço (o picado
+  costuma ser mais caro). O custo é digitado por embalagem e guardado por unidade com até 4 casas
+  (`costPrice`, `roundUnitCost`); o total da venda segue em centavos. Regras da tela em
+  `src/lib/pack-pricing.ts`, campos em `PriceFields`.
+- **Sem venda por peso:** a quantidade é sempre inteira. Saco de gelo ou carvão de outro peso é outro
+  produto.
 
 **Endereço do cliente (decidido pelo usuário)**
 - `Customer` tem endereço opcional em campos separados (`zipCode`, `street`, `number`,
   `complement`, `neighborhood`, `city`, `state`), como a loja. No create/update, campo ausente não
   mexe e texto vazio apaga. Na tela, o CEP completo busca rua, bairro, cidade e UF na **ViaCEP**
-  pelo navegador (`src/lib/cep-lookup.ts`), só como sugestão; nunca troca o que foi digitado.
+  pelo navegador (`src/lib/cep-lookup.ts`, hook `useCepAutofill`), só como sugestão; nunca troca o que
+  foi digitado. Na edição, trocar o CEP substitui o endereço salvo (opção `initial`). Vale também no
+  formulário de Lojas.
 
 **Nome de pessoa (decidido pelo usuário)**
 - O nome de **pessoa** (cadastro da conta, "Minha conta" e convite de equipe) só aceita letras
@@ -221,6 +321,14 @@ os campos é a extensão do Prisma).
   indicação, recursos): atualize o texto dela.
 - WhatsApp e Instagram do suporte ficam só em `src/content/contact.ts` e aparecem na página e na
   Central de Dúvidas (topo e fim de cada artigo, `ContactChannels`).
+- **SEO (pedido do usuário, 2026-11-18):** só as páginas públicas vão para o Google: apresentação,
+  cadastro, login, Central de Dúvidas (menos os artigos da Plataforma, com `noindex`), termos e
+  privacidade. `app/robots.ts` bloqueia a área logada, `app/sitemap.ts` lista as públicas (regras em
+  `src/lib/seo.ts`), cada página pública tem `description` e `alternates.canonical`, e a apresentação
+  tem JSON-LD (`landingStructuredData`). O domínio vem de `SITE_URL` no ambiente do frontend (também
+  no build). Página pública nova: entre em `sitemapPaths` e dê descrição e canônico; rota nova da área
+  logada: entre em `PRIVATE_PATHS`. A imagem de compartilhamento (`app/opengraph-image.tsx`) fica em
+  `PUBLIC_PATHS` do proxy.
 
 **Cadastro e primeiros passos (decidido pelo usuário)**
 - O cadastro pede o **celular (WhatsApp)** do dono, obrigatório (`User.phone`, só dígitos,
@@ -302,13 +410,14 @@ npm run lint                       # formata (Prettier) e confere; deve terminar
 npm test                           # todos os testes (unitários, de service e e2e)
 npm run db:seed                    # dados de demonstração (dev; não duplica)
 npm run docs:api                   # regenera docs/API.md
-npm run mail:test -- dest@x.com    # envia de verdade os 3 e-mails de exemplo (confere o SMTP)
+npm run mail:test -- dest@x.com    # envia de verdade os 7 e-mails de exemplo (confere o SMTP)
 ```
 
 - **E-mail (configurado pelo usuário em 2026-10-30, Gmail com senha de app):** textos em
   `src/mail/templates.ts` (HTML de e-mail em tabelas com estilos inline + texto puro). E-mail novo:
   crie a função lá e use-a no `MailService`, no `FakeMailService` dos testes e no
-  `scripts/send-test-emails.ts`. Hoje são 6: redefinir senha, convite, lembretes da assinatura (3 e
+  `scripts/send-test-emails.ts`. Hoje são 6: redefinir senha, convite (duas versões: quem nunca entrou recebe o link para criar a
+  senha, mesmo convidado de novo; quem já usa o sistema recebe o login), lembretes da assinatura (3 e
   1 dia antes do fim do teste, carência acabando, e teste/carência terminou), boas-vindas, senha
   alterada e indicação confirmada. Os de pagamento ficam para o Asaas (`docs/a_fazer.md`, item 21).
 

@@ -9,6 +9,9 @@ export const INSTAGRAM_HANDLE = "@minhadistribuidoraonline_";
 
 export const SALES_MESSAGE = "Olá! Quero saber mais sobre o Minha Distribuidora Online.";
 export const SUPPORT_MESSAGE = "Olá! Preciso de ajuda com o Minha Distribuidora Online.";
+/** Pagamento único, sem mensalidade (conta isenta; decidido pelo usuário, 2026-11-22). */
+export const LIFETIME_MESSAGE =
+  "Olá! Quero saber sobre o pagamento único do Minha Distribuidora Online, sem mensalidade.";
 
 /** Abre a conversa no WhatsApp com a mensagem já escrita. */
 export function whatsappUrl(message: string): string {

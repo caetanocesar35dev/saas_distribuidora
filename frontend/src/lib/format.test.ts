@@ -10,6 +10,10 @@ import {
   cleanPersonName,
   formatAddress,
   formatItemQuantity,
+  packLabel,
+  packPlural,
+  packWithArticle,
+  PACK_NAME_SUGGESTIONS,
   formatMoney,
   formatMoneyTyping,
   formatPhone,
@@ -24,14 +28,56 @@ import {
   normalizeCnpj,
   moneyToInput,
   parseMoney,
+  profitHint,
+  revenueHint,
   roundMoney,
   safeNextPath,
+  saleBottleSummary,
   todayString,
   toDatetimeLocal,
 } from "./format";
 
 /** O Intl usa espaço sem quebra entre "R$" e o número. */
 const plain = (text: string) => text.replace(/ /g, " ");
+
+describe("cascos de vasilhame", () => {
+  it("observação do faturamento: fiado e cascos, separados sem esconder", () => {
+    expect(revenueHint(0, 0)).toBe(false);
+    expect(plain(revenueHint(20, 0) as string)).toBe("R$ 20,00 disso foi vendido no fiado");
+    expect(plain(revenueHint(0, 16) as string)).toBe(
+      "Fora R$ 16,00 em cascos de vasilhame vendidos",
+    );
+    expect(plain(revenueHint(20, 16) as string)).toBe(
+      "R$ 20,00 disso foi vendido no fiado; fora R$ 16,00 em cascos de vasilhame vendidos",
+    );
+  });
+
+  it("observação do lucro: fiado só conta quando o cliente paga", () => {
+    expect(profitHint(0, 0)).toBe(false);
+    expect(plain(profitHint(12, 0) as string)).toBe("R$ 12,00 disso veio de fiado pago");
+    expect(plain(profitHint(0, 30) as string)).toBe(
+      "R$ 30,00 vendido no fiado entra quando o cliente pagar",
+    );
+    expect(plain(profitHint(12, 30) as string)).toBe(
+      "R$ 12,00 disso veio de fiado pago; R$ 30,00 vendido no fiado entra quando o cliente pagar",
+    );
+  });
+
+  it("resumo do vasilhame na venda concluída", () => {
+    expect(saleBottleSummary({ type: "CUSTOMER_BORROW", quantity: -3, unitPrice: null })).toBe(
+      "levou 3",
+    );
+    expect(saleBottleSummary({ type: "CUSTOMER_RETURN", quantity: 2, unitPrice: null })).toBe(
+      "devolveu 2",
+    );
+    expect(
+      plain(saleBottleSummary({ type: "CUSTOMER_PURCHASE", quantity: -2, unitPrice: 8 })),
+    ).toBe("comprou 2 cascos (R$ 16,00)");
+    expect(
+      plain(saleBottleSummary({ type: "CUSTOMER_PURCHASE", quantity: -1, unitPrice: 8 })),
+    ).toBe("comprou 1 casco (R$ 8,00)");
+  });
+});
 
 describe("dinheiro", () => {
   it("formata em reais com 2 casas", () => {
@@ -157,6 +203,41 @@ describe("quantidade do item (venda em lote)", () => {
     expect(formatItemQuantity(24, 2, 12)).toBe("2 fardos de 12");
     expect(formatItemQuantity(15, 1, 12)).toBe("1 fardo de 12 + 3 un.");
     expect(formatItemQuantity(1200, 0, undefined)).toBe("1.200 un.");
+  });
+
+  it("usa o nome da embalagem do produto, no singular e no plural", () => {
+    expect(formatItemQuantity(20, 2, 10, "pacote")).toBe("2 pacotes de 10");
+    expect(formatItemQuantity(13, 1, 10, "caixa")).toBe("1 caixa de 10 + 3 un.");
+    expect(formatItemQuantity(24, 2, 12, null)).toBe("2 fardos de 12");
+  });
+});
+
+describe("nome da embalagem", () => {
+  it("sem nome cadastrado é fardo", () => {
+    expect(packLabel(null)).toBe("fardo");
+    expect(packLabel("  ")).toBe("fardo");
+    expect(packLabel("caixa")).toBe("caixa");
+  });
+
+  it("faz o plural dos nomes comuns e dos digitados", () => {
+    expect(PACK_NAME_SUGGESTIONS.map(packPlural)).toEqual([
+      "fardos",
+      "caixas",
+      "pacotes",
+      "maços",
+      "displays",
+      "engradados",
+    ]);
+    expect(packPlural("saco")).toBe("sacos");
+    expect(packPlural("maço")).toBe("maços");
+    expect(packPlural("contêiner")).toBe("contêineres");
+    expect(packPlural(null)).toBe("fardos");
+  });
+
+  it("usa o artigo certo", () => {
+    expect(packWithArticle("maço")).toBe("do maço");
+    expect(packWithArticle("caixa")).toBe("da caixa");
+    expect(packWithArticle(null)).toBe("do fardo");
   });
 });
 

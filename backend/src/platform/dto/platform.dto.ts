@@ -95,6 +95,21 @@ export class UpdateOrganizationDto {
   @Type(() => Date)
   @IsDate()
   pastDueSince?: Date | null;
+
+  /** Conta isenta (EXEMPT): data limite da isenção. null = vitalícia. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Type(() => Date)
+  @IsDate()
+  exemptUntil?: Date | null;
+
+  /** Conta isenta: por que (ex.: "Parceiro", "Vitalícia paga em 22/11/2026"). Só a plataforma vê. */
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @Transform(trim)
+  @IsString()
+  @MaxLength(300)
+  exemptReason?: string | null;
 }
 
 // ---- Usuários ----------------------------------------------------------------------------------------

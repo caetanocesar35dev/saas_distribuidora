@@ -22,7 +22,10 @@ const FIELD_LABEL: Record<string, string> = {
   costPrice: "Custo",
   stock: "Estoque",
   isActive: "Ativo",
-  packQuantity: "Quantidade por fardo",
+  packQuantity: "Unidades por embalagem",
+  packName: "Nome da embalagem",
+  packPrice: "Preço da embalagem",
+  categoryId: "Categoria",
   bottleTypeId: "Tipo de vasilhame",
   phone: "Telefone",
   cnpj: "CNPJ",
@@ -64,6 +67,7 @@ const HIDDEN_FIELDS = new Set(["updatedAt", "deletedAt"]);
 
 const MONEY_FIELDS = new Set([
   "price",
+  "packPrice",
   "costPrice",
   "total",
   "totalCost",

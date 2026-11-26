@@ -299,6 +299,80 @@ describe('PlatformService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    describe('conta isenta de mensalidade', () => {
+      it('vitalícia (sem data limite), com o motivo e o plano escolhido', async () => {
+        const w = await ctx.factory.world({
+          subscriptionStatus: 'PAST_DUE',
+          pastDueSince: day(-10),
+        });
+        const basico = await ctx.factory.plan({ name: 'Básico' });
+        const exempt = await as(() =>
+          platform.updateOrganization(w.organization.id, {
+            subscriptionStatus: 'EXEMPT',
+            planId: basico.id,
+            exemptUntil: null,
+            exemptReason: '  Parceiro  ',
+          }),
+        );
+        expect(exempt).toMatchObject({
+          subscriptionStatus: 'EXEMPT',
+          exemptUntil: null,
+          exemptReason: 'Parceiro',
+          pastDueSince: null, // saiu do atraso
+        });
+        expect(exempt.plan.id).toBe(basico.id);
+      });
+
+      it('com data limite no futuro; data no passado é recusada', async () => {
+        const w = await ctx.factory.world();
+        const until = day(365);
+        const exempt = await as(() =>
+          platform.updateOrganization(w.organization.id, {
+            subscriptionStatus: 'EXEMPT',
+            exemptUntil: until,
+          }),
+        );
+        expect(exempt.exemptUntil!.getTime()).toBe(until.getTime());
+        await expect(
+          as(() =>
+            platform.updateOrganization(w.organization.id, {
+              exemptUntil: day(-1),
+            }),
+          ),
+        ).rejects.toThrow(/precisa ser no futuro/);
+      });
+
+      it('data limite e motivo só valem na situação Isenta, e saem ao deixar de ser isenta', async () => {
+        const w = await ctx.factory.world({ subscriptionStatus: 'ACTIVE' });
+        await expect(
+          as(() =>
+            platform.updateOrganization(w.organization.id, {
+              exemptReason: 'Parceiro',
+            }),
+          ),
+        ).rejects.toThrow(/só valem na situação Isenta/);
+
+        await as(() =>
+          platform.updateOrganization(w.organization.id, {
+            subscriptionStatus: 'EXEMPT',
+            exemptUntil: day(30),
+            exemptReason: 'Parceiro',
+          }),
+        );
+        const back = await as(() =>
+          platform.updateOrganization(w.organization.id, {
+            subscriptionStatus: 'ACTIVE',
+          }),
+        );
+        expect(back).toMatchObject({ exemptUntil: null, exemptReason: null });
+        // o histórico guarda a isenção que houve
+        const history = await ctx.prisma.organizationHistory.findMany({
+          where: { id: w.organization.id, exemptReason: 'Parceiro' },
+        });
+        expect(history.length).toBeGreaterThan(0);
+      });
+    });
+
     it('a alteração fica no histórico com o autor da plataforma', async () => {
       const w = await ctx.factory.world();
       await as(() =>

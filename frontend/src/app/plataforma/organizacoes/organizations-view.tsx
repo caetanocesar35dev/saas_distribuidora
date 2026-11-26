@@ -25,7 +25,11 @@ const ALL = "all";
 
 export function StatusBadge({ status }: { status: SubscriptionStatus }) {
   const variant =
-    status === "ACTIVE" ? "secondary" : status === "TRIAL" ? "outline" : "destructive";
+    status === "ACTIVE" || status === "EXEMPT"
+      ? "secondary"
+      : status === "TRIAL"
+        ? "outline"
+        : "destructive";
   return <Badge variant={variant}>{SUBSCRIPTION_STATUS_LABEL[status]}</Badge>;
 }
 

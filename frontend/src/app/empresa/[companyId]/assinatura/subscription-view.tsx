@@ -4,11 +4,22 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
 import { PageHeader, QueryBoundary } from "@/components/app/common";
+import { ContactChannels } from "@/components/app/contact-channels";
 import { ActionButton } from "@/components/app/guards";
 import { Badge } from "@/components/ui/badge";
-import { useChangePlan, useOrganizations, usePlans } from "@/lib/api/hooks/admin";
+import { SUPPORT_MESSAGE } from "@/content/contact";
+import {
+  useChangePlan,
+  useOrganizations,
+  usePlans,
+} from "@/lib/api/hooks/admin";
 import type { OrganizationSummary, Plan } from "@/lib/api/types";
-import { daysUntil, formatCents, formatDate, SUBSCRIPTION_STATUS_LABEL } from "@/lib/format";
+import {
+  daysUntil,
+  formatCents,
+  formatDate,
+  SUBSCRIPTION_STATUS_LABEL,
+} from "@/lib/format";
 import { choosablePlans, planFit, planLimits } from "@/lib/plans";
 import { useCompany } from "@/lib/session/context";
 import { subscriptionNotice } from "@/lib/subscription";
@@ -33,7 +44,9 @@ function PlanPicker({ org }: { org: OrganizationSummary }) {
   const plans = usePlans();
   const change = useChangePlan(org.id);
   const [chosen, setChosen] = useState<Plan | null>(null);
-  const onTrialPlan = !plans.data?.some((p) => p.id === org.plan.id && p.priceInCents > 0);
+  const onTrialPlan = !plans.data?.some(
+    (p) => p.id === org.plan.id && p.priceInCents > 0,
+  );
   const current = plans.data?.find((p) => p.id === org.plan.id);
 
   return (
@@ -69,9 +82,13 @@ function PlanPicker({ org }: { org: OrganizationSummary }) {
                   </div>
                   <p className="mt-1 text-lg font-semibold tabular-nums">
                     {formatCents(plan.priceInCents)}
-                    <span className="text-sm font-normal text-muted-foreground">/mês</span>
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /mês
+                    </span>
                   </p>
-                  <p className="mt-1 flex-1 text-sm text-muted-foreground">{planLimits(plan)}</p>
+                  <p className="mt-1 flex-1 text-sm text-muted-foreground">
+                    {planLimits(plan)}
+                  </p>
                   {!isCurrent && org.isBillingOwner && (
                     <div className="mt-3 space-y-1">
                       <ActionButton
@@ -86,7 +103,11 @@ function PlanPicker({ org }: { org: OrganizationSummary }) {
                           ? "Mudar para este plano"
                           : "Fazer upgrade"}
                       </ActionButton>
-                      {blocked && <p className="text-xs text-muted-foreground">{blocked}</p>}
+                      {blocked && (
+                        <p className="text-xs text-muted-foreground">
+                          {blocked}
+                        </p>
+                      )}
                     </div>
                   )}
                 </li>
@@ -131,6 +152,8 @@ export function SubscriptionView() {
   const notice = subscriptionNotice(company.subscription);
   const sub = company.subscription;
   const org = organizations.data?.find((o) => o.id === company.organizationId);
+  // Isenta (parceira ou valor único): só a plataforma troca o plano.
+  const exempt = sub.status === "EXEMPT";
 
   return (
     <div className="space-y-5">
@@ -144,7 +167,8 @@ export function SubscriptionView() {
         <div
           className={cn(
             "rounded-xl border p-4 text-sm",
-            notice.tone === "danger" && "border-destructive/40 bg-destructive/5",
+            notice.tone === "danger" &&
+              "border-destructive/40 bg-destructive/5",
             notice.tone === "warning" && "border-amber-300 bg-amber-50",
             notice.tone === "info" && "border-sky-200 bg-sky-50",
           )}
@@ -167,33 +191,64 @@ export function SubscriptionView() {
             <Row label="Em atraso desde" value={formatDate(sub.pastDueSince)} />
           )}
           {sub.graceEndsAt && (
-            <Row label="Consulta somente a partir de" value={formatDate(sub.graceEndsAt)} />
+            <Row
+              label="Consulta somente a partir de"
+              value={formatDate(sub.graceEndsAt)}
+            />
+          )}
+          {exempt && (
+            <Row
+              label="Mensalidade"
+              value={
+                sub.exemptUntil
+                  ? `Isenta até ${formatDate(sub.exemptUntil)}`
+                  : "Isenta (acesso vitalício)"
+              }
+            />
           )}
           {org && (
-            <Row label="Plano" value={`${org.plan.name} (${planLimits(org.plan)})`} />
+            <Row
+              label="Plano"
+              value={`${org.plan.name} (${planLimits(org.plan)})`}
+            />
           )}
         </dl>
       </section>
 
-      {org && <PlanPicker org={org} />}
-
-      <section className="rounded-xl border bg-card p-5 text-sm">
-        <h2 className="font-semibold">Como regularizar</h2>
-        <p className="mt-2 text-muted-foreground">
-          O pagamento pela internet (cartão ou Pix) ainda não está disponível. Por enquanto, a
-          assinatura é regularizada pelo nosso suporte: entre em contato e informe o nome da sua
-          empresa.
-        </p>
-        {!company.isBillingOwner && (
+      {exempt ? (
+        <section className="rounded-xl border bg-card p-5 text-sm">
+          <h2 className="font-semibold">Conta isenta de mensalidade</h2>
           <p className="mt-2 text-muted-foreground">
-            Apenas o responsável pela assinatura pode tratar disso. Fale com ele.
+            Sua conta não paga mensalidade e tem os limites do plano combinado
+            com a gente. Para mudar de plano ou tratar da isenção, fale com o
+            suporte.
           </p>
-        )}
-        <p className="mt-3 text-muted-foreground">
-          Enquanto isso, mesmo com a assinatura vencida você continua podendo consultar tudo e
-          fechar o caixa que já estava aberto.
-        </p>
-      </section>
+          <ContactChannels message={SUPPORT_MESSAGE} className="mt-3" />
+        </section>
+      ) : (
+        org && <PlanPicker org={org} />
+      )}
+
+      {(!exempt || sub.accessMode === "READ_ONLY") && (
+        <section className="rounded-xl border bg-card p-5 text-sm">
+          <h2 className="font-semibold">Como regularizar</h2>
+          <p className="mt-2 text-muted-foreground">
+            O pagamento pela internet (cartão ou Pix) ainda não está disponível.
+            Por enquanto, a assinatura é regularizada pelo nosso suporte: entre
+            em contato e informe o nome da sua empresa.
+          </p>
+          {!company.isBillingOwner && (
+            <p className="mt-2 text-muted-foreground">
+              Apenas o responsável pela assinatura pode tratar disso. Fale com
+              ele.
+            </p>
+          )}
+          <p className="mt-3 text-muted-foreground">
+            Enquanto isso, mesmo com a assinatura vencida você continua podendo
+            consultar tudo e fechar o caixa que já estava aberto.
+          </p>
+        </section>
+      )}
     </div>
   );
 }
