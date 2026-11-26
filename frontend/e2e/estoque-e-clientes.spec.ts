@@ -168,6 +168,48 @@ test.describe("estoque, produtos, vasilhames e clientes", () => {
     await expect(page.getByText("Devolução registrada.")).toBeVisible();
   });
 
+  test("fornecedor: cadastra em Configurações, escolhe no envio e no recebimento e vê o saldo de cascos", async ({
+    page,
+  }) => {
+    const errors = trackPageErrors(page);
+    const storeId = await openStore(page, "Loja Centro");
+    const fornecedor = `Fornecedor E2E ${Date.now() % 100000}`;
+
+    await goToStore(page, storeId, "/configuracoes");
+    const box = page.getByRole("region", { name: "Fornecedores" });
+    await box.getByLabel("Nome do novo fornecedor").fill(fornecedor);
+    await box.getByRole("button", { name: "Adicionar" }).click();
+    await expect(page.getByText("Fornecedor cadastrado.")).toBeVisible();
+
+    await goToStore(page, storeId, "/vasilhames");
+    const move = async (button: string, submit: string, quantity: string) => {
+      await page.getByRole("button", { name: button }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByLabel("Tipo de vasilhame").click();
+      await page.getByRole("option").first().click();
+      await dialog.getByLabel("Fornecedor (opcional)").click();
+      await page.getByRole("option", { name: fornecedor }).click();
+      await dialog.getByLabel("Quantidade").fill(quantity);
+      await dialog.getByRole("button", { name: submit }).click();
+      await expect(page.getByText("Movimentação registrada.").first()).toBeVisible();
+      await expect(dialog).toBeHidden();
+    };
+    await move("Receber do fornecedor", "Registrar recebimento", "10");
+    await move("Enviar ao fornecedor", "Registrar envio", "4");
+
+    await page.getByRole("tab", { name: "Fornecedores" }).click();
+    const row = page.getByRole("row", { name: new RegExp(fornecedor) });
+    await expect(row).toContainText("10");
+    await expect(row).toContainText("4");
+    await expect(row).toContainText("A loja deve 6 cascos");
+
+    await page.getByRole("tab", { name: "Movimentações" }).click();
+    await page.getByLabel("Fornecedor", { exact: true }).click();
+    await page.getByRole("option", { name: fornecedor }).click();
+    await expect(page.getByRole("row")).toHaveCount(3);
+    expect(errors).toEqual([]);
+  });
+
   test("cliente com endereço opcional: o CEP preenche e a edição pode apagar", async ({ page }) => {
     const errors = trackPageErrors(page);
     // A ViaCEP é simulada: o teste não depende da internet.

@@ -429,6 +429,9 @@ export interface BottleMovement {
   description: string | null;
   customerId: string | null;
   customer: { id: string; name: string } | null;
+  /** Envio ou recebimento: o fornecedor (null = não informado). */
+  supplierId: string | null;
+  supplier: { id: string; name: string } | null;
   saleId: string | null;
   createdAt: string;
 }
@@ -438,6 +441,33 @@ export interface ManualBottleMovementBody {
   type: ManualBottleMovementType;
   quantity: number;
   description?: string;
+  /** Só no envio e no recebimento (opcional). */
+  supplierId?: string;
+}
+
+/** Fornecedor da empresa: só o nome (não tem acesso ao sistema). */
+export interface Supplier {
+  id: string;
+  companyId: string;
+  name: string;
+  createdAt: string;
+  deletedAt: string | null;
+}
+
+/** `GET /stores/:storeId/supplier-bottle-balances`: cascos com cada fornecedor nesta loja. */
+export interface SupplierBottleBalance {
+  supplierId: string;
+  supplierName: string;
+  /** Fornecedor excluído que ainda tem saldo. */
+  deleted: boolean;
+  bottleTypes: {
+    bottleTypeId: string;
+    bottleTypeName: string;
+    sent: number;
+    received: number;
+    /** recebidos − enviados: positivo = a loja deve ao fornecedor; negativo = ele deve à loja. */
+    balance: number;
+  }[];
 }
 
 export interface CustomerBottleBody {
@@ -450,6 +480,7 @@ export interface BottleMovementsQuery extends PageQuery {
   type?: BottleMovementType;
   customerId?: string;
   bottleTypeId?: string;
+  supplierId?: string;
   from?: string;
   to?: string;
 }
@@ -856,6 +887,7 @@ export type CompanyAuditEntity =
   | "bottle-types"
   | "product-categories"
   | "sale-channels"
+  | "suppliers"
   | "stores"
   | "memberships"
   | "membership-stores";

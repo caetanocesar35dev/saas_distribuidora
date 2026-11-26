@@ -1,22 +1,89 @@
 "use client";
 
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { storeApi } from "@/lib/api/client";
+import { companyApi, storeApi } from "@/lib/api/client";
 import type {
   BottleMovement,
   BottleMovementsQuery,
   BottleStockLine,
   CustomerBottleBody,
   ManualBottleMovementBody,
+  MessageResponse,
   Paginated,
   StoreBottlePriceBody,
+  Supplier,
+  SupplierBottleBalance,
 } from "@/lib/api/types";
 
 export const bottleKeys = {
   all: (storeId: string) => ["store", storeId, "bottles"] as const,
   stock: (storeId: string) => ["store", storeId, "bottles", "stock"] as const,
   movements: (storeId: string) => ["store", storeId, "bottles", "movements"] as const,
+  supplierBalances: (storeId: string) =>
+    ["store", storeId, "bottles", "supplier-balances"] as const,
 };
+
+export const supplierKeys = {
+  all: (companyId: string) => ["company", companyId, "suppliers"] as const,
+};
+
+/** Saldo de cascos com cada fornecedor nesta loja (recebidos − enviados). */
+export function useSupplierBottleBalances(storeId: string) {
+  return useQuery({
+    queryKey: bottleKeys.supplierBalances(storeId),
+    queryFn: () =>
+      storeApi(storeId).get<SupplierBottleBalance[]>("/supplier-bottle-balances"),
+  });
+}
+
+/** Fornecedores da empresa, por nome. `deleted` lista só os excluídos. */
+export function useSuppliers(companyId: string, deleted = false) {
+  return useQuery({
+    queryKey: [...supplierKeys.all(companyId), { deleted }],
+    queryFn: () =>
+      companyApi(companyId).get<Supplier[]>("/suppliers", { deleted: deleted || undefined }),
+    staleTime: 60_000,
+  });
+}
+
+/** Renomear muda o nome nas movimentações e no saldo: recarrega os vasilhames também. */
+function useInvalidateSuppliers(companyId: string) {
+  const client = useQueryClient();
+  return async () => {
+    await client.invalidateQueries({ queryKey: supplierKeys.all(companyId) });
+    await client.invalidateQueries({
+      predicate: (q) => q.queryKey[0] === "store" && q.queryKey[2] === "bottles",
+    });
+  };
+}
+
+export function useSaveSupplier(companyId: string) {
+  const invalidate = useInvalidateSuppliers(companyId);
+  return useMutation({
+    mutationFn: ({ id, name }: { id?: string; name: string }) =>
+      id
+        ? companyApi(companyId).patch<Supplier>(`/suppliers/${id}`, { name })
+        : companyApi(companyId).post<Supplier>("/suppliers", { name }),
+    meta: { silent: true },
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteSupplier(companyId: string) {
+  const invalidate = useInvalidateSuppliers(companyId);
+  return useMutation({
+    mutationFn: (id: string) => companyApi(companyId).delete<MessageResponse>(`/suppliers/${id}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestoreSupplier(companyId: string) {
+  const invalidate = useInvalidateSuppliers(companyId);
+  return useMutation({
+    mutationFn: (id: string) => companyApi(companyId).post<Supplier>(`/suppliers/${id}/restore`),
+    onSuccess: invalidate,
+  });
+}
 
 export function useBottleStock(storeId: string) {
   return useQuery({

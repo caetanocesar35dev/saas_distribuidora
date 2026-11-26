@@ -1,6 +1,8 @@
+import { PartialType } from '@nestjs/swagger';
 import { BottleMovementType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsDate,
   IsEnum,
   IsIn,
@@ -49,9 +51,18 @@ export class ManualBottleMovementDto {
   @IsNotEmpty()
   @MaxLength(300)
   description?: string;
+
+  /** Fornecedor do envio ou recebimento (opcional). Recusado no ajuste manual. */
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string;
 }
 
 export class ListBottleMovementsQuery extends PaginationQueryDto {
+  @IsOptional()
+  @IsUUID()
+  supplierId?: string;
+
   @IsOptional()
   @IsEnum(BottleMovementType)
   type?: BottleMovementType;
@@ -97,6 +108,26 @@ export class CustomerBottleDto {
  * Preço próprio do casco nesta loja (decidido pelo usuário, 2026-11-24). `null` volta a valer o preço
  * da empresa.
  */
+export class CreateSupplierDto {
+  @Transform(trim)
+  @IsString()
+  @IsNotEmpty({ message: 'O nome do fornecedor é obrigatório.' })
+  @MaxLength(80)
+  name: string;
+}
+
+export class UpdateSupplierDto extends PartialType(CreateSupplierDto) {}
+
+export class ListSuppliersQuery {
+  /** true lista só os fornecedores excluídos (para reativar). */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  deleted?: boolean;
+}
+
 export class SetStoreBottlePriceDto {
   @ValidateIf((o: SetStoreBottlePriceDto) => o.price !== null)
   @IsNumber({ maxDecimalPlaces: 2, allowNaN: false, allowInfinity: false })

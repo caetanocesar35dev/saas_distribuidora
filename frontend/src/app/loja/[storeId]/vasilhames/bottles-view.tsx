@@ -9,6 +9,7 @@ import type { ManualBottleMovementType } from "@/lib/api/types";
 import { MovementDialog } from "./movement-dialog";
 import { MovementsTab } from "./movements-tab";
 import { StockTab } from "./stock-tab";
+import { SuppliersTab } from "./suppliers-tab";
 import { TypesTab } from "./types-tab";
 
 export function BottlesView() {
@@ -45,6 +46,7 @@ export function BottlesView() {
         <TabsList>
           <TabsTrigger value="stock">Estoque</TabsTrigger>
           <TabsTrigger value="movements">Movimentações</TabsTrigger>
+          <TabsTrigger value="suppliers">Fornecedores</TabsTrigger>
           <RequireRole min="MANAGER">
             <TabsTrigger value="types">Tipos de vasilhame</TabsTrigger>
           </RequireRole>
@@ -54,6 +56,9 @@ export function BottlesView() {
         </TabsContent>
         <TabsContent value="movements">
           <MovementsTab />
+        </TabsContent>
+        <TabsContent value="suppliers">
+          <SuppliersTab />
         </TabsContent>
         <TabsContent value="types">
           <TypesTab />

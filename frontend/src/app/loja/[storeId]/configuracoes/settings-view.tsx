@@ -12,6 +12,7 @@ import {
 import { useStore } from "@/lib/session/context";
 import { CategoriesManager } from "./categories-manager";
 import { ChannelsManager } from "./channels-manager";
+import { SuppliersManager } from "./suppliers-manager";
 
 /**
  * Configurações (gerente e dono): as listas que valem para todas as lojas da empresa. Os dados da
@@ -53,6 +54,20 @@ export function SettingsView() {
             </CardHeader>
             <CardContent>
               <CategoriesManager companyId={companyId} />
+            </CardContent>
+          </Card>
+          <Card role="region" aria-labelledby="config-fornecedores">
+            <CardHeader>
+              <CardTitle id="config-fornecedores" role="heading" aria-level={2}>
+                Fornecedores
+              </CardTitle>
+              <CardDescription>
+                Com quem a loja troca vasilhames. Escolha o fornecedor ao enviar ou receber
+                vasilhames para ver o saldo de cascos com cada um.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SuppliersManager companyId={companyId} />
             </CardContent>
           </Card>
         </div>

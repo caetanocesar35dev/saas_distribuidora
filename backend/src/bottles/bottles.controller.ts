@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -12,18 +14,26 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import {
+  CompanyRole,
   hasMinRole,
   StoreRole,
   Tenant,
 } from '../common/decorators/access.decorators';
-import type { StoreTenant } from '../common/decorators/access.decorators';
+import type {
+  CompanyTenant,
+  StoreTenant,
+} from '../common/decorators/access.decorators';
 import { BottleMovementsService } from './bottle-movements.service';
 import {
+  CreateSupplierDto,
   CustomerBottleDto,
   ListBottleMovementsQuery,
+  ListSuppliersQuery,
   ManualBottleMovementDto,
   SetStoreBottlePriceDto,
+  UpdateSupplierDto,
 } from './dto/bottles.dto';
+import { SuppliersService } from './suppliers.service';
 
 @ApiTags('bottles')
 @ApiBearerAuth()
@@ -59,6 +69,12 @@ export class BottlesController {
   @Get('bottle-stock')
   stock(@Tenant() tenant: StoreTenant) {
     return this.movements.stock(tenant.storeId, tenant.companyId);
+  }
+
+  /** Saldo de cascos com cada fornecedor nesta loja (recebidos − enviados). */
+  @Get('supplier-bottle-balances')
+  supplierBalances(@Tenant() tenant: StoreTenant) {
+    return this.movements.supplierBalances(tenant.storeId);
   }
 
   /** Preço próprio do casco nesta loja (`null` = vale o da empresa): gerente ou dono. */
@@ -105,5 +121,47 @@ export class BottlesController {
       customerId,
       dto,
     );
+  }
+}
+
+/** Fornecedores da empresa. Todos listam (o atendente escolhe no envio); gerente e dono editam. */
+@ApiTags('bottles')
+@ApiBearerAuth()
+@Controller('companies/:companyId/suppliers')
+export class SuppliersController {
+  constructor(private readonly suppliers: SuppliersService) {}
+
+  @Get()
+  list(@Tenant() tenant: CompanyTenant, @Query() query: ListSuppliersQuery) {
+    return this.suppliers.list(tenant.companyId, query);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Post()
+  create(@Tenant() tenant: CompanyTenant, @Body() dto: CreateSupplierDto) {
+    return this.suppliers.create(tenant.companyId, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Patch(':id')
+  update(
+    @Tenant() tenant: CompanyTenant,
+    @Param('id') id: string,
+    @Body() dto: UpdateSupplierDto,
+  ) {
+    return this.suppliers.update(tenant.companyId, id, dto);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @Delete(':id')
+  remove(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.suppliers.remove(tenant.companyId, id);
+  }
+
+  @CompanyRole(Role.MANAGER)
+  @HttpCode(200)
+  @Post(':id/restore')
+  restore(@Tenant() tenant: CompanyTenant, @Param('id') id: string) {
+    return this.suppliers.restore(tenant.companyId, id);
   }
 }
