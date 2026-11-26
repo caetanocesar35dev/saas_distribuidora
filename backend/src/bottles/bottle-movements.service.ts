@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { AuditContext } from '../audit/audit-context';
 import { paginate, pageArgs } from '../common/dto/pagination.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -29,13 +30,18 @@ const MOVEMENT_SELECT = {
   description: true,
   customerId: true,
   customer: { select: { id: true, name: true } },
+  supplierId: true,
+  supplier: { select: { id: true, name: true } },
   saleId: true,
   createdAt: true,
 } satisfies Prisma.BottleMovementSelect;
 
 @Injectable()
 export class BottleMovementsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditContext,
+  ) {}
 
   /**
    * Movimentação manual da loja (envio/recebimento do fornecedor e ajuste). A quantidade é gravada
@@ -51,7 +57,13 @@ export class BottleMovementsService {
         'Informe a quantidade como número positivo.',
       );
     }
+    if (dto.supplierId && dto.type === 'MANUAL_ADJUSTMENT') {
+      throw new BadRequestException(
+        'O fornecedor só vale no envio e no recebimento de vasilhames.',
+      );
+    }
     await this.assertBottleType(companyId, dto.bottleTypeId);
+    if (dto.supplierId) await this.assertSupplier(companyId, dto.supplierId);
 
     const signed = dto.type === 'SUPPLIER_SEND' ? -dto.quantity : dto.quantity;
 
@@ -63,6 +75,7 @@ export class BottleMovementsService {
         quantity: signed,
         type: dto.type,
         description: dto.description,
+        supplierId: dto.supplierId,
       });
       return tx.bottleMovement.findUniqueOrThrow({
         where: { id: movement.id },
@@ -163,6 +176,7 @@ export class BottleMovementsService {
       ...(query.type ? { type: query.type } : {}),
       ...(query.customerId ? { customerId: query.customerId } : {}),
       ...(query.bottleTypeId ? { bottleTypeId: query.bottleTypeId } : {}),
+      ...(query.supplierId ? { supplierId: query.supplierId } : {}),
       ...(query.from || query.to
         ? {
             createdAt: {
@@ -235,6 +249,78 @@ export class BottleMovementsService {
       (t) => t.bottleTypeId === bottleTypeId,
     );
     return row!;
+  }
+
+  /**
+   * Saldo de cascos com cada fornecedor nesta loja: o que a loja recebeu dele menos o que enviou,
+   * por tipo de vasilhame. Positivo = a loja deve cascos ao fornecedor; negativo = o fornecedor deve
+   * à loja. Conta só os envios e recebimentos que têm fornecedor; fornecedor excluído continua
+   * aparecendo enquanto o saldo não for zero.
+   */
+  async supplierBalances(storeId: string) {
+    const groups = await this.prisma.bottleMovement.groupBy({
+      by: ['supplierId', 'bottleTypeId', 'type'],
+      where: {
+        storeId,
+        supplierId: { not: null },
+        type: { in: ['SUPPLIER_SEND', 'SUPPLIER_RECEIVE'] },
+      },
+      _sum: { quantity: true },
+    });
+    if (groups.length === 0) return [];
+
+    const supplierIds = [...new Set(groups.map((g) => g.supplierId!))];
+    const typeIds = [...new Set(groups.map((g) => g.bottleTypeId))];
+    const [suppliers, types] = await this.audit.withDeleted(() =>
+      Promise.all([
+        this.prisma.supplier.findMany({
+          where: { id: { in: supplierIds } },
+          select: { id: true, name: true, deletedAt: true },
+        }),
+        this.prisma.bottleType.findMany({
+          where: { id: { in: typeIds } },
+          select: { id: true, name: true },
+        }),
+      ]),
+    );
+    const typeName = new Map(types.map((t) => [t.id, t.name]));
+
+    return suppliers
+      .map((s) => {
+        const byType = new Map<string, { sent: number; received: number }>();
+        for (const g of groups.filter((x) => x.supplierId === s.id)) {
+          const line = byType.get(g.bottleTypeId) ?? { sent: 0, received: 0 };
+          const qty = g._sum.quantity ?? 0;
+          if (g.type === 'SUPPLIER_SEND') line.sent += -qty;
+          else line.received += qty;
+          byType.set(g.bottleTypeId, line);
+        }
+        const bottleTypes = [...byType.entries()]
+          .map(([bottleTypeId, l]) => ({
+            bottleTypeId,
+            bottleTypeName: typeName.get(bottleTypeId) ?? '',
+            sent: l.sent,
+            received: l.received,
+            balance: l.received - l.sent,
+          }))
+          .sort((a, b) => a.bottleTypeName.localeCompare(b.bottleTypeName));
+        return {
+          supplierId: s.id,
+          supplierName: s.name,
+          deleted: s.deletedAt !== null,
+          bottleTypes,
+        };
+      })
+      .filter((s) => !s.deleted || s.bottleTypes.some((t) => t.balance !== 0))
+      .sort((a, b) => a.supplierName.localeCompare(b.supplierName));
+  }
+
+  private async assertSupplier(companyId: string, supplierId: string) {
+    const supplier = await this.prisma.supplier.findFirst({
+      where: { id: supplierId, companyId },
+    });
+    if (!supplier)
+      throw new NotFoundException('Fornecedor não encontrado nesta empresa.');
   }
 
   private async assertBottleType(companyId: string, bottleTypeId: string) {

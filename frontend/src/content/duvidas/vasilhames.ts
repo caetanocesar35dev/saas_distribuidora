@@ -69,8 +69,9 @@ export const vasilhames: Article[] = [
     id: "vasilhames-fornecedor",
     category: "vasilhames",
     title: "Enviar e receber vasilhames do fornecedor",
-    purpose: "Registrar os vasilhames que a loja devolveu ao fornecedor e os que ele entregou.",
-    where: "Menu › Vasilhames › Enviar ao fornecedor / Receber do fornecedor",
+    purpose:
+      "Registrar os vasilhames que a loja devolveu ao fornecedor e os que ele entregou, e saber quantos cascos a loja deve a cada fornecedor.",
+    where: "Menu › Vasilhames › Enviar ao fornecedor / Receber do fornecedor (saldo na aba Fornecedores)",
     minRole: "EMPLOYEE",
     audience: ["EMPLOYEE", "MANAGER"],
     steps: [
@@ -78,15 +79,34 @@ export const vasilhames: Article[] = [
       "Para vasilhames que saíram da loja de volta ao fornecedor, clique em Enviar ao fornecedor.",
       "Para vasilhames que o fornecedor deixou na loja, clique em Receber do fornecedor.",
       "Escolha o tipo, digite a quantidade (sempre número positivo) e confirme.",
+      "Em Fornecedor (opcional), escolha com quem foi a troca. A lista de fornecedores é cadastrada pelo gerente ou dono em Menu › Configurações › Fornecedores.",
+      "Na aba Fornecedores você vê, para cada fornecedor e tipo de vasilhame, quantos cascos a loja recebeu e enviou e o saldo: \"A loja deve\" (recebeu mais do que devolveu) ou \"O fornecedor deve\" (devolveu mais do que recebeu). Só contam as trocas em que o fornecedor foi escolhido.",
+      "Na aba Movimentações, o filtro de fornecedor mostra só as trocas com ele.",
     ],
     problems: [
       {
         message: "O estoque não pode ficar negativo",
         fix: "Você está enviando mais do que a loja tem. Confira a contagem; se o sistema está errado, peça ao gerente um ajuste manual.",
       },
+      {
+        message: "O fornecedor não aparece na lista",
+        fix: "Peça ao gerente ou ao dono para cadastrá-lo em Menu › Configurações › Fornecedores. Se ele foi excluído, é lá também que se reativa (Mostrar só os excluídos).",
+      },
+      {
+        message: "O saldo com o fornecedor não bate",
+        fix: "O saldo só conta os envios e recebimentos em que o fornecedor foi escolhido. Trocas antigas, sem fornecedor, ficam de fora.",
+      },
     ],
-    related: ["vasilhames-estoque", "vasilhames-ajuste"],
-    keywords: ["fornecedor", "enviar", "receber", "troca de vasilhame"],
+    related: ["vasilhames-estoque", "vasilhames-ajuste", "gestao-configuracoes"],
+    keywords: [
+      "fornecedor",
+      "enviar",
+      "receber",
+      "troca de vasilhame",
+      "saldo com fornecedor",
+      "cascos do fornecedor",
+      "quanto devo ao fornecedor",
+    ],
   },
   {
     id: "vasilhames-cliente",

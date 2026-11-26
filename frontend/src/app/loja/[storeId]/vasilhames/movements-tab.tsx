@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useBottleMovements } from "@/lib/api/hooks/bottles";
+import { useBottleMovements, useSuppliers } from "@/lib/api/hooks/bottles";
 import { useBottleTypes } from "@/lib/api/hooks/catalog";
 import type { BottleMovementType } from "@/lib/api/types";
 import {
@@ -33,6 +33,8 @@ export function MovementsTab() {
   const bottleTypes = useBottleTypes(companyId);
   const [type, setType] = useState<string>(ALL);
   const [bottleTypeId, setBottleTypeId] = useState<string>(ALL);
+  const suppliers = useSuppliers(companyId);
+  const [supplierId, setSupplierId] = useState<string>(ALL);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
@@ -42,6 +44,7 @@ export function MovementsTab() {
     limit: 20,
     type: type === ALL ? undefined : (type as BottleMovementType),
     bottleTypeId: bottleTypeId === ALL ? undefined : bottleTypeId,
+    supplierId: supplierId === ALL ? undefined : supplierId,
     from: from ? dayStartIso(from) : undefined,
     to: to ? dayEndIso(to) : undefined,
   });
@@ -76,6 +79,18 @@ export function MovementsTab() {
             ...(bottleTypes.data ?? []).map((b) => ({ value: b.id, label: b.name })),
           ]}
         />
+        {(suppliers.data ?? []).length > 0 && (
+          <SelectField
+            className="w-52"
+            aria-label="Fornecedor"
+            value={supplierId}
+            onChange={reset(setSupplierId)}
+            options={[
+              { value: ALL, label: "Todos os fornecedores" },
+              ...(suppliers.data ?? []).map((s) => ({ value: s.id, label: s.name })),
+            ]}
+          />
+        )}
         <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
           De
           <Input
@@ -112,7 +127,7 @@ export function MovementsTab() {
                   <TableHead>Movimento</TableHead>
                   <TableHead>Vasilhame</TableHead>
                   <TableHead className="text-right">Quantidade</TableHead>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead>Cliente ou fornecedor</TableHead>
                   <TableHead>Observação</TableHead>
                 </TableRow>
               </TableHeader>
@@ -131,7 +146,7 @@ export function MovementsTab() {
                       {m.quantity > 0 ? "+" : ""}
                       {formatInt(m.quantity)}
                     </TableCell>
-                    <TableCell>{m.customer?.name ?? "—"}</TableCell>
+                    <TableCell>{m.customer?.name ?? m.supplier?.name ?? "—"}</TableCell>
                     <TableCell className="max-w-64 truncate text-muted-foreground">
                       {m.description ?? ""}
                     </TableCell>

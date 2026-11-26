@@ -336,18 +336,23 @@ próprio). Criada em 2026-10-21. O roteiro de testes manuais fica em [testes.md]
     aplicativo (o iFood cobra comissão) para mostrar o lucro líquido por origem.
 
 29. [ ] ter a certeza de que o desconto apenas sera aplicado quando o outro cliente pagar a primeira mensalidade
-30. [ ] melhor gerenciamento dos fornecedores (pedido do usuário, 2026-11-24). Hoje "Enviar ao
-    fornecedor" e "Receber do fornecedor" (Vasilhames) só registram tipo e quantidade, sem dizer
-    qual fornecedor, e a entrada de mercadoria (Estoque › Entrada) também não tem fornecedor.
-    Ideias:
-    - **Cadastro de fornecedores** por empresa (nome, CNPJ, telefone/WhatsApp, contato, observação;
-      excluir e reativar, como os outros cadastros).
-    - **Escolher o fornecedor** ao enviar e receber vasilhames, e ao dar entrada de mercadoria.
-    - **Saldo de vasilhame por fornecedor:** quantos cascos a loja deve a cada um (recebeu cheio e
-      ainda não devolveu vazio), como o saldo de vasilhame do cliente.
+30. [ ] melhor gerenciamento dos fornecedores (pedido do usuário, 2026-11-24). **Feito o mínimo**
+    (decidido pelo usuário, 2026-11-24, para não fugir da ideia do sistema): cadastro de fornecedores
+    **só com o nome** (Configurações › Fornecedores; criar, renomear, excluir, reativar), escolha
+    **opcional** do fornecedor em "Enviar ao fornecedor"/"Receber do fornecedor", filtro e coluna em
+    Movimentações e a aba Vasilhames › Fornecedores com o **saldo de cascos** por fornecedor e tipo
+    (recebidos − enviados, por loja). Migration `20261124100000_suppliers` (aprovada pelo usuário).
+    O fornecedor **não tem login nem papel**: é só um nome na lista. O resto fica **adiado**: retomar
+    só se clientes reais pedirem. Ideias que ficaram de fora:
+    - Mais dados no cadastro (CNPJ, telefone/WhatsApp, contato, observação).
+    - Fornecedor na **entrada de mercadoria** (Estoque › Entrada).
     - **Preço do casco por fornecedor** (quanto o fornecedor cobra pelo casco não devolvido) e
       **custo da mercadoria** por fornecedor (último preço pago, para comparar).
-    - Filtro por fornecedor no histórico de movimentações e um resumo por fornecedor (compras do
-      mês, cascos em aberto).
-    Precisa de tabela nova e colunas novas (fornecedor em `BottleMovement` e na entrada de estoque):
-    **mudança de schema, pedir aprovação** e decidir com o usuário o que entra primeiro.
+    - Saldo somado da empresa (hoje é por loja) e um resumo por fornecedor (compras do mês).
+    Qualquer um desses muda o schema: **pedir aprovação**.
+
+    31. [ ] "comprar"o sistema ao inves de assinatura mensal, e caso a pessoa ja tenha comprado o sistema ate um nivel especifico, cobrar somente a diferenca entre o proximo nivel que a pessoa quer
+
+    32. [ ] modificar para ser apenas uma empresa/franquia (mantendo os cnpj diferentes entre as lojas fisicas), os planos agora serao divididos por numero de lojas fisicas e numero de funcionarios.
+
+

@@ -172,6 +172,7 @@ model Company {
 
   productCategories ProductCategory[]
   saleChannels      SaleChannel[]
+  suppliers         Supplier[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -884,6 +885,10 @@ model BottleMovement {
   saleId String?
   sale   Sale?   @relation(fields: [saleId], references: [id])
 
+  /// Fornecedor do envio ou recebimento (SUPPLIER_SEND/SUPPLIER_RECEIVE). Opcional; null nos outros tipos.
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
   // Auditoria
   modifierId       String?
   modifiedEndpoint String?
@@ -891,7 +896,31 @@ model BottleMovement {
 
   @@index([storeId])
   @@index([bottleTypeId])
+  @@index([supplierId])
   @@map("tb_bottle_movements")
+}
+
+/// Fornecedor da empresa (decidido pelo usuário, 2026-11-24): só o nome, para anotar com quem os
+/// cascos foram trocados e saber o saldo de cascos com cada um. Não tem login nem acesso ao sistema.
+model Supplier {
+  id        String @id @default(uuid())
+  companyId String
+  name      String
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  bottleMovements BottleMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Auditoria
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("tb_suppliers")
 }
 
 model Notification {
@@ -1680,6 +1709,7 @@ model BottleMovementHistory {
   createdAt    DateTime
   customerId   String?
   saleId       String?
+  supplierId   String?
 
   modifierId       String?
   modifiedEndpoint String?
@@ -1689,6 +1719,23 @@ model BottleMovementHistory {
 
   @@index([id, historyEnd], map: "ix_th_bottle_movement_history_vigente")
   @@map("th_bottle_movement_history")
+}
+
+model SupplierHistory {
+  historyId String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  id        String
+  companyId String
+  name      String
+  createdAt DateTime
+
+  modifierId       String?
+  modifiedEndpoint String?
+  deletedAt        DateTime?
+  historyStart     DateTime
+  historyEnd       DateTime?
+
+  @@index([id, historyEnd], map: "ix_th_supplier_history_vigente")
+  @@map("th_supplier_history")
 }
 
 model NotificationHistory {

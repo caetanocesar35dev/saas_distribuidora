@@ -82,6 +82,8 @@ export interface BottleMovementInput {
   unitPrice?: number | null;
   customerId?: string | null;
   saleId?: string | null;
+  /** Envio ou recebimento: o fornecedor (opcional). */
+  supplierId?: string | null;
   description?: string | null;
 }
 
@@ -95,6 +97,7 @@ export function recordBottleMovement(tx: PrismaTx, input: BottleMovementInput) {
       unitPrice: input.unitPrice ?? null,
       customerId: input.customerId ?? null,
       saleId: input.saleId ?? null,
+      supplierId: input.supplierId ?? null,
       description: input.description ?? null,
     },
   });

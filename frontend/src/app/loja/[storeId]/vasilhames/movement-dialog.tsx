@@ -14,7 +14,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useBottleStock, useRegisterBottleMovement } from "@/lib/api/hooks/bottles";
+import {
+  useBottleStock,
+  useRegisterBottleMovement,
+  useSuppliers,
+} from "@/lib/api/hooks/bottles";
 import type { ManualBottleMovementType } from "@/lib/api/types";
 import { BOTTLE_MOVEMENT_LABEL, formatInt } from "@/lib/format";
 import { useStore } from "@/lib/session/context";
@@ -37,6 +41,9 @@ const TEXT: Record<ManualBottleMovementType, { description: string; button: stri
 
 type Direction = "in" | "out";
 
+/** Valor da opção "Não informar" do fornecedor (o Select não aceita valor vazio). */
+const NO_SUPPLIER = "none";
+
 /** Movimentação manual de vasilhame. O estoque de vasilhame só muda por movimentação. */
 export function MovementDialog({
   type,
@@ -45,13 +52,17 @@ export function MovementDialog({
   type: ManualBottleMovementType;
   onClose: () => void;
 }) {
-  const { storeId } = useStore();
+  const { storeId, companyId } = useStore();
   const stock = useBottleStock(storeId);
   const register = useRegisterBottleMovement(storeId);
+  const withSupplier = type !== "MANUAL_ADJUSTMENT";
+  const suppliers = useSuppliers(companyId);
   const [bottleTypeId, setBottleTypeId] = useState("");
+  const [supplierId, setSupplierId] = useState<string>(NO_SUPPLIER);
   const [quantity, setQuantity] = useState<number | undefined>();
   const [direction, setDirection] = useState<Direction>("in");
   const [description, setDescription] = useState("");
+  const supplierList = suppliers.data ?? [];
 
   const lines = stock.data ?? [];
   const selected = lines.find((l) => l.bottleTypeId === bottleTypeId);
@@ -76,6 +87,7 @@ export function MovementDialog({
                 type,
                 quantity: signed,
                 description: description.trim() || undefined,
+                supplierId: withSupplier && supplierId !== NO_SUPPLIER ? supplierId : undefined,
               },
               {
                 onSuccess: () => {
@@ -98,6 +110,27 @@ export function MovementDialog({
               }))}
             />
           </FormField>
+          {withSupplier && (
+            <FormField
+              label="Fornecedor (opcional)"
+              htmlFor="mv-supplier"
+              hint={
+                supplierList.length === 0
+                  ? "Nenhum fornecedor cadastrado. O gerente ou o dono cadastra em Menu › Configurações › Fornecedores."
+                  : "Escolha para ver o saldo de cascos com ele na aba Fornecedores."
+              }
+            >
+              <SelectField
+                id="mv-supplier"
+                value={supplierId}
+                onChange={setSupplierId}
+                options={[
+                  { value: NO_SUPPLIER, label: "Não informar" },
+                  ...supplierList.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+              />
+            </FormField>
+          )}
           {type === "MANUAL_ADJUSTMENT" && (
             <FormField label="O ajuste" htmlFor="mv-direction">
               <SelectField<Direction>

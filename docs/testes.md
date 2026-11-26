@@ -169,6 +169,13 @@ Em desenvolvimento, os links de e-mail (redefinir senha, convite) aparecem no lo
   "R$ 8,00 preço da empresa". No PDV desta loja, comprar o casco cobra R$ 9,50; na outra, R$ 8,00.
   Mudar o preço da empresa muda só as lojas sem preço próprio. "Usar o preço da empresa" volta ao
   da empresa. Atendente não vê o botão.
+- [ ] Fornecedores: em Menu › Configurações › Fornecedores, cadastrar "Ambev", renomear, excluir e
+  reativar em "Mostrar só os excluídos". Em Vasilhames, "Receber do fornecedor" 10 Litrão escolhendo
+  Ambev e "Enviar ao fornecedor" 4. A aba Fornecedores mostra Recebidos 10, Enviados 4 e "A loja deve
+  6 cascos"; enviando mais 8, vira "O fornecedor deve 2 cascos". Envio sem fornecedor ("Não
+  informar") continua funcionando e fica fora do saldo. Em Movimentações, a coluna "Cliente ou
+  fornecedor" mostra Ambev e o filtro de fornecedor mostra só as trocas com ele. Como atendente:
+  escolhe o fornecedor e vê a aba, mas não vê Configurações.
 - [x] Produtos › Categorias: criar, renomear, tentar excluir uma com produto (recusa), excluir uma
   vazia e reativar em "Mostrar só as excluídas".
 - [x] Filtrar por categoria e por "Sem categoria" em Produtos, Estoque, PDV e comanda.

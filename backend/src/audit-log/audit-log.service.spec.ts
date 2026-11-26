@@ -368,6 +368,7 @@ describe('AuditLogService', () => {
         'products',
         'sale-channels',
         'stores',
+        'suppliers',
       ]);
     });
   });

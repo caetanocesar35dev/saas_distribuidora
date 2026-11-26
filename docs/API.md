@@ -5,7 +5,7 @@
 > rotas, mas ainda não descreve os corpos nem as respostas: para isso, veja os DTOs (`src/**/dto/*.ts`) e
 > os services. O frontend mantém esses contratos em `frontend/src/lib/api/types.ts`.
 
-Total: **133 rotas**. Todas começam com `/api`.
+Total: **139 rotas**. Todas começam com `/api`.
 
 ## Como ler
 
@@ -58,12 +58,18 @@ Total: **133 rotas**. Todas começam com `/api`.
 
 | Método | Rota | Quem pode | Em somente leitura |
 |---|---|---|---|
+| GET | `/api/companies/:companyId/suppliers` | Empresa: EMPLOYEE ou mais | Funciona |
+| POST | `/api/companies/:companyId/suppliers` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| DELETE | `/api/companies/:companyId/suppliers/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| PATCH | `/api/companies/:companyId/suppliers/:id` | Empresa: MANAGER ou mais | Bloqueada (402) |
+| POST | `/api/companies/:companyId/suppliers/:id/restore` | Empresa: MANAGER ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Funciona |
 | POST | `/api/stores/:storeId/bottle-movements` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | GET | `/api/stores/:storeId/bottle-stock` | Loja: EMPLOYEE ou mais | Funciona |
 | PUT | `/api/stores/:storeId/bottle-types/:id/price` | Loja: MANAGER ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-loans` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
 | POST | `/api/stores/:storeId/customers/:customerId/bottle-returns` | Loja: EMPLOYEE ou mais | Bloqueada (402) |
+| GET | `/api/stores/:storeId/supplier-bottle-balances` | Loja: EMPLOYEE ou mais | Funciona |
 
 ## cash-register
 

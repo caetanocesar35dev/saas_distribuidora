@@ -242,6 +242,17 @@ os campos é a extensão do Prisma).
   Detalhes em `docs/BANCO_DE_DADOS.md` §3.3. Tela: `CheckoutDialog` (lógica em
   `components/app/pos/bottle-checkout.ts`).
 
+**Fornecedores, só o mínimo (decidido pelo usuário, 2026-11-24)**
+- Tabela `Supplier` por empresa, **só com o nome** (Configurações › Fornecedores; gerente ou dono
+  criam, renomeiam, excluem e reativam; todos listam). O fornecedor **não tem login nem papel**: o
+  sistema só anota com quem a distribuidora trocou cascos.
+- "Enviar ao fornecedor" e "Receber do fornecedor" aceitam `supplierId` **opcional** (o ajuste manual
+  recusa, 400). A aba Vasilhames › Fornecedores mostra o **saldo de cascos** por fornecedor e tipo
+  na loja (`GET /stores/:storeId/supplier-bottle-balances`: recebidos − enviados; positivo = a loja
+  deve). O saldo não é gravado: sai das movimentações com fornecedor. O resto (CNPJ, entrada de
+  mercadoria, preço do casco do fornecedor) ficou **adiado** (`docs/a_fazer.md`, item 30): não
+  aumentar sem pedido do usuário.
+
 **Origem da venda (decidido pelo usuário, 2026-11-22)**
 - Toda venda nova tem uma **origem** (`Sale.channelId` → `SaleChannel`): balcão, WhatsApp, iFood, Zé
   Delivery etc. A lista é **editável por empresa** (criar, renomear, excluir, reativar e escolher a
@@ -250,7 +261,7 @@ os campos é a extensão do Prisma).
   não pode ser excluída).
 - **Tela Configurações (decidido pelo usuário, 2026-11-24):** item do menu da loja só para gerente e
   dono (`/loja/[storeId]/configuracoes`), com as listas da empresa que o gerente edita: Origens da
-  venda e Categorias de produto (que mantêm o atalho em Produtos). Configuração nova desse tipo
+  venda, Categorias de produto (que mantêm o atalho em Produtos) e Fornecedores. Configuração nova desse tipo
   entra nela, não num botão escondido em outra tela.
 - **Obrigatória, com a padrão já marcada:** PDV e Lançar venda antiga escolhem a
   origem; sem `channelId`, o backend usa a padrão. **A comanda não pergunta** (decidido pelo usuário,
